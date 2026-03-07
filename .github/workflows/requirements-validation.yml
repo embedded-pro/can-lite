@@ -1,0 +1,43 @@
+---
+name: Requirements Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  validate-requirements:
+    name: Validate Requirements Schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Validate requirements
+        uses: ./.github/actions/validate-requirements
+        with:
+          schema-path: documentation/tools/requirement.schema.json
+          requirements-dir: documentation/requirements
+
+      - name: Generate PDF
+        uses: ./.github/actions/generate-requirements-pdf
+        with:
+          requirements-dir: documentation/requirements
+          template-path: documentation/templates/requirements.md
+          output-path: documentation/output/requirements.pdf
+
+      - name: Upload PDF
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: requirements-pdf
+          path: documentation/output/requirements.pdf

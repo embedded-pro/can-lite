@@ -1,0 +1,9 @@
+.cache
+.vs/
+.vscode/.cortex-debug*
+build/
+out/
+megalinter-reports/
+install/
+.venv/
+output/
