@@ -1,9 +1,9 @@
 #pragma once
 
+#include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "hal/interfaces/Can.hpp"
 #include "infra/util/BoundedDeque.hpp"
 #include "infra/util/Function.hpp"
-#include "source/services/can_protocol/core/CanProtocolDefinitions.hpp"
 #include <cstdint>
 
 namespace services
@@ -16,7 +16,9 @@ namespace services
         void SetNodeId(uint16_t nodeId);
         uint16_t NodeId() const;
 
-        void SendFrame(CanPriority priority, CanCategory category, CanMessageType type,
+        void SendFrame(CanPriority priority, uint8_t category, uint8_t messageType,
+            const hal::Can::Message& data, const infra::Function<void()>& onDone);
+        void SendFrame(uint16_t targetNodeId, CanPriority priority, uint8_t category, uint8_t messageType,
             const hal::Can::Message& data, const infra::Function<void()>& onDone);
 
     private:

@@ -1,4 +1,4 @@
-#include "source/services/can_protocol/core/CanFrameTransport.hpp"
+#include "can-lite/core/CanFrameTransport.hpp"
 
 namespace services
 {
@@ -17,10 +17,16 @@ namespace services
         return nodeId;
     }
 
-    void CanFrameTransport::SendFrame(CanPriority priority, CanCategory category, CanMessageType type,
+    void CanFrameTransport::SendFrame(CanPriority priority, uint8_t category, uint8_t messageType,
         const hal::Can::Message& data, const infra::Function<void()>& onDone)
     {
-        auto rawId = MakeCanId(priority, category, type, nodeId);
+        SendFrame(nodeId, priority, category, messageType, data, onDone);
+    }
+
+    void CanFrameTransport::SendFrame(uint16_t targetNodeId, CanPriority priority, uint8_t category, uint8_t messageType,
+        const hal::Can::Message& data, const infra::Function<void()>& onDone)
+    {
+        auto rawId = MakeCanId(priority, category, messageType, targetNodeId);
         auto canId = hal::Can::Id::Create29BitId(rawId);
 
         if (!sendInProgress)

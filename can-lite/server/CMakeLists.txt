@@ -1,20 +1,18 @@
-add_library(e_foc.services.can_protocol.server ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.server ${EMIL_EXCLUDE_FROM_ALL})
 
-target_include_directories(e_foc.services.can_protocol.server PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../../..>"
+target_include_directories(can_lite.server PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 
-target_link_libraries(e_foc.services.can_protocol.server PUBLIC
-    e_foc.services.can_protocol.core
+target_link_libraries(can_lite.server PUBLIC
+    can_lite.core
+    infra.timer
 )
 
-target_sources(e_foc.services.can_protocol.server PRIVATE
-    CanCategoryHandlers.cpp
-    CanCategoryHandlers.hpp
+target_sources(can_lite.server PRIVATE
+    CanProtocolServer.cpp
     CanProtocolServer.hpp
-    CanProtocolServerImpl.cpp
-    CanProtocolServerImpl.hpp
 )
 
 add_subdirectory(test)

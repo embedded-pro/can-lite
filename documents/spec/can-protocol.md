@@ -10,9 +10,9 @@
 This document specifies the can-lite CAN bus protocol, a lightweight
 client-server communication protocol operating over CAN 2.0B (29-bit
 extended identifiers) at up to 1 Mbit/s. The protocol provides a minimal
-built-in System category with heartbeat, command acknowledgement, and
-status request messages. Applications extend the protocol by registering
-custom category handlers on the server.
+built-in System category with heartbeat, command acknowledgement,
+status request, and category discovery messages. Applications extend the
+protocol by registering custom category handlers on the server.
 
 ## 2. Terminology
 
@@ -35,10 +35,11 @@ The protocol follows a **client-server** model:
   The client maintains independent sequence counters per server.
 - The **server** passively listens for incoming frames addressed to its node ID
   (or the broadcast address). It processes commands, dispatches them to the
-  appropriate category handler, and sends acknowledgement responses. The server
-  never initiates unsolicited commands to the client.
-- The server uses the **observer pattern** to notify the application layer of
-  received commands, decoupling the protocol from application-specific logic.
+  appropriate category handler, and sends acknowledgement responses.
+- The server automatically begins transmitting heartbeat messages on startup.
+  The client uses the presence or absence of heartbeats to determine whether
+  a server is **online** or **offline**, and notifies the application layer
+  accordingly via observer callbacks (`Online()` / `Offline()`).
 
 ```mermaid
 flowchart LR
@@ -95,13 +96,21 @@ Lower numerical values have higher CAN bus arbitration priority.
 
 ## 7. Message Categories
 
-| Value | Name   | Description                                        |
-|-------|--------|----------------------------------------------------|
-| 0x0   | System | Heartbeat, command acknowledgement, status request |
+| Value | Name              | Description                                                      |
+|-------|-------------------|------------------------------------------------------------------|
+| 0x0   | System            | Heartbeat, command acknowledgement, status request, category discovery |
+| 0x1   | Firmware Upgrade  | Block-based firmware transfer, verification, and activation      |
+| 0x2   | FOC Motor Control | Field-oriented motor control commands and telemetry              |
 
-The System category is always available. Applications register additional
-categories (values 0x1–0xF) by providing custom `CanCategoryHandler`
-implementations to the server at construction time.
+The System category is always available. Categories 0x1 and 0x2 are
+defined in separate extension specifications:
+
+- [Firmware Upgrade](firmware-upgrade.md)
+- [FOC Motor Control](foc-motor-control.md)
+
+Applications may register additional categories (values 0x3–0xF) by
+providing custom `CanCategoryHandler` implementations to the server at
+construction time.
 
 ## 8. Message Catalog
 
@@ -115,8 +124,18 @@ Sent at CanPriority::heartbeat. No sequence validation.
 |------|---------|-------|--------------------------------|
 | 0    | Version | uint8 | Protocol version (currently 1) |
 
-Both client and server may transmit heartbeats. When a heartbeat is received,
-the protocol reports the received protocol version to the application layer.
+The server automatically transmits heartbeat messages starting from the
+moment it is constructed. A heartbeat is sent **at least 1 second after
+the last transmitted message** of any kind. This ensures liveness
+detection without adding traffic when the server is already actively
+communicating. The heartbeat acts as a keep-alive: it fires only during
+periods of silence.
+
+The client uses received heartbeats to track server liveness. When a
+heartbeat (or any message) is received from a server, the client
+considers that server **online**. If no messages are received from a
+server within a configurable timeout, the client considers it
+**offline**.
 
 #### 8.1.2 Command Acknowledgement (Type 0x02)
 
@@ -136,10 +155,31 @@ categories.
 
 Sent by the client at CanPriority::command. No sequence validation. Empty payload.
 
-When received, the server notifies the application observer via
-`OnStatusRequested()`. The application is responsible for responding with
-whatever status information is relevant (e.g., sending telemetry frames
-defined by application-specific categories).
+When received, the server responds by transmitting a heartbeat message.
+This allows the client to quickly confirm the server is online without
+waiting for the next scheduled heartbeat.
+
+#### 8.1.4 Category List Request (Type 0x04)
+
+Sent by the client at CanPriority::command. No sequence validation. Empty payload.
+
+When received, the server responds with a Category List Response message
+containing the IDs of all registered category handlers.
+
+#### 8.1.5 Category List Response (Type 0x05)
+
+Sent by the server at CanPriority::response.
+
+| Byte | Field       | Type  | Description                            |
+|------|-------------|-------|----------------------------------------|
+| 0    | Category 0  | uint8 | First registered category ID           |
+| 1    | Category 1  | uint8 | Second registered category ID          |
+| ...  | ...         | uint8 | Additional category IDs (up to 8 max)  |
+
+Each byte contains the ID of one registered category handler. The
+System category (0x0) is always included. Categories are listed in
+registration order. The response is limited to 8 category IDs by the
+CAN frame payload size.
 
 ## 9. Data Encoding
 
@@ -205,8 +245,8 @@ sequenceDiagram
 
 The server enforces a configurable maximum message rate (default: 500
 messages per period). Messages received after the limit is reached are
-silently discarded. The counter is reset by calling `ResetRateCounter()`,
-typically driven by a periodic timer.
+silently discarded. The rate counter resets automatically every second
+via an internal timer.
 
 ```mermaid
 flowchart TD
@@ -241,19 +281,26 @@ sequenceDiagram
     participant Client
     participant Server
 
+    Note over Server: Starts up, heartbeat timer begins
+    Server->>Client: heartbeat (version=1)
+    Note over Client: Server is Online
+
+    Client->>Server: categoryListRequest
+    Server->>Client: categoryListResponse (0x0, 0x1, 0x5)
+    Note over Client: Server supports System, Cat 1, Cat 5
+
     Client->>Server: Command (seq=1)
     Server->>Client: commandAck (success)
+    Note over Server: Last-sent timestamp reset, heartbeat deferred
 
-    Client->>Server: Command (seq=2)
-    Server->>Client: commandAck (success)
-
-    loop Heartbeat
-        Server->>Client: heartbeat (version=1)
-        Client->>Server: heartbeat (version=1)
-    end
+    Note over Server: 1 second of silence
+    Server->>Client: heartbeat (version=1)
 
     Client->>Server: statusRequest
-    Server->>Client: (application-defined response)
+    Server->>Client: heartbeat (version=1)
+
+    Note over Client: No messages for timeout period
+    Note over Client: Server is Offline
 ```
 
 ## 15. Extensibility

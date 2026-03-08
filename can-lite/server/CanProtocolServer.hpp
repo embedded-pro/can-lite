@@ -1,9 +1,13 @@
 #pragma once
 
+#include "can-lite/core/CanCategory.hpp"
+#include "can-lite/core/CanFrameTransport.hpp"
+#include "can-lite/core/CanProtocolDefinitions.hpp"
+#include "can-lite/core/CanSystemCategory.hpp"
 #include "hal/interfaces/Can.hpp"
-#include "infra/util/Function.hpp"
+#include "infra/timer/Timer.hpp"
+#include "infra/util/IntrusiveList.hpp"
 #include "infra/util/Observer.hpp"
-#include "source/services/can_protocol/core/CanProtocolDefinitions.hpp"
 #include <cstdint>
 
 namespace services
@@ -16,23 +20,8 @@ namespace services
     public:
         using infra::SingleObserver<CanProtocolServerObserver, CanProtocolServer>::SingleObserver;
 
-        virtual void OnMotorStart() = 0;
-        virtual void OnMotorStop() = 0;
-        virtual void OnEmergencyStop() = 0;
-        virtual void OnControlModeChanged(CanControlMode mode) = 0;
-        virtual void OnTorqueSetpoint(float idCurrent, float iqCurrent) = 0;
-        virtual void OnSpeedSetpoint(float speedRadPerSec) = 0;
-        virtual void OnPositionSetpoint(float positionRad) = 0;
-
-        virtual void OnCurrentIdPidChanged(float kp, float ki, float kd) = 0;
-        virtual void OnCurrentIqPidChanged(float kp, float ki, float kd) = 0;
-        virtual void OnSpeedPidChanged(float kp, float ki, float kd) = 0;
-        virtual void OnPositionPidChanged(float kp, float ki, float kd) = 0;
-
-        virtual void OnSupplyVoltageChanged(float voltageVolts) = 0;
-        virtual void OnMaxCurrentChanged(float currentAmps) = 0;
-
-        virtual void OnDataRequested(DataRequestFlags flags, DataResponse& response) = 0;
+        virtual void Online() = 0;
+        virtual void Offline() = 0;
     };
 
     class CanProtocolServer
@@ -43,18 +32,33 @@ namespace services
         {
             uint16_t nodeId;
             uint16_t maxMessagesPerSecond;
+            infra::Duration heartbeatInterval = std::chrono::seconds(1);
         };
 
-        virtual void SendCommandAck(CanCategory category, CanMessageType commandType, CanAckStatus status, const infra::Function<void()>& onDone) = 0;
+        CanProtocolServer(hal::Can& can, const Config& config);
 
-        void SendCommandAck(CanCategory category, CanMessageType commandType, CanAckStatus status)
-        {
-            SendCommandAck(category, commandType, status, [] {});
-        }
+        void RegisterCategory(CanCategory& category);
+        void UnregisterCategory(CanCategory& category);
 
-        virtual void HandleDataRequest(DataRequestFlags flags) = 0;
+    private:
+        void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
+        void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status);
+        void SendHeartbeat();
+        void SendCategoryList();
+        bool CheckAndIncrementRate();
+        void ResetRateCounter();
+        bool ValidateSequence(uint8_t sequenceNumber);
+        CanCategory* FindCategory(uint8_t categoryId);
 
-        virtual void ResetRateCounter() = 0;
-        virtual bool IsRateLimited() const = 0;
+        Config config;
+        CanFrameTransport transport;
+        infra::TimerRepeating heartbeatTimer;
+        infra::TimerRepeating rateResetTimer;
+        uint16_t messageCountThisPeriod = 0;
+        uint8_t lastSequenceNumber = 0;
+        bool sequenceInitialized = false;
+
+        CanSystemCategory systemCategory;
+        infra::IntrusiveList<CanCategory> categories;
     };
 }

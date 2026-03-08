@@ -1,27 +1,27 @@
-add_library(e_foc.services.can_protocol.test_util INTERFACE)
+add_library(can_lite.test_util INTERFACE)
 
-target_sources(e_foc.services.can_protocol.test_util INTERFACE
+target_sources(can_lite.test_util INTERFACE
     CanMock.hpp
 )
 
-target_include_directories(e_foc.services.can_protocol.test_util INTERFACE
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../../..>"
+target_include_directories(can_lite.test_util INTERFACE
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"
 )
 
-target_link_libraries(e_foc.services.can_protocol.test_util INTERFACE
+target_link_libraries(can_lite.test_util INTERFACE
     hal.interfaces
     gmock
 )
 
-add_executable(e_foc.services.can_protocol.core_test)
-emil_build_for(e_foc.services.can_protocol.core_test HOST All BOOL E_FOC_BUILD_TESTS)
-emil_add_test(e_foc.services.can_protocol.core_test)
+add_executable(can_lite.core_test)
+emil_build_for(can_lite.core_test HOST All BOOL CAN_LITE_BUILD_TESTS)
+emil_add_test(can_lite.core_test)
 
-target_link_libraries(e_foc.services.can_protocol.core_test PRIVATE
-    e_foc.services.can_protocol.core
+target_link_libraries(can_lite.core_test PRIVATE
+    can_lite.core
     gtest_main
 )
 
-target_sources(e_foc.services.can_protocol.core_test PRIVATE
+target_sources(can_lite.core_test PRIVATE
     TestCanProtocolCore.cpp
 )

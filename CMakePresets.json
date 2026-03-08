@@ -22,10 +22,7 @@
             "inherits": "defaults",
             "cacheVariables": {
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo;MinSizeRel",
-                "E_FOC_TARGET_PLATFORM": "Host",
-                "E_FOC_BUILD_TESTS": true,
-                "E_FOC_BUILD_SIMULATOR": true,
-                "NUMERICAL_TOOLBOX_ENABLE_OPTIMIZATIONS": false
+                "CAN_LITE_BUILD_TESTS": true
             },
             "generator": "Ninja Multi-Config"
         },
@@ -35,8 +32,7 @@
             "inherits": "defaults",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "E_FOC_TARGET_PLATFORM": "Host",
-                "E_FOC_BUILD_TESTS": true
+                "CAN_LITE_BUILD_TESTS": true
             }
         },
         {
@@ -49,10 +45,7 @@
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo;MinSizeRel",
                 "CMAKE_PREFIX_PATH": "/opt/qt6-windows/6.4.2/msvc2019_64",
                 "CMAKE_CXX_FLAGS": "/EHsc -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH",
-                "E_FOC_TARGET_PLATFORM": "Host",
-                "E_FOC_BUILD_TESTS": true,
-                "E_FOC_BUILD_SIMULATOR": true,
-                "NUMERICAL_TOOLBOX_ENABLE_OPTIMIZATIONS": false
+                "CAN_LITE_BUILD_TESTS": true
             },
             "generator": "Ninja Multi-Config"
         },

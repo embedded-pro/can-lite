@@ -1,6 +1,7 @@
-#include "source/services/can_protocol/core/CanCategoryHandler.hpp"
-#include "source/services/can_protocol/core/CanFrameCodec.hpp"
-#include "source/services/can_protocol/core/CanProtocolDefinitions.hpp"
+#include "can-lite/core/CanCategory.hpp"
+#include "can-lite/core/CanFrameCodec.hpp"
+#include "can-lite/core/CanMessageType.hpp"
+#include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "gtest/gtest.h"
 #include <limits>
 
@@ -8,113 +9,153 @@ namespace
 {
     using namespace services;
 
-    // --- CanCategoryHandler base class ---
+    // --- CanMessageType ---
 
-    class StubCategoryHandler : public CanCategoryHandler
+    class StubMessageType : public CanMessageType
     {
     public:
-        explicit StubCategoryHandler(CanCategory cat)
-            : cat(cat)
+        explicit StubMessageType(uint8_t id)
+            : id(id)
         {}
 
-        CanCategory Category() const override
+        uint8_t Id() const override
         {
-            return cat;
+            return id;
         }
 
-        void Handle(CanMessageType messageType, const hal::Can::Message& data) override
+        void Handle(const hal::Can::Message& data) override
         {
-            lastMessageType = messageType;
             lastDataSize = data.size();
             handleCallCount++;
         }
 
-        CanMessageType lastMessageType{};
         std::size_t lastDataSize = 0;
         int handleCallCount = 0;
 
     private:
-        CanCategory cat;
+        uint8_t id;
     };
 
-    class NoSequenceCategoryHandler : public CanCategoryHandler
+    // --- CanCategory ---
+
+    class StubCategory : public CanCategory
     {
     public:
-        CanCategory Category() const override
+        explicit StubCategory(uint8_t id)
+            : id(id)
+        {}
+
+        uint8_t Id() const override
         {
-            return CanCategory::system;
+            return id;
+        }
+
+    private:
+        uint8_t id;
+    };
+
+    class NoSequenceCategory : public CanCategory
+    {
+    public:
+        uint8_t Id() const override
+        {
+            return 0x0F;
         }
 
         bool RequiresSequenceValidation() const override
         {
             return false;
         }
-
-        void Handle(CanMessageType, const hal::Can::Message&) override
-        {}
     };
 
-    TEST(CanCategoryHandlerTest, DefaultRequiresSequenceValidation)
+    TEST(CanCategoryTest, DefaultRequiresSequenceValidation)
     {
-        StubCategoryHandler handler(CanCategory::motorControl);
-        EXPECT_TRUE(handler.RequiresSequenceValidation());
+        StubCategory category(0x01);
+        EXPECT_TRUE(category.RequiresSequenceValidation());
     }
 
-    TEST(CanCategoryHandlerTest, OverriddenSequenceValidation)
+    TEST(CanCategoryTest, OverriddenSequenceValidation)
     {
-        NoSequenceCategoryHandler handler;
-        EXPECT_FALSE(handler.RequiresSequenceValidation());
+        NoSequenceCategory category;
+        EXPECT_FALSE(category.RequiresSequenceValidation());
     }
 
-    TEST(CanCategoryHandlerTest, CategoryReturnsConfiguredValue)
+    TEST(CanCategoryTest, IdReturnsConfiguredValue)
     {
-        StubCategoryHandler motorHandler(CanCategory::motorControl);
-        StubCategoryHandler pidHandler(CanCategory::pidTuning);
-        StubCategoryHandler sysParamHandler(CanCategory::systemParameters);
-        StubCategoryHandler sysHandler(CanCategory::system);
+        StubCategory cat1(0x01);
+        StubCategory cat2(0x05);
+        StubCategory cat3(0x0F);
 
-        EXPECT_EQ(motorHandler.Category(), CanCategory::motorControl);
-        EXPECT_EQ(pidHandler.Category(), CanCategory::pidTuning);
-        EXPECT_EQ(sysParamHandler.Category(), CanCategory::systemParameters);
-        EXPECT_EQ(sysHandler.Category(), CanCategory::system);
+        EXPECT_EQ(cat1.Id(), 0x01);
+        EXPECT_EQ(cat2.Id(), 0x05);
+        EXPECT_EQ(cat3.Id(), 0x0F);
     }
 
-    TEST(CanCategoryHandlerTest, HandleDeliversMessageTypeAndData)
+    TEST(CanCategoryTest, HandleMessageDispatchesToRegisteredMessageType)
     {
-        StubCategoryHandler handler(CanCategory::motorControl);
-        hal::Can::Message msg;
-        msg.push_back(0x01);
-        msg.push_back(0x02);
-        msg.push_back(0x03);
+        StubCategory category(0x01);
+        StubMessageType msg1(0x01);
+        StubMessageType msg2(0x02);
+        category.AddMessageType(msg1);
+        category.AddMessageType(msg2);
 
-        handler.Handle(CanMessageType::startMotor, msg);
+        hal::Can::Message data;
+        data.push_back(0xAA);
+        data.push_back(0xBB);
 
-        EXPECT_EQ(handler.lastMessageType, CanMessageType::startMotor);
-        EXPECT_EQ(handler.lastDataSize, 3u);
-        EXPECT_EQ(handler.handleCallCount, 1);
+        EXPECT_TRUE(category.HandleMessage(0x01, data));
+        EXPECT_EQ(msg1.handleCallCount, 1);
+        EXPECT_EQ(msg1.lastDataSize, 2u);
+        EXPECT_EQ(msg2.handleCallCount, 0);
     }
 
-    TEST(CanCategoryHandlerTest, HandleCanBeCalledMultipleTimes)
+    TEST(CanCategoryTest, HandleMessageReturnsFalseForUnknownType)
     {
-        StubCategoryHandler handler(CanCategory::pidTuning);
-        hal::Can::Message msg;
+        StubCategory category(0x01);
+        StubMessageType msg1(0x01);
+        category.AddMessageType(msg1);
 
-        handler.Handle(CanMessageType::setCurrentIdPid, msg);
-        handler.Handle(CanMessageType::setSpeedPid, msg);
+        hal::Can::Message data;
+        EXPECT_FALSE(category.HandleMessage(0xFF, data));
+        EXPECT_EQ(msg1.handleCallCount, 0);
+    }
 
-        EXPECT_EQ(handler.handleCallCount, 2);
-        EXPECT_EQ(handler.lastMessageType, CanMessageType::setSpeedPid);
+    TEST(CanCategoryTest, HandleMessageDispatchesCorrectMessageType)
+    {
+        StubCategory category(0x01);
+        StubMessageType msg1(0x01);
+        StubMessageType msg2(0x02);
+        category.AddMessageType(msg1);
+        category.AddMessageType(msg2);
+
+        hal::Can::Message data;
+        EXPECT_TRUE(category.HandleMessage(0x02, data));
+        EXPECT_EQ(msg1.handleCallCount, 0);
+        EXPECT_EQ(msg2.handleCallCount, 1);
+    }
+
+    TEST(CanCategoryTest, HandleMessageCanBeCalledMultipleTimes)
+    {
+        StubCategory category(0x01);
+        StubMessageType msg1(0x01);
+        category.AddMessageType(msg1);
+
+        hal::Can::Message data;
+        category.HandleMessage(0x01, data);
+        category.HandleMessage(0x01, data);
+
+        EXPECT_EQ(msg1.handleCallCount, 2);
     }
 
     // --- CanId construction and extraction ---
 
     TEST(CanIdTest, RoundTrip)
     {
-        uint32_t id = MakeCanId(CanPriority::command, CanCategory::motorControl, CanMessageType::startMotor, 42);
+        uint32_t id = MakeCanId(CanPriority::command, 0x01, 0x02, 42);
 
         EXPECT_EQ(ExtractCanPriority(id), CanPriority::command);
-        EXPECT_EQ(ExtractCanCategory(id), CanCategory::motorControl);
-        EXPECT_EQ(ExtractCanMessageType(id), CanMessageType::startMotor);
+        EXPECT_EQ(ExtractCanCategory(id), 0x01);
+        EXPECT_EQ(ExtractCanMessageType(id), 0x02);
         EXPECT_EQ(ExtractCanNodeId(id), 42);
     }
 
@@ -122,30 +163,39 @@ namespace
     {
         for (auto p : { CanPriority::emergency, CanPriority::command, CanPriority::telemetry, CanPriority::heartbeat })
         {
-            uint32_t id = MakeCanId(p, CanCategory::system, CanMessageType::heartbeat, 1);
+            uint32_t id = MakeCanId(p, 0x00, 0x01, 1);
             EXPECT_EQ(ExtractCanPriority(id), p);
         }
     }
 
-    TEST(CanIdTest, AllCategories)
+    TEST(CanIdTest, AllCategoryValues)
     {
-        for (auto c : { CanCategory::motorControl, CanCategory::pidTuning, CanCategory::systemParameters, CanCategory::telemetry, CanCategory::system })
+        for (uint8_t c = 0; c < 16; ++c)
         {
-            uint32_t id = MakeCanId(CanPriority::command, c, CanMessageType::startMotor, 1);
+            uint32_t id = MakeCanId(CanPriority::command, c, 0x01, 1);
             EXPECT_EQ(ExtractCanCategory(id), c);
         }
     }
 
     TEST(CanIdTest, BroadcastNodeId)
     {
-        uint32_t id = MakeCanId(CanPriority::emergency, CanCategory::motorControl, CanMessageType::emergencyStop, canBroadcastNodeId);
+        uint32_t id = MakeCanId(CanPriority::emergency, 0x00, 0x03, canBroadcastNodeId);
         EXPECT_EQ(ExtractCanNodeId(id), canBroadcastNodeId);
     }
 
     TEST(CanIdTest, MaxNodeId)
     {
-        uint32_t id = MakeCanId(CanPriority::command, CanCategory::motorControl, CanMessageType::startMotor, 0xFFF);
+        uint32_t id = MakeCanId(CanPriority::command, 0x00, 0x01, 0xFFF);
         EXPECT_EQ(ExtractCanNodeId(id), 0xFFF);
+    }
+
+    TEST(CanIdTest, MessageTypeRange)
+    {
+        for (uint8_t mt : { 0x00, 0x01, 0x7F, 0xFF })
+        {
+            uint32_t id = MakeCanId(CanPriority::command, 0x00, mt, 1);
+            EXPECT_EQ(ExtractCanMessageType(id), mt);
+        }
     }
 
     // --- CanFrameCodec ---
@@ -262,36 +312,5 @@ namespace
         CanFrameCodec::WriteInt32(msg, 1, 65536);
         EXPECT_EQ(msg[0], 0xBB);
         EXPECT_EQ(CanFrameCodec::ReadInt32(msg, 1), 65536);
-    }
-
-    // --- DataRequestFlags ---
-
-    TEST(DataRequestFlagsTest, HasFlag)
-    {
-        EXPECT_TRUE(HasFlag(DataRequestFlags::all, DataRequestFlags::motorStatus));
-        EXPECT_TRUE(HasFlag(DataRequestFlags::all, DataRequestFlags::currentMeasurement));
-        EXPECT_TRUE(HasFlag(DataRequestFlags::all, DataRequestFlags::speedPosition));
-        EXPECT_TRUE(HasFlag(DataRequestFlags::all, DataRequestFlags::busVoltage));
-        EXPECT_TRUE(HasFlag(DataRequestFlags::all, DataRequestFlags::faultEvent));
-    }
-
-    TEST(DataRequestFlagsTest, SingleFlags)
-    {
-        EXPECT_TRUE(HasFlag(DataRequestFlags::motorStatus, DataRequestFlags::motorStatus));
-        EXPECT_FALSE(HasFlag(DataRequestFlags::motorStatus, DataRequestFlags::currentMeasurement));
-    }
-
-    TEST(DataRequestFlagsTest, BitwiseOr)
-    {
-        auto combined = DataRequestFlags::motorStatus | DataRequestFlags::busVoltage;
-        EXPECT_TRUE(HasFlag(combined, DataRequestFlags::motorStatus));
-        EXPECT_TRUE(HasFlag(combined, DataRequestFlags::busVoltage));
-        EXPECT_FALSE(HasFlag(combined, DataRequestFlags::speedPosition));
-    }
-
-    TEST(DataRequestFlagsTest, BitwiseAnd)
-    {
-        auto result = DataRequestFlags::all & DataRequestFlags::motorStatus;
-        EXPECT_EQ(result, DataRequestFlags::motorStatus);
     }
 }

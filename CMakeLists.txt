@@ -28,12 +28,12 @@ if (CAN_LITE_STANDALONE)
     FetchContent_MakeAvailable(emil)
 endif()
 
-add_subdirectory(can-lite)
-
 if (CAN_LITE_BUILD_TESTS)
     include(CTest)
     emil_enable_testing()
 endif()
+
+add_subdirectory(can-lite)
 
 emil_clangformat_directories(can_lite DIRECTORIES can-lite)
 emil_folderize_all_targets()

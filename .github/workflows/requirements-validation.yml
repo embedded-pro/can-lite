@@ -26,18 +26,18 @@ jobs:
       - name: Validate requirements
         uses: ./.github/actions/validate-requirements
         with:
-          schema-path: documentation/tools/requirement.schema.json
-          requirements-dir: documentation/requirements
+          schema-path: documents/tools/requirement.schema.json
+          requirements-dir: documents/requirements
 
       - name: Generate PDF
         uses: ./.github/actions/generate-requirements-pdf
         with:
-          requirements-dir: documentation/requirements
-          template-path: documentation/templates/requirements.md
-          output-path: documentation/output/requirements.pdf
+          requirements-dir: documents/requirements
+          template-path: documents/templates/requirements.md
+          output-path: documents/output/requirements.pdf
 
       - name: Upload PDF
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: requirements-pdf
-          path: documentation/output/requirements.pdf
+          path: documents/output/requirements.pdf

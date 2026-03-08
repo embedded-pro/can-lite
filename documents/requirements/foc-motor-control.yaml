@@ -1,0 +1,146 @@
+# FOC Motor Control — Category Extension Requirements
+#
+# Category ID: 0x2
+# Extends: can-protocol.yaml (base protocol requirements)
+#
+# This file defines requirements for the FOC motor control category.
+# All requirements reference the base protocol's transport, framing,
+# category dispatch, and acknowledgement mechanisms.
+
+# --- Motor Control Modes ---
+
+- id: REQ-FOC-001
+  title: Motor control mode query
+  shall: >
+    The client shall be able to query the server's configured motor
+    control mode. The server shall respond with a Motor Type Response
+    (0x80) containing one of: torque (0), speed (1), or position (2).
+
+# --- Motor Start / Stop ---
+
+- id: REQ-FOC-002
+  title: Motor start command
+  shall: >
+    The client shall be able to send a Start command to energize the
+    motor and begin closed-loop control. The server shall transition
+    from Idle to Running state and respond with a command
+    acknowledgement. If the motor is already running or in a fault
+    state, the server shall respond with an invalidState error.
+
+- id: REQ-FOC-003
+  title: Motor stop command
+  shall: >
+    The client shall be able to send a Stop command to de-energize the
+    motor. The server shall transition from Running to Idle state and
+    respond with a command acknowledgement.
+
+# --- PID Configuration ---
+
+- id: REQ-FOC-004
+  title: Current loop PID configuration
+  shall: >
+    The client shall be able to set the proportional, integral, and
+    derivative gains for the current (torque) control loop using a
+    Set PID Current command. Gains shall be encoded as big-endian
+    int16 values with a scale factor of 1 (integer resolution,
+    valid range −10 000 to 10 000).
+
+- id: REQ-FOC-005
+  title: Speed loop PID configuration
+  shall: >
+    The client shall be able to set the PID gains for the speed
+    control loop using a Set PID Speed command. Gains shall be
+    encoded as big-endian int16 values with a scale factor of 1
+    (integer resolution, valid range −10 000 to 10 000).
+
+- id: REQ-FOC-006
+  title: Position loop PID configuration
+  shall: >
+    The client shall be able to set the PID gains for the position
+    control loop using a Set PID Position command. Gains shall be
+    encoded as big-endian int16 values with a scale factor of 1
+    (integer resolution, valid range −10 000 to 10 000).
+
+# --- Parameter Identification ---
+
+- id: REQ-FOC-007
+  title: Electrical parameter identification
+  shall: >
+    The client shall be able to command the server to identify the
+    motor's electrical parameters. The server shall measure or
+    report the phase resistance (scale 1000, unit Ω, positive
+    only, valid range 0.001–10 Ω) and phase inductance (scale
+    1000, unit H, positive only, valid range 0.001–10 H) as
+    big-endian int16 values in an Electrical Parameters Response
+    (0x86). Negative values shall be rejected.
+
+- id: REQ-FOC-008
+  title: Mechanical parameter identification
+  shall: >
+    The client shall be able to command the server to identify the
+    motor's mechanical parameters. The server shall measure or
+    report the rotor inertia (scale 10000, unit kg·m², positive
+    only) and viscous friction (scale 10000, unit N·m·s/rad,
+    positive only) as big-endian int16 values in a Mechanical
+    Parameters Response (0x87). Negative values shall be rejected.
+
+# --- Telemetry ---
+
+- id: REQ-FOC-009
+  title: Real-time telemetry
+  shall: >
+    The client shall be able to request real-time telemetry from the
+    server. The server shall respond with two frames: a Telemetry
+    Electrical Response (0x88) containing DC bus voltage, maximum
+    current, Iq, and Id; and a Telemetry Status Response (0x89)
+    containing motor state, fault code, speed, and position.
+
+- id: REQ-FOC-010
+  title: Telemetry scale factors
+  shall: >
+    Telemetry values shall use the following fixed-point encoding:
+    voltage (scale 10, V), current (scale 10, A), speed (scale 1,
+    RPM), and position (scale 100, rad). All values shall be
+    big-endian int16. These scale factors support motors from
+    12 V / 0.5 A (small BLDC) up to 800 V / 500 A (high-end
+    industrial drives) and speeds up to 32 767 RPM.
+
+# --- Encoder Configuration ---
+
+- id: REQ-FOC-011
+  title: Encoder resolution configuration
+  shall: >
+    The client shall be able to configure the encoder resolution
+    (counts per mechanical revolution) using a Set Encoder Resolution
+    command. The resolution shall be encoded as a big-endian uint16
+    value (range 0–65535).
+
+# --- Fault Handling ---
+
+- id: REQ-FOC-012
+  title: Fault detection and reporting
+  shall: >
+    The server shall detect and report the following fault conditions
+    via the telemetry fault code field: over current (1), over
+    voltage (2), under voltage (3), over temperature (4), and sensor
+    fault (5). When a fault is detected, the server shall transition
+    to the Fault state and de-energize the motor.
+
+# --- Sequence Validation ---
+
+- id: REQ-FOC-013
+  title: Sequence validation
+  shall: >
+    The FOC motor control category shall require sequence validation
+    on all command frames. Byte 0 of every command payload shall be
+    the sequence counter as defined by the base protocol's sequence
+    number protocol (REQ-CAN-017, REQ-CAN-018).
+
+# --- Response Convention ---
+
+- id: REQ-FOC-014
+  title: Response message type IDs
+  shall: >
+    Response message types within the FOC category shall use IDs
+    formed by adding 0x80 to the corresponding command message type
+    ID, reserving 0x00–0x7F for commands and 0x80–0xFF for responses.

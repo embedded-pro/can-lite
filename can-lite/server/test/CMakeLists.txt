@@ -1,13 +1,14 @@
-add_executable(e_foc.services.can_protocol.server_test)
-emil_build_for(e_foc.services.can_protocol.server_test HOST All BOOL E_FOC_BUILD_TESTS)
-emil_add_test(e_foc.services.can_protocol.server_test)
+add_executable(can_lite.server_test)
+emil_build_for(can_lite.server_test HOST All BOOL CAN_LITE_BUILD_TESTS)
+emil_add_test(can_lite.server_test)
 
-target_link_libraries(e_foc.services.can_protocol.server_test PUBLIC
+target_link_libraries(can_lite.server_test PUBLIC
     gmock_main
-    e_foc.services.can_protocol.server
-    e_foc.services.can_protocol.test_util
+    can_lite.server
+    can_lite.test_util
+    infra.timer_test_helper
 )
 
-target_sources(e_foc.services.can_protocol.server_test PRIVATE
+target_sources(can_lite.server_test PRIVATE
     TestCanProtocolServer.cpp
 )
