@@ -54,7 +54,7 @@ jobs:
             echo "::error::Integration test executable not found"
             exit 1
           fi
-          $integration_test --format summary pretty junit_xml:integration-test-report.xml -- integration_tests/features
+          $integration_test --format summary pretty junit:integration-test-report.xml -- integration_tests/features
       - uses: EnricoMi/publish-unit-test-result-action@c950f6fb443cb5af20a377fd0dfaa78838901040 # v2.23.0
         if: always()
         with:
