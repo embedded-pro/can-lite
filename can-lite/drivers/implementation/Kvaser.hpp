@@ -22,18 +22,17 @@ namespace services
         void SendData(Id id, const Message& data, const infra::Function<void(bool success)>& actionOnCompletion) override;
         void ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction) override;
 
-        int FileDescriptor() const override;
+        intptr_t FileDescriptor() const override;
         void ProcessReadEvent() override;
 
-        std::vector<std::string> AvailableInterfaces() const override;
-        void ValidateDriverAvailability() const override;
+        void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const override;
+        bool IsDriverAvailable() const override;
 
     private:
         static canBitrate_t BitrateToCanlib(uint32_t bitrate);
 
         canHandle handle = canINVALID_HANDLE;
         infra::Function<void(Id, const Message&)> receiveCallback;
-        bool initialized = false;
     };
 }
 

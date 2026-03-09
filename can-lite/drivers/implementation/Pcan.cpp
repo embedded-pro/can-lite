@@ -120,9 +120,9 @@ namespace services
         receiveCallback = receivedAction;
     }
 
-    int PCanAdapter::FileDescriptor() const
+    intptr_t PCanAdapter::FileDescriptor() const
     {
-        return static_cast<int>(reinterpret_cast<intptr_t>(readEvent));
+        return reinterpret_cast<intptr_t>(readEvent);
     }
 
     void PCanAdapter::ProcessReadEvent()
@@ -154,42 +154,39 @@ namespace services
             receiveCallback(hal::Can::Id::Create29BitId(rawId), data);
     }
 
-    void PCanAdapter::ValidateDriverAvailability() const
+    bool PCanAdapter::IsDriverAvailable() const
     {
         TPCANStatus status = CAN_Initialize(PCAN_USBBUS1, PCAN_BAUD_500K, 0, 0, 0);
         if (status == PCAN_ERROR_OK)
         {
             CAN_Uninitialize(PCAN_USBBUS1);
-            return;
+            return true;
         }
 
-        if (status == PCAN_ERROR_NODRIVER)
-            throw std::runtime_error(
-                "PCAN-Basic driver is not installed.\n\n"
-                "Download from:\n"
-                "  https://www.peak-system.com/PCAN-Basic.239.0.html");
+        return status != PCAN_ERROR_NODRIVER;
     }
 
-    std::vector<std::string> PCanAdapter::AvailableInterfaces() const
+    void PCanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
-        std::vector<std::string> result;
-
         static constexpr TPCANHandle usbChannels[] = {
             PCAN_USBBUS1, PCAN_USBBUS2, PCAN_USBBUS3, PCAN_USBBUS4,
             PCAN_USBBUS5, PCAN_USBBUS6, PCAN_USBBUS7, PCAN_USBBUS8
         };
 
-        for (auto ch : usbChannels)
+        static constexpr const char* usbNames[] = {
+            "USBBUS1", "USBBUS2", "USBBUS3", "USBBUS4",
+            "USBBUS5", "USBBUS6", "USBBUS7", "USBBUS8"
+        };
+
+        for (std::size_t i = 0; i < 8; ++i)
         {
             DWORD condition = 0;
-            if (CAN_GetValue(ch, PCAN_CHANNEL_CONDITION, &condition, sizeof(condition)) == PCAN_ERROR_OK)
+            if (CAN_GetValue(usbChannels[i], PCAN_CHANNEL_CONDITION, &condition, sizeof(condition)) == PCAN_ERROR_OK)
             {
                 if (condition & PCAN_CHANNEL_AVAILABLE)
-                    result.push_back("USBBUS" + std::to_string(ch & 0xFF));
+                    callback(usbNames[i]);
             }
         }
-
-        return result;
     }
 
     TPCANBaudrate PCanAdapter::BitrateToPcan(uint32_t bitrate)

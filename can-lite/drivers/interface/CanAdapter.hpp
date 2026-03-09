@@ -3,11 +3,9 @@
 #include "hal/interfaces/Can.hpp"
 #include "infra/util/BoundedString.hpp"
 #include "infra/util/BoundedVector.hpp"
+#include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
-#include <stdexcept>
-#include <string>
-#include <vector>
 
 namespace services
 {
@@ -41,10 +39,10 @@ namespace services
         virtual void Disconnect() = 0;
         virtual bool IsConnected() const = 0;
 
-        virtual int FileDescriptor() const = 0;
+        virtual intptr_t FileDescriptor() const = 0;
         virtual void ProcessReadEvent() = 0;
 
-        virtual std::vector<std::string> AvailableInterfaces() const = 0;
-        virtual void ValidateDriverAvailability() const = 0;
+        virtual void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const = 0;
+        virtual bool IsDriverAvailable() const = 0;
     };
 }

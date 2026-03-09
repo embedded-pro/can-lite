@@ -22,11 +22,11 @@ namespace services
         void SendData(Id id, const Message& data, const infra::Function<void(bool success)>& actionOnCompletion) override;
         void ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction) override;
 
-        int FileDescriptor() const override;
+        intptr_t FileDescriptor() const override;
         void ProcessReadEvent() override;
 
-        std::vector<std::string> AvailableInterfaces() const override;
-        void ValidateDriverAvailability() const override;
+        void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const override;
+        bool IsDriverAvailable() const override;
 
     private:
         bool SendSlcanCommand(const char* command, std::size_t length);

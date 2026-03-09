@@ -212,9 +212,9 @@ namespace services
         receiveCallback = receivedAction;
     }
 
-    int CanableAdapter::FileDescriptor() const
+    intptr_t CanableAdapter::FileDescriptor() const
     {
-        return static_cast<int>(reinterpret_cast<intptr_t>(serialHandle));
+        return reinterpret_cast<intptr_t>(serialHandle);
     }
 
     void CanableAdapter::ProcessReadEvent()
@@ -289,11 +289,8 @@ namespace services
         return true;
     }
 
-    void CanableAdapter::ValidateDriverAvailability() const
+    bool CanableAdapter::IsDriverAvailable() const
     {
-        // CANable uses standard Windows serial port drivers.
-        // Check if any COM ports are available.
-        bool found = false;
         for (int i = 1; i <= 256; ++i)
         {
             char portName[16];
@@ -303,22 +300,15 @@ namespace services
             if (h != INVALID_HANDLE_VALUE)
             {
                 CloseHandle(h);
-                found = true;
-                break;
+                return true;
             }
         }
 
-        if (!found)
-            throw std::runtime_error(
-                "No COM ports found for CANable adapter.\n\n"
-                "Make sure the CANable device is connected and\n"
-                "the USB serial driver is installed.");
+        return false;
     }
 
-    std::vector<std::string> CanableAdapter::AvailableInterfaces() const
+    void CanableAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
-        std::vector<std::string> result;
-
         for (int i = 1; i <= 256; ++i)
         {
             char portName[16];
@@ -330,11 +320,9 @@ namespace services
                 CloseHandle(h);
                 char displayName[8];
                 std::snprintf(displayName, sizeof(displayName), "COM%d", i);
-                result.push_back(displayName);
+                callback(displayName);
             }
         }
-
-        return result;
     }
 
     const char* CanableAdapter::BitrateToSlcanCode(uint32_t bitrate)

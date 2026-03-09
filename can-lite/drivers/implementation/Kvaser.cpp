@@ -1,6 +1,7 @@
 #ifdef _WIN32
 
 #include "can-lite/drivers/implementation/Kvaser.hpp"
+#include "infra/stream/StringOutputStream.hpp"
 #include <algorithm>
 #include <cstring>
 
@@ -9,7 +10,6 @@ namespace services
     KvaserAdapter::KvaserAdapter()
     {
         canInitializeLibrary();
-        initialized = true;
     }
 
     KvaserAdapter::~KvaserAdapter()
@@ -135,9 +135,9 @@ namespace services
         receiveCallback = receivedAction;
     }
 
-    int KvaserAdapter::FileDescriptor() const
+    intptr_t KvaserAdapter::FileDescriptor() const
     {
-        return static_cast<int>(handle);
+        return static_cast<intptr_t>(handle);
     }
 
     void KvaserAdapter::ProcessReadEvent()
@@ -172,34 +172,26 @@ namespace services
             receiveCallback(hal::Can::Id::Create29BitId(rawId), data);
     }
 
-    void KvaserAdapter::ValidateDriverAvailability() const
+    bool KvaserAdapter::IsDriverAvailable() const
     {
         int channelCount = 0;
-        if (canGetNumberOfChannels(&channelCount) != canOK || channelCount == 0)
-            throw std::runtime_error(
-                "Kvaser CANlib is not available or no channels found.\n\n"
-                "Make sure the Kvaser drivers are installed:\n"
-                "  https://www.kvaser.com/download/");
+        return canGetNumberOfChannels(&channelCount) == canOK && channelCount > 0;
     }
 
-    std::vector<std::string> KvaserAdapter::AvailableInterfaces() const
+    void KvaserAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
-        std::vector<std::string> result;
         int channelCount = 0;
 
         if (canGetNumberOfChannels(&channelCount) != canOK)
-            return result;
+            return;
 
         for (int i = 0; i < channelCount; ++i)
         {
-            char name[256] = {};
-            if (canGetChannelData(i, canCHANNELDATA_DEVDESCR_ASCII, name, sizeof(name)) == canOK)
-                result.push_back(std::to_string(i) + ": " + name);
-            else
-                result.push_back(std::to_string(i));
+            infra::BoundedString::WithMaxSize<16> name;
+            infra::StringOutputStream stream(name);
+            stream << i;
+            callback(name);
         }
-
-        return result;
     }
 
     canBitrate_t KvaserAdapter::BitrateToCanlib(uint32_t bitrate)

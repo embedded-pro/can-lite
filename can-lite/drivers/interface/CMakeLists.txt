@@ -1,7 +1,7 @@
 add_library(can_lite.drivers.interface INTERFACE)
 
 target_include_directories(can_lite.drivers.interface INTERFACE
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>"
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 

@@ -3,7 +3,7 @@
 #include "can-lite/drivers/implementation/SocketCan.hpp"
 #include <algorithm>
 #include <cstring>
-#include <filesystem>
+#include <dirent.h>
 #include <fstream>
 #include <linux/can.h>
 #include <linux/can/raw.h>
@@ -169,7 +169,7 @@ namespace services
         receiveCallback = receivedAction;
     }
 
-    int SocketCanAdapter::FileDescriptor() const
+    intptr_t SocketCanAdapter::FileDescriptor() const
     {
         return socketDescriptor;
     }
@@ -184,6 +184,9 @@ namespace services
 
         if (bytesRead == sizeof(frame))
         {
+            if (!(frame.can_id & CAN_EFF_FLAG))
+                return;
+
             uint32_t rawId = frame.can_id & CAN_EFF_MASK;
             CanFrame data;
             for (uint8_t i = 0; i < frame.can_dlc && i < 8; ++i)
@@ -199,35 +202,38 @@ namespace services
         }
     }
 
-    void SocketCanAdapter::ValidateDriverAvailability() const
+    bool SocketCanAdapter::IsDriverAvailable() const
     {
         int fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
         if (fd < 0)
-            throw std::runtime_error(
-                "SocketCAN is not available on this system.\n\n"
-                "Make sure the CAN kernel modules are loaded:\n"
-                "  sudo modprobe can\n"
-                "  sudo modprobe can_raw\n"
-                "  sudo modprobe vcan     (for virtual CAN)");
+            return false;
         close(fd);
+        return true;
     }
 
-    std::vector<std::string> SocketCanAdapter::AvailableInterfaces() const
+    void SocketCanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
         static constexpr int arphrdCan = 280;
 
-        std::vector<std::string> result;
-        std::error_code ec;
-        for (const auto& entry : std::filesystem::directory_iterator("/sys/class/net", ec))
+        DIR* dir = opendir("/sys/class/net");
+        if (dir == nullptr)
+            return;
+
+        while (struct dirent* entry = readdir(dir))
         {
-            if (ec)
-                break;
-            std::ifstream typeFile(entry.path() / "type");
+            if (entry->d_name[0] == '.')
+                continue;
+
+            char typePath[280];
+            std::snprintf(typePath, sizeof(typePath), "/sys/class/net/%s/type", entry->d_name);
+
+            std::ifstream typeFile(typePath);
             int type = 0;
             if (typeFile >> type && type == arphrdCan)
-                result.push_back(entry.path().filename().string());
+                callback(entry->d_name);
         }
-        return result;
+
+        closedir(dir);
     }
 }
 
