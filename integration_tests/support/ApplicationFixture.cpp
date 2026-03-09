@@ -15,6 +15,19 @@ namespace integration
         , client(clientCan)
     {}
 
+    ApplicationFixture::~ApplicationFixture()
+    {
+        if (motorClient)
+            client.UnregisterCategory(*motorClient);
+        if (motorServer)
+            server.UnregisterCategory(*motorServer);
+
+        for (auto& cat : sequencedCategories)
+            server.UnregisterCategory(*cat);
+        for (auto& cat : simpleCategories)
+            server.UnregisterCategory(*cat);
+    }
+
     void ApplicationFixture::RegisterFocMotor()
     {
         serverTransport.emplace(serverCan, config.nodeId);

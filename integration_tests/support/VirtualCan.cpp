@@ -21,7 +21,8 @@ namespace integration
 
     void VirtualCan::Receive(Id id, const Message& data)
     {
-        receiveCallback(id, data);
+        if (receiveCallback)
+            receiveCallback(id, data);
     }
 
     void VirtualCan::ConnectTo(VirtualCan& other)
@@ -32,6 +33,7 @@ namespace integration
 
     void VirtualCan::InjectFrame(Id id, const Message& data)
     {
-        receiveCallback(id, data);
+        if (receiveCallback)
+            receiveCallback(id, data);
     }
 }

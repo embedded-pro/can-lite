@@ -56,7 +56,7 @@ emil_folderize_all_targets()
 emil_coverage_targets(DIRECTORIES .)
 
 set(CPACK_GENERATOR "ZIP;TGZ")
-set(CPACK_SOURCE_IGNORE_FILES ".vs/;.git/;build/")
+set(CPACK_SOURCE_IGNORE_FILES ".vs/;.git/;build/;output/;.venv/")
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")

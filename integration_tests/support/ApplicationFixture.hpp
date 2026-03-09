@@ -24,6 +24,7 @@ namespace integration
         };
 
         ApplicationFixture(uint16_t nodeId, uint16_t rateLimit);
+        ~ApplicationFixture();
 
         void RegisterFocMotor();
         void RegisterFocMotorServerOnly();
