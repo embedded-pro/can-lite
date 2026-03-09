@@ -24,7 +24,7 @@ runs:
       shell: bash
       run: |
         pip install pyyaml
-        sudo apt-get update && sudo apt-get install -y pandoc texlive-latex-base texlive-latex-recommended texlive-fonts-recommended
+        sudo apt-get update && sudo apt-get install -y pandoc texlive-latex-base texlive-latex-recommended texlive-fonts-recommended texlive-xetex
 
     - name: Generate PDF
       shell: bash

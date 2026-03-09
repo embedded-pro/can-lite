@@ -52,6 +52,7 @@ def main():
         "pandoc", str(md_path),
         "-o", str(args.output),
         "--toc",
+        "--pdf-engine=xelatex",
         "-V", "geometry:margin=1in"
     ], check=True)
 
