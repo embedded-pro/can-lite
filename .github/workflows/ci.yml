@@ -41,8 +41,6 @@ jobs:
           max-size: 2G
           save: ${{ github.ref == 'refs/heads/main' }}
       - uses: seanmiddleditch/gha-setup-ninja@3b1f8f94a2f8254bd26914c4ab9474d4f0015f67 # v6
-      - name: Install Qt6
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qt6-base-dev libgl1-mesa-dev
       - uses: lukka/run-cmake@af1be47fd7c933593f687731bc6fdbee024d3ff4 # v10.8
         with:
           configurePreset: "host"
@@ -50,12 +48,17 @@ jobs:
           testPreset: "host"
           configurePresetAdditionalArgs: "['-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
       - name: Run Integration Tests
-        working-directory: build/host
-        run: ctest -C Debug -R "can_lite\\.integration_tests" --output-on-failure --output-junit integration-test-report.xml
+        run: |
+          integration_test=$(find build/host -name "can_lite.integration_tests" -type f -executable -print -quit)
+          if [[ -z "$integration_test" ]]; then
+            echo "::error::Integration test executable not found"
+            exit 1
+          fi
+          $integration_test --format summary pretty junit_xml:integration-test-report.xml -- integration_tests/features
       - uses: EnricoMi/publish-unit-test-result-action@c950f6fb443cb5af20a377fd0dfaa78838901040 # v2.23.0
         if: always()
         with:
-          files: build/host/integration-test-report.xml
+          files: integration-test-report.xml
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: can_lite
