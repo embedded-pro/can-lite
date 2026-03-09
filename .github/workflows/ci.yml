@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: read
+  checks: write
+  issues: read
   pull-requests: write
 
 concurrency:
@@ -28,7 +30,7 @@ jobs:
         run: |
           git config --global url."https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
           git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git config --global --add safe.directory '*'
+          git config --global --add safe.directory '${{ github.workspace }}'
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
@@ -47,6 +49,13 @@ jobs:
           buildPreset: "host-Debug-WithPackage"
           testPreset: "host"
           configurePresetAdditionalArgs: "['-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
+      - name: Run Integration Tests
+        working-directory: build/host
+        run: ctest -C Debug -R "can_lite\\.integration_tests" --output-on-failure --output-junit integration-test-report.xml
+      - uses: EnricoMi/publish-unit-test-result-action@c950f6fb443cb5af20a377fd0dfaa78838901040 # v2.23.0
+        if: always()
+        with:
+          files: build/host/integration-test-report.xml
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: can_lite
@@ -90,41 +99,3 @@ jobs:
           name: test-logs
           path: build/host/Testing/Temporary/
 
-  integration_test:
-    name: Integration Test
-    needs: host_build_test_ubuntu
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: read
-      checks: write
-      pull-requests: write
-    steps:
-      - name: Configure Git
-        run: |
-          git config --global url."https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git config --global --add safe.directory '*'
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          submodules: recursive
-      - uses: hendrikmuhs/ccache-action@5ebbd400eff9e74630f759d94ddd7b6c26299639 # v1.2.20
-        with:
-          key: ${{ github.job }}-ubuntu-latest
-          max-size: 2G
-          save: ${{ github.ref == 'refs/heads/main' }}
-      - uses: seanmiddleditch/gha-setup-ninja@3b1f8f94a2f8254bd26914c4ab9474d4f0015f67 # v6
-      - uses: lukka/run-cmake@af1be47fd7c933593f687731bc6fdbee024d3ff4 # v10.8
-        with:
-          configurePreset: "host"
-          buildPreset: "host-Debug"
-          configurePresetAdditionalArgs: "['-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
-      - name: Run Integration Tests
-        run: |
-          integration_test=$(find build/host -name "can_lite.integration_tests" -type f -executable -print -quit)
-          $integration_test --format summary pretty junit -- integration_tests/features | tee test-report.xml
-      - uses: EnricoMi/publish-unit-test-result-action@c950f6fb443cb5af20a377fd0dfaa78838901040 # v2.23.0
-        if: always()
-        with:
-          files: test-report.xml
