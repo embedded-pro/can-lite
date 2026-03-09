@@ -1,6 +1,6 @@
 #ifdef _WIN32
 
-#include "can-lite/drivers/implementation/PCan.hpp"
+#include "can-lite/drivers/implementation/Pcan.hpp"
 #include <algorithm>
 #include <charconv>
 #include <cstring>

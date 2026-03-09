@@ -43,8 +43,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     )
 
     target_sources(can_lite.drivers.pcan PRIVATE
-        PCan.cpp
-        PCan.hpp
+        Pcan.cpp
+        Pcan.hpp
     )
 
     add_library(can_lite.drivers.canable ${EMIL_EXCLUDE_FROM_ALL})
