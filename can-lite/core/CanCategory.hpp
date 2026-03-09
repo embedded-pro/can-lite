@@ -7,11 +7,10 @@
 namespace services
 {
     class CanCategory
-        : public infra::IntrusiveList<CanCategory>::NodeType
     {
     public:
         virtual uint8_t Id() const = 0;
-        virtual bool RequiresSequenceValidation() const;
+        virtual bool RequiresSequenceValidation() const = 0;
 
         void AddMessageType(CanMessageType& messageType);
         bool HandleMessage(uint8_t messageType, const hal::Can::Message& data);
@@ -24,5 +23,29 @@ namespace services
 
     private:
         infra::IntrusiveList<CanMessageType> messageTypes;
+    };
+
+    class CanCategoryServer
+        : public CanCategory
+        , public infra::IntrusiveList<CanCategoryServer>::NodeType
+    {
+    public:
+        bool RequiresSequenceValidation() const override;
+
+    protected:
+        CanCategoryServer() = default;
+        ~CanCategoryServer() = default;
+    };
+
+    class CanCategoryClient
+        : public CanCategory
+        , public infra::IntrusiveList<CanCategoryClient>::NodeType
+    {
+    public:
+        bool RequiresSequenceValidation() const override;
+
+    protected:
+        CanCategoryClient() = default;
+        ~CanCategoryClient() = default;
     };
 }

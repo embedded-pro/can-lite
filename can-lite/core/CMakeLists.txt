@@ -19,8 +19,6 @@ target_sources(can_lite.core PRIVATE
     CanFrameCodec.hpp
     CanFrameTransport.cpp
     CanFrameTransport.hpp
-    CanSystemCategory.cpp
-    CanSystemCategory.hpp
 )
 
 add_subdirectory(test)

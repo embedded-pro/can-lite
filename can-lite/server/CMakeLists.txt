@@ -6,6 +6,7 @@ target_include_directories(can_lite.server PUBLIC
 )
 
 target_link_libraries(can_lite.server PUBLIC
+    can_lite.categories.system
     can_lite.core
     infra.timer
 )

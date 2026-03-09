@@ -325,18 +325,3 @@ a registered category but an unknown message type receive an
   enum values are rejected with invalidPayload.
 - **No heap allocation:** Fixed-size buffers prevent memory exhaustion.
 - **Node isolation:** Strict node ID filtering prevents cross-node interference.
-
-## 17. Implementation Notes
-
-- The protocol library lives in `can-lite/`.
-- `can-lite/core/` — Protocol definitions, frame codec, transport, and the
-  base `CanCategoryHandler` interface.
-- `can-lite/server/` — Server implementation with category-based dispatch,
-  rate limiting, and sequence validation.
-- `can-lite/client/` — Client implementation for sending commands and
-  receiving responses from multiple servers.
-- Observer pattern uses `infra::SingleObserver` / `infra::Subject` from
-  embedded-infra-lib.
-- All encoding uses `CanFrameCodec` with saturation clamping.
-- Unit tests use GoogleTest and are located in each component's `test/`
-  subdirectory.

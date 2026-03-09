@@ -38,10 +38,10 @@ namespace
 
     // --- CanCategory ---
 
-    class StubCategory : public CanCategory
+    class StubCategoryServer : public CanCategoryServer
     {
     public:
-        explicit StubCategory(uint8_t id)
+        explicit StubCategoryServer(uint8_t id)
             : id(id)
         {}
 
@@ -54,37 +54,39 @@ namespace
         uint8_t id;
     };
 
-    class NoSequenceCategory : public CanCategory
+    class StubCategoryClient : public CanCategoryClient
     {
     public:
+        explicit StubCategoryClient(uint8_t id)
+            : id(id)
+        {}
+
         uint8_t Id() const override
         {
-            return 0x0F;
+            return id;
         }
 
-        bool RequiresSequenceValidation() const override
-        {
-            return false;
-        }
+    private:
+        uint8_t id;
     };
 
-    TEST(CanCategoryTest, DefaultRequiresSequenceValidation)
+    TEST(CanCategoryTest, ServerDefaultRequiresSequenceValidation)
     {
-        StubCategory category(0x01);
+        StubCategoryServer category(0x01);
         EXPECT_TRUE(category.RequiresSequenceValidation());
     }
 
-    TEST(CanCategoryTest, OverriddenSequenceValidation)
+    TEST(CanCategoryTest, ClientDefaultDoesNotRequireSequenceValidation)
     {
-        NoSequenceCategory category;
+        StubCategoryClient category(0x01);
         EXPECT_FALSE(category.RequiresSequenceValidation());
     }
 
     TEST(CanCategoryTest, IdReturnsConfiguredValue)
     {
-        StubCategory cat1(0x01);
-        StubCategory cat2(0x05);
-        StubCategory cat3(0x0F);
+        StubCategoryServer cat1(0x01);
+        StubCategoryServer cat2(0x05);
+        StubCategoryServer cat3(0x0F);
 
         EXPECT_EQ(cat1.Id(), 0x01);
         EXPECT_EQ(cat2.Id(), 0x05);
@@ -93,7 +95,7 @@ namespace
 
     TEST(CanCategoryTest, HandleMessageDispatchesToRegisteredMessageType)
     {
-        StubCategory category(0x01);
+        StubCategoryServer category(0x01);
         StubMessageType msg1(0x01);
         StubMessageType msg2(0x02);
         category.AddMessageType(msg1);
@@ -111,7 +113,7 @@ namespace
 
     TEST(CanCategoryTest, HandleMessageReturnsFalseForUnknownType)
     {
-        StubCategory category(0x01);
+        StubCategoryServer category(0x01);
         StubMessageType msg1(0x01);
         category.AddMessageType(msg1);
 
@@ -122,7 +124,7 @@ namespace
 
     TEST(CanCategoryTest, HandleMessageDispatchesCorrectMessageType)
     {
-        StubCategory category(0x01);
+        StubCategoryServer category(0x01);
         StubMessageType msg1(0x01);
         StubMessageType msg2(0x02);
         category.AddMessageType(msg1);
@@ -136,7 +138,7 @@ namespace
 
     TEST(CanCategoryTest, HandleMessageCanBeCalledMultipleTimes)
     {
-        StubCategory category(0x01);
+        StubCategoryServer category(0x01);
         StubMessageType msg1(0x01);
         category.AddMessageType(msg1);
 

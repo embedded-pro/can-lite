@@ -21,8 +21,8 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 ### Protocol
 - **Client-Server Architecture**: Clear separation of roles — client initiates, server responds
 - **Multi-Server Support**: One client can address multiple servers via node IDs
-- **Category-Based Dispatch**: Extensible message routing via pluggable category handlers
-- **Built-in System Category**: Heartbeat, command acknowledgement, and status request out of the box
+- **Category-Based Dispatch**: Extensible message routing via pluggable category handlers (server/client pairs)
+- **Built-in System Category**: Heartbeat, command acknowledgement, status request, and category discovery out of the box
 - **Sequence Validation**: 8-bit sequence counter with per-category opt-in
 - **Rate Limiting**: Configurable message rate enforcement on the server
 - **Fixed-Point Codec**: Saturation-clamped encoding for float-to-integer conversion
@@ -82,19 +82,21 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 │   │   ├── CanProtocolDefinitions.hpp  # Enums, constants, CAN ID layout
 │   │   ├── CanFrameCodec.hpp           # Fixed-point encoding/decoding
 │   │   ├── CanFrameTransport.hpp       # Async frame queue and send
-│   │   ├── CanCategoryHandler.hpp      # Base handler interface
+│   │   ├── CanCategory.hpp             # Base category hierarchy (Server/Client)
+│   │   ├── CanMessageType.hpp          # Message handler interface
 │   │   └── test/                       # Core unit tests
+│   ├── categories/             # Category implementations (server/client pairs)
+│   │   ├── system/             # Built-in System category (heartbeat, ack, discovery)
+│   │   └── foc_motor/          # FOC Motor Control category (extension example)
 │   ├── server/                 # Server implementation
-│   │   ├── CanProtocolServer.hpp       # Server interface & observer
-│   │   ├── CanProtocolServerImpl.hpp   # Concrete server with dispatch
-│   │   ├── CanCategoryHandlers.hpp     # Built-in System handler
+│   │   ├── CanProtocolServer.hpp       # Server with dispatch & observer
 │   │   └── test/                       # Server unit tests
 │   ├── client/                 # Client implementation
-│   │   ├── CanProtocolClient.hpp       # Client interface & observer
-│   │   ├── CanProtocolClientImpl.hpp   # Concrete client
+│   │   ├── CanProtocolClient.hpp       # Client with discovery & observer
 │   │   └── test/                       # Client unit tests
 │   └── drivers/                # Hardware driver adapters
 ├── documents/
+│   ├── design/                 # Architecture & design decisions
 │   ├── requirements/           # Protocol requirements (YAML)
 │   └── spec/                   # Protocol specification (Markdown)
 └── CMakeLists.txt
@@ -110,8 +112,9 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 ### Architecture
 - **Dependency Injection**: `hal::Can` and category handlers injected via constructor
 - **Observer Pattern**: Decouples protocol events from application logic using `infra::Subject` / `infra::SingleObserver`
-- **Interface-Driven Design**: Pure virtual interfaces (`CanProtocolServer`, `CanProtocolClient`, `CanCategoryHandler`) enable mocking and testing
-- **Category Extensibility**: Register custom `CanCategoryHandler` implementations for application-specific messages
+- **Interface-Driven Design**: Pure virtual interfaces (`CanProtocolServer`, `CanProtocolClient`) enable mocking and testing
+- **Type-Safe Categories**: Compile-time separation via `CanCategoryServer` / `CanCategoryClient` prevents cross-registration
+- **Category Extensibility**: Register custom category implementations (server/client pairs) for application-specific messages
 
 ### Safety
 - **Deterministic Execution**: No dynamic allocation or unbounded loops in message paths
@@ -121,7 +124,10 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 
 ## Documentation
 
+- [Architecture & Design](documents/design/architecture.md) — Architecture decisions and design patterns
 - [Protocol Specification](documents/spec/can-protocol.md) — Full wire-format specification
+- [FOC Motor Control Specification](documents/spec/foc-motor-control.md) — FOC Motor Control category specification
+- [Firmware Upgrade Specification](documents/spec/firmware-upgrade.md) — Firmware Upgrade category specification
 - [Protocol Requirements](documents/requirements/can-protocol.yaml) — Formal requirements
 - [Copilot Instructions](.github/copilot-instructions.md) — Development guidelines
 

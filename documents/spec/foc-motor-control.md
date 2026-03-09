@@ -58,17 +58,17 @@ float = fixed / scale_factor
 
 | Quantity     | Scale Factor | Unit    | Resolution | Range              |
 |--------------|-------------|---------|------------|--------------------|
-| PID Kp       | 1000        | —       | 0.001      | ±32.767            |
-| PID Ki       | 1000        | —       | 0.001      | ±32.767            |
-| PID Kd       | 1000        | —       | 0.001      | ±32.767            |
-| Resistance   | 10000       | Ω       | 0.1 mΩ     | ±3.2767 Ω          |
-| Inductance   | 1000000     | H       | 1 µH       | ±32.767 mH         |
-| Inertia      | 1000000     | kg·m²   | 1×10⁻⁶     | ±0.032767 kg·m²    |
-| Friction     | 100000      | N·m·s/rad | 1×10⁻⁵  | ±0.32767 N·m·s/rad |
-| Voltage      | 100         | V       | 10 mV      | ±327.67 V          |
-| Current      | 100         | A       | 10 mA      | ±327.67 A          |
-| Speed        | 10          | RPM     | 0.1 RPM    | ±3276.7 RPM        |
-| Position     | 1000        | rad     | 0.001 rad  | ±32.767 rad        |
+| PID Kp       | 1           | —       | 1          | ±32767             |
+| PID Ki       | 1           | —       | 1          | ±32767             |
+| PID Kd       | 1           | —       | 1          | ±32767             |
+| Resistance   | 1000        | Ω       | 1 mΩ       | ±32.767 Ω          |
+| Inductance   | 1000        | H       | 1 mH       | ±32.767 H          |
+| Inertia      | 10000       | kg·m²   | 1×10⁻⁴     | ±3.2767 kg·m²      |
+| Friction     | 10000       | N·m·s/rad | 1×10⁻⁴  | ±3.2767 N·m·s/rad  |
+| Voltage      | 10          | V       | 100 mV     | ±3276.7 V          |
+| Current      | 10          | A       | 100 mA     | ±3276.7 A          |
+| Speed        | 1           | RPM     | 1 RPM      | ±32767 RPM         |
+| Position     | 100         | rad     | 0.01 rad   | ±327.67 rad        |
 | Encoder Res  | 1 (uint16)  | counts  | 1          | 0–65535            |
 
 ## 6. Message Types — Commands (Client → Server)
@@ -117,9 +117,9 @@ Set proportional, integral, and derivative gains for the current
 | Byte | Field    | Type  | Scale | Description              |
 |------|----------|-------|-------|--------------------------|
 | 0    | Sequence | uint8 | —     | Sequence counter         |
-| 1–2  | Kp       | int16 | 1000  | Proportional gain        |
-| 3–4  | Ki       | int16 | 1000  | Integral gain            |
-| 5–6  | Kd       | int16 | 1000  | Derivative gain          |
+| 1–2  | Kp       | int16 | 1     | Proportional gain        |
+| 3–4  | Ki       | int16 | 1     | Integral gain            |
+| 5–6  | Kd       | int16 | 1     | Derivative gain          |
 
 Total: 7 bytes.
 
@@ -130,9 +130,9 @@ Set PID gains for the speed control loop.
 | Byte | Field    | Type  | Scale | Description              |
 |------|----------|-------|-------|--------------------------|
 | 0    | Sequence | uint8 | —     | Sequence counter         |
-| 1–2  | Kp       | int16 | 1000  | Proportional gain        |
-| 3–4  | Ki       | int16 | 1000  | Integral gain            |
-| 5–6  | Kd       | int16 | 1000  | Derivative gain          |
+| 1–2  | Kp       | int16 | 1     | Proportional gain        |
+| 3–4  | Ki       | int16 | 1     | Integral gain            |
+| 5–6  | Kd       | int16 | 1     | Derivative gain          |
 
 Total: 7 bytes.
 
@@ -143,9 +143,9 @@ Set PID gains for the position control loop.
 | Byte | Field    | Type  | Scale | Description              |
 |------|----------|-------|-------|--------------------------|
 | 0    | Sequence | uint8 | —     | Sequence counter         |
-| 1–2  | Kp       | int16 | 1000  | Proportional gain        |
-| 3–4  | Ki       | int16 | 1000  | Integral gain            |
-| 5–6  | Kd       | int16 | 1000  | Derivative gain          |
+| 1–2  | Kp       | int16 | 1     | Proportional gain        |
+| 3–4  | Ki       | int16 | 1     | Integral gain            |
+| 5–6  | Kd       | int16 | 1     | Derivative gain          |
 
 Total: 7 bytes.
 
@@ -214,8 +214,8 @@ are sent at `CanPriority::response`.
 
 | Byte | Field      | Type  | Scale   | Description          |
 |------|------------|-------|---------|----------------------|
-| 0–1  | Resistance | int16 | 10000   | Phase resistance (Ω) |
-| 2–3  | Inductance | int16 | 1000000 | Phase inductance (H) |
+| 0–1  | Resistance | int16 | 1000    | Phase resistance (Ω) |
+| 2–3  | Inductance | int16 | 1000    | Phase inductance (H) |
 
 Total: 4 bytes.
 
@@ -223,8 +223,8 @@ Total: 4 bytes.
 
 | Byte | Field    | Type  | Scale   | Description                   |
 |------|----------|-------|---------|-------------------------------|
-| 0–1  | Inertia  | int16 | 1000000 | Rotor inertia (kg·m²)         |
-| 2–3  | Friction | int16 | 100000  | Viscous friction (N·m·s/rad)  |
+| 0–1  | Inertia  | int16 | 10000   | Rotor inertia (kg·m²)         |
+| 2–3  | Friction | int16 | 10000   | Viscous friction (N·m·s/rad)  |
 
 Total: 4 bytes.
 
@@ -232,10 +232,10 @@ Total: 4 bytes.
 
 | Byte | Field      | Type  | Scale | Description              |
 |------|------------|-------|-------|--------------------------|
-| 0–1  | Voltage    | int16 | 100   | DC bus voltage (V)       |
-| 2–3  | MaxCurrent | int16 | 100   | Maximum phase current (A)|
-| 4–5  | Iq         | int16 | 100   | Quadrature current (A)   |
-| 6–7  | Id         | int16 | 100   | Direct-axis current (A)  |
+| 0–1  | Voltage    | int16 | 10    | DC bus voltage (V)       |
+| 2–3  | MaxCurrent | int16 | 10    | Maximum phase current (A)|
+| 4–5  | Iq         | int16 | 10    | Quadrature current (A)   |
+| 6–7  | Id         | int16 | 10    | Direct-axis current (A)  |
 
 Total: 8 bytes.
 
@@ -245,8 +245,8 @@ Total: 8 bytes.
 |------|----------|-------|-------|---------------------------------|
 | 0    | State    | uint8 | —     | Motor state (see Section 3)     |
 | 1    | Fault    | uint8 | —     | Fault code (see Section 4)      |
-| 2–3  | Speed    | int16 | 10    | Rotor speed (RPM)               |
-| 4–5  | Position | int16 | 1000  | Rotor position (rad)            |
+| 2–3  | Speed    | int16 | 1     | Rotor speed (RPM)               |
+| 4–5  | Position | int16 | 100   | Rotor position (rad)            |
 
 Total: 6 bytes.
 
@@ -302,22 +302,3 @@ sequenceDiagram
     Note over S: Measures J, B
     S->>C: mechanicalParamsResponse (J, B)
 ```
-
-## 9. Implementation Notes
-
-- The FOC category handler should return `RequiresSequenceValidation() = true`.
-- Telemetry is split into two response frames (electrical + status) because
-  the full dataset exceeds the 8-byte CAN payload limit. Both frames are
-  sent in response to a single Request Telemetry command.
-- PID gains use a scale factor of 1 (integer resolution) to cover the full
-  −10 000 to 10 000 range.  Applications needing sub-integer gain precision
-  should apply an internal multiplier in the control loop.
-- The Identify commands may take significant time (hundreds of milliseconds to
-  seconds). The server sends the command ack immediately to confirm receipt,
-  then sends the parameter response when identification completes.
-- `CanFrameCodec::FloatToFixed16` and `CanFrameCodec::Fixed16ToFloat` should
-  be used with the scale factors defined in Section 5 for encoding and
-  decoding all fixed-point values.
-- Response message type IDs use the `0x80 + command_id` convention. This
-  reserves the lower half (0x00–0x7F) for commands and the upper half
-  (0x80–0xFF) for responses within the 8-bit message type field.

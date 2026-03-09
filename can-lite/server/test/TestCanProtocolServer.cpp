@@ -240,7 +240,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryServer
         {
         public:
             TestCategory()
@@ -294,7 +294,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryServer
         {
         public:
             TestCategory()
@@ -346,7 +346,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryServer
         {
         public:
             TestCategory()
@@ -398,7 +398,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryServer
         {
         public:
             TestCategory()
@@ -462,7 +462,7 @@ namespace
             bool handled = false;
         };
 
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryServer
         {
         public:
             TestCategory()
@@ -498,7 +498,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdAsserts)
     {
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryServer
         {
         public:
             uint8_t Id() const override
@@ -527,7 +527,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, CategoryListRequest_RespondsWithRegisteredCategories)
     {
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryServer
         {
         public:
             explicit TestCategory(uint8_t id)

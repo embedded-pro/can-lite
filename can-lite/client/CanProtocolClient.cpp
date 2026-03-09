@@ -5,17 +5,8 @@ namespace services
 {
     CanProtocolClient::CanProtocolClient(hal::Can& can)
         : transport(can, 0)
+        , systemObserver(systemCategory, *this)
     {
-        systemCategory.onCategoryListResponse = [this](const hal::Can::Message& categoryIds)
-        {
-            if (pendingDiscoveryCallback)
-            {
-                auto callback = pendingDiscoveryCallback;
-                pendingDiscoveryCallback = nullptr;
-                callback(categoryIds);
-            }
-        };
-
         categories.push_back(systemCategory);
 
         can.ReceiveData([this](hal::Can::Id id, const hal::Can::Message& data)
@@ -24,7 +15,22 @@ namespace services
             });
     }
 
-    void CanProtocolClient::RegisterCategory(CanCategory& category)
+    CanProtocolClient::SystemObserver::SystemObserver(CanSystemCategoryClient& subject, CanProtocolClient& client)
+        : CanSystemCategoryClientObserver(subject)
+        , client(client)
+    {}
+
+    void CanProtocolClient::SystemObserver::OnCategoryListResponse(const hal::Can::Message& categoryIds)
+    {
+        if (client.pendingDiscoveryCallback)
+        {
+            auto callback = client.pendingDiscoveryCallback;
+            client.pendingDiscoveryCallback = nullptr;
+            callback(categoryIds);
+        }
+    }
+
+    void CanProtocolClient::RegisterCategory(CanCategoryClient& category)
     {
         for (auto& existing : categories)
             really_assert(existing.Id() != category.Id());
@@ -32,7 +38,7 @@ namespace services
         categories.push_back(category);
     }
 
-    void CanProtocolClient::UnregisterCategory(CanCategory& category)
+    void CanProtocolClient::UnregisterCategory(CanCategoryClient& category)
     {
         categories.erase(category);
     }

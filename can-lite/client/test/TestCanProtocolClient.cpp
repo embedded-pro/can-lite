@@ -74,7 +74,7 @@ namespace
             bool handled = false;
         };
 
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryClient
         {
         public:
             TestCategory()
@@ -110,7 +110,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, RegisterCategory_DuplicateIdAsserts)
     {
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryClient
         {
         public:
             uint8_t Id() const override
@@ -141,7 +141,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategory
+        class TestCategory : public CanCategoryClient
         {
         public:
             TestCategory()

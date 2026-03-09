@@ -1,9 +1,9 @@
 #pragma once
 
+#include "can-lite/categories/system/CanSystemCategoryServer.hpp"
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
-#include "can-lite/core/CanSystemCategory.hpp"
 #include "hal/interfaces/Can.hpp"
 #include "infra/timer/Timer.hpp"
 #include "infra/util/IntrusiveList.hpp"
@@ -37,10 +37,24 @@ namespace services
 
         CanProtocolServer(hal::Can& can, const Config& config);
 
-        void RegisterCategory(CanCategory& category);
-        void UnregisterCategory(CanCategory& category);
+        void RegisterCategory(CanCategoryServer& category);
+        void UnregisterCategory(CanCategoryServer& category);
 
     private:
+        class SystemObserver
+            : public CanSystemCategoryServerObserver
+        {
+        public:
+            SystemObserver(CanSystemCategoryServer& subject, CanProtocolServer& server);
+
+            void OnHeartbeatReceived(uint8_t version) override;
+            void OnStatusRequest() override;
+            void OnCategoryListRequest() override;
+
+        private:
+            CanProtocolServer& server;
+        };
+
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
         void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status);
         void SendHeartbeat();
@@ -48,7 +62,7 @@ namespace services
         bool CheckAndIncrementRate();
         void ResetRateCounter();
         bool ValidateSequence(uint8_t sequenceNumber);
-        CanCategory* FindCategory(uint8_t categoryId);
+        CanCategoryServer* FindCategory(uint8_t categoryId);
 
         Config config;
         CanFrameTransport transport;
@@ -58,7 +72,8 @@ namespace services
         uint8_t lastSequenceNumber = 0;
         bool sequenceInitialized = false;
 
-        CanSystemCategory systemCategory;
-        infra::IntrusiveList<CanCategory> categories;
+        CanSystemCategoryServer systemCategory;
+        SystemObserver systemObserver;
+        infra::IntrusiveList<CanCategoryServer> categories;
     };
 }

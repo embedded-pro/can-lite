@@ -2,11 +2,6 @@
 
 namespace services
 {
-    bool CanCategory::RequiresSequenceValidation() const
-    {
-        return true;
-    }
-
     void CanCategory::AddMessageType(CanMessageType& messageType)
     {
         messageTypes.push_back(messageType);
@@ -23,6 +18,16 @@ namespace services
             }
         }
 
+        return false;
+    }
+
+    bool CanCategoryServer::RequiresSequenceValidation() const
+    {
+        return true;
+    }
+
+    bool CanCategoryClient::RequiresSequenceValidation() const
+    {
         return false;
     }
 }

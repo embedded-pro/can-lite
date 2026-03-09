@@ -14,25 +14,8 @@ namespace services
               {
                   ResetRateCounter();
               })
+        , systemObserver(systemCategory, *this)
     {
-        systemCategory.onHeartbeat = [this](uint8_t)
-        {
-            NotifyObservers([](auto& observer)
-                {
-                    observer.Online();
-                });
-        };
-
-        systemCategory.onStatusRequest = [this]()
-        {
-            SendHeartbeat();
-        };
-
-        systemCategory.onCategoryListRequest = [this]()
-        {
-            SendCategoryList();
-        };
-
         categories.push_back(systemCategory);
 
         can.ReceiveData([this](hal::Can::Id id, const hal::Can::Message& data)
@@ -41,7 +24,30 @@ namespace services
             });
     }
 
-    void CanProtocolServer::RegisterCategory(CanCategory& category)
+    CanProtocolServer::SystemObserver::SystemObserver(CanSystemCategoryServer& subject, CanProtocolServer& server)
+        : CanSystemCategoryServerObserver(subject)
+        , server(server)
+    {}
+
+    void CanProtocolServer::SystemObserver::OnHeartbeatReceived(uint8_t)
+    {
+        server.NotifyObservers([](auto& observer)
+            {
+                observer.Online();
+            });
+    }
+
+    void CanProtocolServer::SystemObserver::OnStatusRequest()
+    {
+        server.SendHeartbeat();
+    }
+
+    void CanProtocolServer::SystemObserver::OnCategoryListRequest()
+    {
+        server.SendCategoryList();
+    }
+
+    void CanProtocolServer::RegisterCategory(CanCategoryServer& category)
     {
         for (auto& existing : categories)
             really_assert(existing.Id() != category.Id());
@@ -49,7 +55,7 @@ namespace services
         categories.push_back(category);
     }
 
-    void CanProtocolServer::UnregisterCategory(CanCategory& category)
+    void CanProtocolServer::UnregisterCategory(CanCategoryServer& category)
     {
         categories.erase(category);
     }
@@ -71,7 +77,7 @@ namespace services
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
 
-        CanCategory* category = FindCategory(categoryId);
+        CanCategoryServer* category = FindCategory(categoryId);
         if (category == nullptr)
             return;
 
@@ -97,7 +103,7 @@ namespace services
         }
     }
 
-    CanCategory* CanProtocolServer::FindCategory(uint8_t categoryId)
+    CanCategoryServer* CanProtocolServer::FindCategory(uint8_t categoryId)
     {
         for (auto& category : categories)
         {
