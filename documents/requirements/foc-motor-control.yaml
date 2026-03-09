@@ -43,7 +43,7 @@
     derivative gains for the current (torque) control loop using a
     Set PID Current command. Gains shall be encoded as big-endian
     int16 values with a scale factor of 1 (integer resolution,
-    valid range −10 000 to 10 000).
+    valid range -10 000 to 10 000).
 
 - id: REQ-FOC-005
   title: Speed loop PID configuration
@@ -51,7 +51,7 @@
     The client shall be able to set the PID gains for the speed
     control loop using a Set PID Speed command. Gains shall be
     encoded as big-endian int16 values with a scale factor of 1
-    (integer resolution, valid range −10 000 to 10 000).
+    (integer resolution, valid range -10 000 to 10 000).
 
 - id: REQ-FOC-006
   title: Position loop PID configuration
@@ -59,7 +59,7 @@
     The client shall be able to set the PID gains for the position
     control loop using a Set PID Position command. Gains shall be
     encoded as big-endian int16 values with a scale factor of 1
-    (integer resolution, valid range −10 000 to 10 000).
+    (integer resolution, valid range -10 000 to 10 000).
 
 # --- Parameter Identification ---
 
