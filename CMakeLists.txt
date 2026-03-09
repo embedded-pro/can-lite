@@ -26,6 +26,18 @@ if (CAN_LITE_STANDALONE)
         GIT_TAG        81a7c1d503d68e2ee48f00769bcea4975c0849b1 # Unreleased
     )
     FetchContent_MakeAvailable(emil)
+
+    if (CAN_LITE_BUILD_TESTS)
+        set(CCR_FETCH_DEPS On CACHE BOOL "" FORCE)
+        set(CCR_BUILD_TESTS Off CACHE BOOL "" FORCE)
+
+        FetchContent_Declare(
+            cucumber_cpp
+            GIT_REPOSITORY https://github.com/philips-software/amp-cucumber-cpp-runner.git
+            GIT_TAG        v4.0.0
+        )
+        FetchContent_MakeAvailable(cucumber_cpp)
+    endif()
 endif()
 
 if (CAN_LITE_BUILD_TESTS)
@@ -34,6 +46,10 @@ if (CAN_LITE_BUILD_TESTS)
 endif()
 
 add_subdirectory(can-lite)
+
+if (CAN_LITE_BUILD_TESTS)
+    add_subdirectory(integration_tests)
+endif()
 
 emil_clangformat_directories(can_lite DIRECTORIES can-lite)
 emil_folderize_all_targets()

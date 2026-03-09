@@ -284,3 +284,44 @@ can-lite/
 - Category libraries link `can_lite.core`; protocol libraries link the relevant category libraries.
 - Unit tests use GoogleTest/GMock and run on the host.
 - Standalone builds fetch `embedded-infra-lib` via FetchContent.
+
+## 12. Integration Testing
+
+Integration tests validate end-to-end behavior across components using [cucumber-cpp-runner](https://github.com/philips-software/amp-cucumber-cpp-runner) v4.0.0 (BDD / Gherkin). Feature files are in `integration_tests/features/`; step definitions in `integration_tests/steps/`.
+
+### Single Common Fixture
+
+All scenarios share a single fixture type — `ApplicationFixture` — that simulates a real application with a server, client, and virtual CAN bus. This ensures tests exercise the same initialization and interaction paths as production code.
+
+```
+integration_tests/
+├── features/                      # Gherkin .feature files
+├── hooks/                         # Scenario lifecycle hooks
+├── steps/                         # Step definitions (GIVEN/WHEN/THEN)
+└── support/
+    └── TestContext.hpp             # VirtualCan, ApplicationFixture, mocks
+```
+
+### VirtualCan
+
+`VirtualCan` is a concrete `hal::Can` implementation that replaces hardware drivers in integration tests. Two `VirtualCan` instances are connected via `ConnectTo()`: frames sent by one are delivered to the other's receive callback, simulating a shared CAN bus without mocking `SendData`/`ReceiveData`. `InjectFrame()` allows direct frame injection for testing error paths.
+
+### ApplicationFixture
+
+`ApplicationFixture` inherits from `infra::ClockFixture` (providing `EventDispatcher`, `TimerService`, and `ForwardTime()`) and composes:
+
+- A pair of connected `VirtualCan` instances (server-side and client-side).
+- `CanProtocolServer` and `CanProtocolClient` wired to their respective CAN interfaces.
+- `StrictMock` observers for the server and (optionally) FOC motor category.
+- Optional FOC motor components (`CanFrameTransport`, `FocMotorCategoryServer`/`Client`, observers) activated via `RegisterFocMotor()`.
+- Dynamic test categories (`SequencedTestCategory`, `SimpleTestCategory`) for sequence and discovery testing.
+
+### StrictMock Everywhere
+
+All mock observers use `testing::StrictMock`. Unexpected calls cause immediate test failure, ensuring every interaction is explicitly expected.
+
+### Cucumber Context API
+
+- `context.Emplace<T>(args...)` creates the fixture (returns `std::shared_ptr<T>`).
+- `context.Get<T>()` retrieves it by reference (returns `T&`).
+- Captured `shared_ptr` in lambdas on fixture members must be avoided to prevent circular references that leak the fixture across scenarios.

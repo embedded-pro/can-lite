@@ -25,6 +25,29 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "Debug Integration Tests",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/integration_tests/Debug/can_lite.integration_tests",
+            "args": [
+                "--",
+                "${workspaceFolder}/integration_tests/features"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
