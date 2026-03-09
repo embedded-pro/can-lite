@@ -1,0 +1,7 @@
+{
+    "cortex-debug.variableUseNaturalFormat": false,
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build/host-single-Debug"
+    ]
+}

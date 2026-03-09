@@ -1,0 +1,242 @@
+# can-lite Protocol Requirements
+#
+# Architecture: Client-Server over CAN 2.0B (29-bit extended identifiers)
+#   - Server: listens for commands from clients, has its own node ID
+#   - Client: initiates all requests, can address multiple servers
+#   - Default category: System (heartbeat, acknowledgement, status request)
+#   - Additional categories are defined by the application layer
+
+# --- Transport & Framing ---
+
+- id: REQ-CAN-001
+  title: CAN bus transport
+  shall: >
+    The protocol shall use the CAN bus as the communication channel
+    between clients and servers. All protocol interactions follow a
+    client-server model where the client initiates requests and the
+    server processes them.
+
+- id: REQ-CAN-002
+  title: Extended CAN identifiers
+  shall: >
+    The protocol shall use exclusively 29-bit extended CAN identifiers
+    for all transmitted and received frames. Both client and server
+    shall silently discard any frame using an 11-bit standard identifier.
+
+- id: REQ-CAN-003
+  title: CAN identifier structure
+  shall: >
+    The 29-bit CAN identifier shall encode four fields: a 5-bit
+    priority field (bits 28-24), a 4-bit category field (bits 23-20),
+    an 8-bit message type field (bits 19-12), and a 12-bit node
+    address field (bits 11-0).
+
+# --- Client-Server Architecture ---
+
+- id: REQ-CAN-004
+  title: Client-server model
+  shall: >
+    The protocol shall follow a client-server architecture where the
+    client is the sole initiator of commands and queries, and the
+    server listens for incoming frames, processes them, and sends
+    responses. The server shall not initiate unsolicited commands
+    to the client.
+
+- id: REQ-CAN-005
+  title: Server node identity
+  shall: >
+    Each server shall be configured with a unique 12-bit node address
+    (1-4095) that identifies it on the CAN bus. The server shall
+    process only frames addressed to its own node address or to the
+    broadcast address (0x000).
+
+- id: REQ-CAN-006
+  title: Multi-server client support
+  shall: >
+    The client shall support communication with multiple servers on
+    the same CAN bus by addressing frames to different server node
+    addresses. The client shall maintain independent sequence counters
+    per server.
+
+- id: REQ-CAN-007
+  title: Broadcast message support
+  shall: >
+    The protocol shall reserve node address 0x000 as the broadcast
+    address. All servers shall accept frames addressed to 0x000
+    regardless of their configured node address, enabling simultaneous
+    control of multiple servers.
+
+# --- System Category (Default) ---
+
+- id: REQ-CAN-008
+  title: Default system category
+  shall: >
+    The protocol shall define a built-in System category (0x0) that
+    provides heartbeat, command acknowledgement, status request,
+    and category discovery messages. This category shall be available
+    without any application-specific extensions.
+
+- id: REQ-CAN-009
+  title: Server heartbeat mechanism
+  shall: >
+    The server shall automatically begin transmitting heartbeat
+    frames upon startup. A heartbeat frame shall contain a 1-byte
+    protocol version identifier and shall be sent at the lowest
+    CAN priority level. The server shall transmit a heartbeat
+    at least 1 second after the last message of any kind was sent,
+    acting as a keep-alive during periods of silence. The heartbeat
+    shall not be sent while the server is actively transmitting
+    other messages within the 1-second window.
+
+- id: REQ-CAN-009.1
+  title: Client online/offline detection
+  shall: >
+    The client shall use received heartbeat frames (and other
+    messages) to determine whether a server is online or offline.
+    When a heartbeat is received from a server, the client shall
+    consider that server online and notify the application layer.
+    When no messages are received from a server within a
+    configurable timeout, the client shall consider that server
+    offline and notify the application layer.
+
+- id: REQ-CAN-010
+  title: Protocol version identification
+  shall: >
+    The heartbeat frame shall carry a protocol version byte that
+    allows the client to verify wire-format compatibility with the
+    server.
+
+- id: REQ-CAN-011
+  title: Command acknowledgement
+  shall: >
+    The server shall transmit an acknowledgement frame for every
+    processed command, containing the original command's category,
+    message type, and a status code indicating success or the
+    specific error condition (unknown command, invalid payload,
+    invalid state, sequence error, or rate limited).
+
+- id: REQ-CAN-012
+  title: Status request
+  shall: >
+    The client shall be able to send a status request message to
+    a server. Upon receiving this message, the server shall respond
+    by transmitting a heartbeat message, allowing the client to
+    quickly confirm the server is online without waiting for the
+    next scheduled heartbeat.
+
+# --- Category Extensibility ---
+
+- id: REQ-CAN-013
+  title: Category-based message dispatch
+  shall: >
+    The protocol shall dispatch received frames to handlers based
+    on the category field in the CAN identifier. Each category
+    handler shall be independently registered and shall process
+    only its own message types.
+
+- id: REQ-CAN-014
+  title: Application-defined categories
+  shall: >
+    The protocol shall allow applications to define additional
+    message categories beyond the built-in System category by
+    registering custom category handlers on the server. The
+    maximum number of registered category handlers shall be
+    bounded at compile time.
+
+# --- Data Encoding ---
+
+- id: REQ-CAN-015
+  title: Fixed-point data encoding
+  shall: >
+    All floating-point values transmitted over CAN shall be encoded
+    as big-endian signed fixed-point integers with defined per-quantity
+    scale factors, with saturation clamping to prevent integer overflow.
+
+- id: REQ-CAN-016
+  title: Short payload rejection
+  shall: >
+    The server shall reject any command frame whose payload is shorter
+    than the minimum required length for the given message type, and
+    shall respond with an invalid-payload error without applying
+    any state changes.
+
+# --- Sequence Number Protocol ---
+
+- id: REQ-CAN-017
+  title: Sequence number validation
+  shall: >
+    The server shall validate command frames using an 8-bit sequence
+    counter in the first payload byte. The first received command
+    shall be accepted regardless of its sequence value. Subsequent
+    commands shall be accepted only if their sequence number equals
+    the previous sequence number plus one, modulo 256.
+    Out-of-sequence commands shall be rejected with a sequence
+    error response.
+
+- id: REQ-CAN-018
+  title: Sequence number wrap-around
+  shall: >
+    The sequence counter shall wrap from 255 to 0 without error,
+    allowing continuous operation without sequence resets.
+
+- id: REQ-CAN-019
+  title: Sequence bypass per category
+  shall: >
+    Individual category handlers shall be able to declare whether
+    they require sequence number validation. Categories or specific
+    message types that do not require sequencing shall bypass
+    validation entirely.
+
+# --- Error Handling ---
+
+- id: REQ-CAN-020
+  title: Unknown message category handling
+  shall: >
+    The server shall silently discard any received frame whose
+    category field does not correspond to a registered category
+    handler, without generating any response.
+
+- id: REQ-CAN-021
+  title: Unknown message type handling
+  shall: >
+    The server shall respond with an unknown-command error when
+    a frame is received with a registered category but an
+    unrecognized message type.
+
+# --- Rate Limiting ---
+
+- id: REQ-CAN-022
+  title: Message rate limiting
+  shall: >
+    The server shall enforce a configurable maximum number of
+    received messages per second. Messages exceeding this limit
+    shall be silently discarded. The rate counter shall be reset
+    automatically every second by an internal timer.
+
+# --- Node Addressing ---
+
+- id: REQ-CAN-023
+  title: Node address filtering
+  shall: >
+    The server shall process only CAN frames whose node address
+    matches its configured local address or the broadcast address
+    (0x000), and shall silently discard all other frames.
+
+# --- Memory & Safety Constraints ---
+
+- id: REQ-CAN-024
+  title: No dynamic memory allocation
+  shall: >
+    The CAN protocol library shall not perform any dynamic memory
+    allocation and shall use only statically-sized data structures.
+
+# --- Category Discovery ---
+
+- id: REQ-CAN-025
+  title: Category discovery
+  shall: >
+    The client shall be able to send a category list request message
+    to a server. Upon receiving this message, the server shall respond
+    with a category list response containing the IDs of all registered
+    category handlers. The response payload shall list one category ID
+    per byte, limited to the maximum CAN frame payload size (8 bytes).

@@ -1,0 +1,27 @@
+{
+  "build": {
+    "context": "..",
+    "dockerfile": "Dockerfile"
+  },
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway",
+    "--privileged",
+    "--shm-size=256m"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "JacquesLucke.gcov-viewer@0.5.0",
+        "matepek.vscode-catch2-test-adapter@4.12.2"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "files.insertFinalNewline": true,
+        "gcovViewer.buildDirectories": [
+          "${workspaceFolder}/build/Coverage"
+        ],
+        "gcovViewer.highlightMissedLines": true
+      }
+    }
+  }
+}

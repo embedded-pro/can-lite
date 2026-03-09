@@ -1,0 +1,92 @@
+---
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 2
+  GTEST_COLOR: 1
+
+jobs:
+  host_build_test_ubuntu:
+    name: Host Build & Test (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global url."https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global --add safe.directory '*'
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: hendrikmuhs/ccache-action@5ebbd400eff9e74630f759d94ddd7b6c26299639 # v1.2.20
+        with:
+          key: ${{ github.job }}-ubuntu-latest
+          max-size: 2G
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - uses: seanmiddleditch/gha-setup-ninja@3b1f8f94a2f8254bd26914c4ab9474d4f0015f67 # v6
+      - name: Install Qt6
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qt6-base-dev libgl1-mesa-dev
+      - uses: lukka/run-cmake@af1be47fd7c933593f687731bc6fdbee024d3ff4 # v10.8
+        with:
+          configurePreset: "host"
+          buildPreset: "host-Debug-WithPackage"
+          testPreset: "host"
+          configurePresetAdditionalArgs: "['-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: can_lite
+          path: build/host/can_lite-*-Linux.tar.gz
+          if-no-files-found: error
+      - name: Upload test logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: test-logs
+          path: build/host/Testing/Temporary/
+  host_build_test:
+    name: Host Build & Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global url."https://${{ secrets.PRIVATE_REPO_TOKEN  }}@github.com/".insteadOf "https://github.com/"
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: hendrikmuhs/ccache-action@5ebbd400eff9e74630f759d94ddd7b6c26299639 # v1.2.20
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+          max-size: 2G
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - uses: lukka/run-cmake@af1be47fd7c933593f687731bc6fdbee024d3ff4 # v10.8
+        with:
+          configurePreset: "host-single-Debug"
+          buildPreset: "host-single-Debug"
+          testPreset: "host-single-Debug"
+          configurePresetAdditionalArgs: "['-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
+      - name: Upload test logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: test-logs
+          path: build/host/Testing/Temporary/
+

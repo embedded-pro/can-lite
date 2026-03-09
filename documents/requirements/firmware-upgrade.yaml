@@ -1,0 +1,141 @@
+# Firmware Upgrade — Category Extension Requirements
+#
+# Category ID: 0x1
+# Extends: can-protocol.yaml (base protocol requirements)
+#
+# This file defines requirements for the firmware upgrade category.
+# All requirements reference the base protocol's transport, framing,
+# category dispatch, and acknowledgement mechanisms.
+
+# --- Session Management ---
+
+- id: REQ-FWU-001
+  title: Upgrade session initiation
+  shall: >
+    The client shall be able to initiate a firmware upgrade session
+    by sending a Begin Upgrade command containing the total firmware
+    size in bytes (uint32). The server shall reject the request if
+    an upgrade is already in progress (Busy) or the size exceeds
+    available storage (InvalidSize).
+
+- id: REQ-FWU-002
+  title: Upgrade session abort
+  shall: >
+    The client shall be able to abort a firmware upgrade session at
+    any time by sending an Abort command. The server shall discard
+    any received data and return to the Idle state.
+
+# --- Data Transfer ---
+
+- id: REQ-FWU-003
+  title: Block-based data transfer
+  shall: >
+    Firmware data shall be transferred in blocks of up to 6 bytes
+    per CAN frame, with each block identified by a uint16 block
+    index (bytes 0–1). Blocks shall be transmitted in ascending
+    order starting from index 0.
+
+- id: REQ-FWU-004
+  title: Per-block acknowledgement
+  shall: >
+    The server shall acknowledge each received data block with a
+    Data Block Ack containing the block index and a status code.
+    The client shall not consider a block successfully transferred
+    until the corresponding ack with Ok status is received.
+
+- id: REQ-FWU-005
+  title: Block write failure handling
+  shall: >
+    If the server fails to write a block to flash storage, it shall
+    respond with a WriteError status in the Data Block Ack. The
+    client may retransmit the failed block.
+
+# --- Verification ---
+
+- id: REQ-FWU-006
+  title: CRC32 integrity verification
+  shall: >
+    After all data blocks have been transferred, the client shall
+    send a Verify command containing the expected CRC32 of the
+    complete firmware image. The server shall compute the CRC32
+    over the received data and respond with match or mismatch status.
+
+# --- Activation ---
+
+- id: REQ-FWU-007
+  title: Firmware activation
+  shall: >
+    The client shall be able to command the server to activate the
+    newly uploaded firmware by sending an Activate command. This
+    command shall only be accepted after a successful CRC32
+    verification (Complete state). The server shall perform the
+    firmware swap and reboot.
+
+- id: REQ-FWU-008
+  title: Activation safety
+  shall: >
+    The server shall reject Activate commands if the firmware has
+    not been successfully verified (NotReady error), preventing
+    activation of corrupt or incomplete images.
+
+# --- Progress Monitoring ---
+
+- id: REQ-FWU-009
+  title: Upgrade progress query
+  shall: >
+    The client shall be able to query the current upgrade state at
+    any time. The server shall respond with the current state, the
+    number of blocks received, and the total number of blocks
+    expected.
+
+# --- Flash Safety ---
+
+- id: REQ-FWU-010
+  title: Active firmware preservation
+  shall: >
+    The firmware upgrade process shall not overwrite the currently
+    running firmware. Incoming firmware shall be written to a
+    staging area or inactive flash bank, preserving the active
+    image until activation.
+
+# --- State Machine ---
+
+- id: REQ-FWU-011
+  title: Upgrade state machine
+  shall: >
+    The firmware upgrade process shall follow a defined state
+    machine with states: Idle, Receiving, Verifying, Complete,
+    and Error. Commands that are not valid in the current state
+    shall be rejected with an InvalidState error.
+
+# --- No Protocol-Level Sequencing ---
+
+- id: REQ-FWU-012
+  title: Sequence validation bypass
+  shall: >
+    The firmware upgrade category shall not require protocol-level
+    sequence validation (RequiresSequenceValidation = false).
+    Transfer ordering shall be enforced by the explicit block index
+    in each Data Block message, since the protocol's 8-bit sequence
+    counter is insufficient for the number of blocks in a typical
+    firmware transfer.
+
+# --- Transfer Size Limit ---
+
+- id: REQ-FWU-013
+  title: Maximum firmware size
+  shall: >
+    The firmware upgrade protocol shall support firmware images up
+    to 393210 bytes (65536 blocks × 6 bytes per block), limited by
+    the uint16 block index field. Transfers exceeding this limit
+    shall be rejected during Begin Upgrade.
+
+# --- Response Convention ---
+
+- id: REQ-FWU-014
+  title: Response message type IDs
+  shall: >
+    Response message types within the firmware upgrade category shall
+    use IDs formed by adding 0x80 to the corresponding command
+    message type ID, reserving 0x00–0x7F for commands and
+    0x80–0xFF for responses.
