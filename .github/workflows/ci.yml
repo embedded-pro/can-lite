@@ -58,9 +58,10 @@ jobs:
       - name: Generate Integration Test Summary
         if: always()
         run: |
-          echo "## Integration Test Results" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          python3 -c "
+          {
+            echo "## Integration Test Results"
+            echo ""
+            python3 -c "
           import xml.etree.ElementTree as ET
           tree = ET.parse('integration-test-report.xml')
           root = tree.getroot()
@@ -81,7 +82,8 @@ jobs:
               for name, status in scenarios:
                   print(f'| {name} | {status} |')
               print()
-          " >> "$GITHUB_STEP_SUMMARY"
+          "
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: EnricoMi/publish-unit-test-result-action@c950f6fb443cb5af20a377fd0dfaa78838901040 # v2.23.0
         if: always()
         with:
