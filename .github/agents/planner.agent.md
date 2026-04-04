@@ -151,8 +151,8 @@ Bit:  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  12  11  10
 | 0xFEF1 | Cruise Control/Vehicle Speed | Vehicle speed data              |
 
 **Transport Protocol (messages > 8 bytes):**
-- **BAM (Broadcast Announce Message)**: PGN 0xFEEB (TP.CM_BAM) + PGN 0xFEBD (TP.DT) — unacknowledged broadcast
-- **CMDT (Connection Mode Data Transfer)**: RTS (0x10) → CTS (0x11) → DT → EOM (0x13) / Abort (0xFF) — acknowledged peer-to-peer
+- **BAM (Broadcast Announce Message)**: TP.CM at PGN 0xEC00 (BAM control message) + TP.DT at PGN 0xEB00 — unacknowledged broadcast
+- **CMDT (Connection Mode Data Transfer)**: TP.CM at PGN 0xEC00 for RTS (0x10) → CTS (0x11) → EOM (0x13) / Abort (0xFF), with TP.DT at PGN 0xEB00 for data transfer — acknowledged peer-to-peer
 
 **Mapping to can-lite**: J1939 uses a different CAN ID layout than can-lite's native format. When implementing J1939 support, consider: (a) a dedicated J1939 transport category that translates between J1939 PGN addressing and can-lite's category/message-type model, or (b) a raw J1939 pass-through category. PGN → category+message type mapping must be defined per application.
 

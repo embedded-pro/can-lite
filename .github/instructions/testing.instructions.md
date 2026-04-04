@@ -1,6 +1,8 @@
 ---
 description: "can-lite testing guidelines: GoogleTest/GoogleMock patterns, StrictMock usage, test file naming, no heap allocation in tests, Arrange-Act-Assert pattern, mock hal::Can, cucumber-cpp-runner integration tests."
-applyTo: "**/test/**"
+applyTo:
+  - "**/test/**"
+  - "**/integration_tests/**"
 ---
 
 # can-lite Testing Guidelines

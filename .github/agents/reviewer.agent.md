@@ -60,7 +60,7 @@ End with a summary: total criticals, warnings, suggestions, and overall verdict 
 - [ ] Classes and methods: `PascalCase`
 - [ ] Member variables and enum values: `camelCase`
 - [ ] Namespaces: lowercase
-- [ ] Header guards: `MODULE_FOLDER_FILENAME_HPP`
+- [ ] Header protection present: either `#pragma once` (preferred in this project) or include guards such as `MODULE_FOLDER_FILENAME_HPP`
 - [ ] File naming matches class name
 
 ### 3. Style (WARNING)

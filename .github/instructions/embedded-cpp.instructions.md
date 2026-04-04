@@ -25,7 +25,7 @@ applyTo: "**/*.{hpp,cpp,h}"
 
 - **Classes/Methods**: `PascalCase` — `CanCategoryServer`, `HandleMessage()`
 - **Member variables/Enum values**: `camelCase` — `nodeId`, `heartbeat`
-- **Namespaces**: lowercase — `can_lite`
+- **Namespaces**: lowercase — `services` (match the current can-lite codebase)
 
 ## Style
 
