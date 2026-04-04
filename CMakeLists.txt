@@ -23,8 +23,15 @@ if (CAN_LITE_STANDALONE)
     FetchContent_Declare(
         emil
         GIT_REPOSITORY https://github.com/embedded-pro/embedded-infra-lib.git
-        GIT_TAG        81a7c1d503d68e2ee48f00769bcea4975c0849b1 # Unreleased
+        GIT_TAG        0bd0158e69add0726123305906128b51fecef234 # Unreleased
     )
+
+    set(EMIL_INCLUDE_ECHO Off CACHE BOOL "" FORCE)
+    set(EMIL_FETCH_ECHO_COMPILERS Off CACHE BOOL "" FORCE)
+    set(EMIL_BUILD_ECHO_COMPILERS Off CACHE BOOL "" FORCE)
+    set(EMIL_ENABLE_DOCKER_TOOLS Off CACHE BOOL "" FORCE)
+    set(EMIL_INCLUDE_MBEDTLS Off CACHE BOOL "" FORCE)
+
     FetchContent_MakeAvailable(emil)
 
     if (CAN_LITE_BUILD_TESTS)
