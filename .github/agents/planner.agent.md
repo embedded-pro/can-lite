@@ -91,35 +91,35 @@ Use this knowledge when planning categories that implement or interact with indu
 
 **Service IDs (commonly mapped to CanMessageType values):**
 
-| SID | Service | Direction | Positive Response |
-|-----|---------|-----------|-------------------|
-| 0x10 | DiagnosticSessionControl | Client→Server | 0x50 |
-| 0x11 | ECUReset | Client→Server | 0x51 |
-| 0x14 | ClearDiagnosticInformation | Client→Server | 0x54 |
-| 0x19 | ReadDTCInformation | Client→Server | 0x59 |
-| 0x22 | ReadDataByIdentifier | Client→Server | 0x62 |
-| 0x27 | SecurityAccess | Client→Server | 0x67 |
-| 0x2E | WriteDataByIdentifier | Client→Server | 0x6E |
-| 0x31 | RoutineControl | Client→Server | 0x71 |
-| 0x34 | RequestDownload | Client→Server | 0x74 |
-| 0x36 | TransferData | Client→Server | 0x76 |
-| 0x37 | RequestTransferExit | Client→Server | 0x77 |
-| 0x3E | TesterPresent | Client→Server | 0x7E |
+| SID  | Service                    | Direction     | Positive Response |
+|------|----------------------------|---------------|-------------------|
+| 0x10 | DiagnosticSessionControl   | Client→Server | 0x50              |
+| 0x11 | ECUReset                   | Client→Server | 0x51              |
+| 0x14 | ClearDiagnosticInformation | Client→Server | 0x54              |
+| 0x19 | ReadDTCInformation         | Client→Server | 0x59              |
+| 0x22 | ReadDataByIdentifier       | Client→Server | 0x62              |
+| 0x27 | SecurityAccess             | Client→Server | 0x67              |
+| 0x2E | WriteDataByIdentifier      | Client→Server | 0x6E              |
+| 0x31 | RoutineControl             | Client→Server | 0x71              |
+| 0x34 | RequestDownload            | Client→Server | 0x74              |
+| 0x36 | TransferData               | Client→Server | 0x76              |
+| 0x37 | RequestTransferExit        | Client→Server | 0x77              |
+| 0x3E | TesterPresent              | Client→Server | 0x7E              |
 
 **Negative Response**: SID 0x7F + rejected SID + NRC (Negative Response Code)
 
-| NRC | Name | Description |
-|-----|------|-------------|
-| 0x10 | generalReject | General rejection |
-| 0x11 | serviceNotSupported | SID not supported |
-| 0x12 | subFunctionNotSupported | Sub-function not supported |
-| 0x13 | incorrectMessageLengthOrInvalidFormat | Bad payload |
-| 0x22 | conditionsNotCorrect | Preconditions not met |
-| 0x24 | requestSequenceError | Wrong sequence |
-| 0x31 | requestOutOfRange | Parameter out of range |
-| 0x33 | securityAccessDenied | Not authenticated |
-| 0x35 | invalidKey | Wrong security key |
-| 0x72 | generalProgrammingFailure | Flash write failed |
+| NRC  | Name                                    | Description                          |
+|------|-----------------------------------------|--------------------------------------|
+| 0x10 | generalReject                           | General rejection                    |
+| 0x11 | serviceNotSupported                     | SID not supported                    |
+| 0x12 | subFunctionNotSupported                 | Sub-function not supported           |
+| 0x13 | incorrectMessageLengthOrInvalidFormat   | Bad payload                          |
+| 0x22 | conditionsNotCorrect                    | Preconditions not met                |
+| 0x24 | requestSequenceError                    | Wrong sequence                       |
+| 0x31 | requestOutOfRange                       | Parameter out of range               |
+| 0x33 | securityAccessDenied                    | Not authenticated                    |
+| 0x35 | invalidKey                              | Wrong security key                   |
+| 0x72 | generalProgrammingFailure               | Flash write failed                   |
 | 0x78 | requestCorrectlyReceivedResponsePending | Server needs more time (P2* timeout) |
 
 **Timing**: P2 (default response time, typically 50ms), P2* (extended response time after NRC 0x78, typically 5000ms). Subfunction bit 7 = suppress positive response.
@@ -142,13 +142,13 @@ Bit:  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  12  11  10
 
 **Key PGNs:**
 
-| PGN | Name | Description |
-|-----|------|-------------|
-| 0xEA00 | Request | Request a specific PGN |
-| 0xEE00 | Address Claimed | Network address management |
-| 0xFECA | DM1 | Active Diagnostic Trouble Codes |
-| 0xFECB | DM2 | Previously Active DTCs |
-| 0xFEF1 | Cruise Control/Vehicle Speed | Vehicle speed data |
+| PGN    | Name                         | Description                     |
+|--------|------------------------------|---------------------------------|
+| 0xEA00 | Request                      | Request a specific PGN          |
+| 0xEE00 | Address Claimed              | Network address management      |
+| 0xFECA | DM1                          | Active Diagnostic Trouble Codes |
+| 0xFECB | DM2                          | Previously Active DTCs          |
+| 0xFEF1 | Cruise Control/Vehicle Speed | Vehicle speed data              |
 
 **Transport Protocol (messages > 8 bytes):**
 - **BAM (Broadcast Announce Message)**: PGN 0xFEEB (TP.CM_BAM) + PGN 0xFEBD (TP.DT) — unacknowledged broadcast
@@ -160,12 +160,12 @@ Bit:  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  12  11  10
 
 **Frame types for multi-frame CAN messaging:**
 
-| Type | PCI Byte(s) | DL Range | Description |
-|------|-------------|----------|-------------|
-| SF (Single Frame) | N_PCI[0] = 0x0N | 1–7 bytes | Complete message in one frame |
-| FF (First Frame) | N_PCI[0:1] = 0x1NNN | 8–4095 bytes | First segment + total length |
-| CF (Consecutive Frame) | N_PCI[0] = 0x2N | — | Continuation (SN 0–F wraps) |
-| FC (Flow Control) | N_PCI[0] = 0x3S | — | Receiver flow control |
+| Type                   | PCI Byte(s)         | DL Range     | Description                   |
+|------------------------|---------------------|--------------|-------------------------------|
+| SF (Single Frame)      | N_PCI[0] = 0x0N     | 1–7 bytes    | Complete message in one frame |
+| FF (First Frame)       | N_PCI[0:1] = 0x1NNN | 8–4095 bytes | First segment + total length  |
+| CF (Consecutive Frame) | N_PCI[0] = 0x2N     | —            | Continuation (SN 0–F wraps)   |
+| FC (Flow Control)      | N_PCI[0] = 0x3S     | —            | Receiver flow control         |
 
 **Flow Control parameters:**
 - **FS (Flow Status)**: 0 = ContinueToSend (CTS), 1 = Wait, 2 = Overflow/Abort

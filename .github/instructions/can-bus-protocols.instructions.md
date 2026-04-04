@@ -10,35 +10,35 @@ Use this reference when implementing can-lite categories that map to or interact
 
 ### Service IDs
 
-| SID | Service | Positive Response |
-|-----|---------|-------------------|
-| 0x10 | DiagnosticSessionControl | 0x50 |
-| 0x11 | ECUReset | 0x51 |
-| 0x14 | ClearDiagnosticInformation | 0x54 |
-| 0x19 | ReadDTCInformation | 0x59 |
-| 0x22 | ReadDataByIdentifier | 0x62 |
-| 0x27 | SecurityAccess | 0x67 |
-| 0x2E | WriteDataByIdentifier | 0x6E |
-| 0x31 | RoutineControl | 0x71 |
-| 0x34 | RequestDownload | 0x74 |
-| 0x36 | TransferData | 0x76 |
-| 0x37 | RequestTransferExit | 0x77 |
-| 0x3E | TesterPresent | 0x7E |
+| SID  | Service                    | Positive Response |
+|------|----------------------------|-------------------|
+| 0x10 | DiagnosticSessionControl   | 0x50              |
+| 0x11 | ECUReset                   | 0x51              |
+| 0x14 | ClearDiagnosticInformation | 0x54              |
+| 0x19 | ReadDTCInformation         | 0x59              |
+| 0x22 | ReadDataByIdentifier       | 0x62              |
+| 0x27 | SecurityAccess             | 0x67              |
+| 0x2E | WriteDataByIdentifier      | 0x6E              |
+| 0x31 | RoutineControl             | 0x71              |
+| 0x34 | RequestDownload            | 0x74              |
+| 0x36 | TransferData               | 0x76              |
+| 0x37 | RequestTransferExit        | 0x77              |
+| 0x3E | TesterPresent              | 0x7E              |
 
 ### Negative Response Codes (NRC)
 
-| NRC | Name |
-|-----|------|
-| 0x10 | generalReject |
-| 0x11 | serviceNotSupported |
-| 0x12 | subFunctionNotSupported |
-| 0x13 | incorrectMessageLengthOrInvalidFormat |
-| 0x22 | conditionsNotCorrect |
-| 0x24 | requestSequenceError |
-| 0x31 | requestOutOfRange |
-| 0x33 | securityAccessDenied |
-| 0x35 | invalidKey |
-| 0x72 | generalProgrammingFailure |
+| NRC  | Name                                    |
+|------|-----------------------------------------|
+| 0x10 | generalReject                           |
+| 0x11 | serviceNotSupported                     |
+| 0x12 | subFunctionNotSupported                 |
+| 0x13 | incorrectMessageLengthOrInvalidFormat   |
+| 0x22 | conditionsNotCorrect                    |
+| 0x24 | requestSequenceError                    |
+| 0x31 | requestOutOfRange                       |
+| 0x33 | securityAccessDenied                    |
+| 0x35 | invalidKey                              |
+| 0x72 | generalProgrammingFailure               |
 | 0x78 | requestCorrectlyReceivedResponsePending |
 
 ### Key Rules
@@ -80,15 +80,15 @@ Use this reference when implementing can-lite categories that map to or interact
 
 ### Key PGNs
 
-| PGN | Name | Description |
-|-----|------|-------------|
-| 0x0000 | TSC1 | Torque/Speed Control |
-| 0xEA00 | Request | Request specific PGN |
-| 0xEE00 | Address Claimed | Address management |
-| 0xFECA | DM1 | Active DTCs |
-| 0xFECB | DM2 | Previously Active DTCs |
-| 0xFEF1 | CCVS | Cruise Control/Vehicle Speed |
-| 0xF004 | EEC1 | Electronic Engine Controller 1 |
+| PGN    | Name            | Description                    |
+|--------|-----------------|--------------------------------|
+| 0x0000 | TSC1            | Torque/Speed Control           |
+| 0xEA00 | Request         | Request specific PGN           |
+| 0xEE00 | Address Claimed | Address management             |
+| 0xFECA | DM1             | Active DTCs                    |
+| 0xFECB | DM2             | Previously Active DTCs         |
+| 0xFEF1 | CCVS            | Cruise Control/Vehicle Speed   |
+| 0xF004 | EEC1            | Electronic Engine Controller 1 |
 
 ### Transport Protocol (messages > 8 bytes)
 
@@ -117,12 +117,12 @@ Use this reference when implementing can-lite categories that map to or interact
 
 ### Frame Types
 
-| Type | PCI Byte(s) | Description |
-|------|-------------|-------------|
-| SF (Single Frame) | `0x0N` | N = data length (1–7) |
-| FF (First Frame) | `0x1NNN` | NNN = total length (8–4095), 2 PCI bytes |
-| CF (Consecutive Frame) | `0x2N` | N = sequence number (0–F, wraps) |
-| FC (Flow Control) | `0x3S` | S = flow status, followed by BS and STmin |
+| Type                   | PCI Byte(s) | Description                               |
+|------------------------|-------------|-------------------------------------------|
+| SF (Single Frame)      | `0x0N`      | N = data length (1–7)                     |
+| FF (First Frame)       | `0x1NNN`    | NNN = total length (8–4095), 2 PCI bytes  |
+| CF (Consecutive Frame) | `0x2N`      | N = sequence number (0–F, wraps)          |
+| FC (Flow Control)      | `0x3S`      | S = flow status, followed by BS and STmin |
 
 ### Flow Control Parameters
 
@@ -143,14 +143,14 @@ Use this reference when implementing can-lite categories that map to or interact
 
 ### Timing Parameters
 
-| Parameter | Description | Typical Value |
-|-----------|-------------|---------------|
-| N_As | Sender transmit time | 1000ms max |
-| N_Ar | Receiver transmit time | 1000ms max |
-| N_Bs | Time between FF and FC | 1000ms max |
-| N_Br | Time between CF and FC | — |
-| N_Cs | Time between CFs (sender) | STmin + tolerance |
-| N_Cr | CF reception timeout | 1000ms max |
+| Parameter | Description               | Typical Value     |
+|-----------|---------------------------|-------------------|
+| N_As      | Sender transmit time      | 1000ms max        |
+| N_Ar      | Receiver transmit time    | 1000ms max        |
+| N_Bs      | Time between FF and FC    | 1000ms max        |
+| N_Br      | Time between CF and FC    | —                 |
+| N_Cs      | Time between CFs (sender) | STmin + tolerance |
+| N_Cr      | CF reception timeout      | 1000ms max        |
 
 ### Mapping to can-lite
 
@@ -166,30 +166,30 @@ Use this reference when implementing can-lite categories that map to or interact
 
 ### COB-ID Structure (11-bit standard)
 
-| Function Code | COB-ID Range | Description |
-|---------------|-------------|-------------|
-| NMT | 0x000 | Network Management |
-| SYNC | 0x080 | Synchronization |
-| EMCY | 0x080 + NodeID | Emergency |
-| TPDO1 | 0x180 + NodeID | Transmit PDO 1 |
-| RPDO1 | 0x200 + NodeID | Receive PDO 1 |
-| TPDO2 | 0x280 + NodeID | Transmit PDO 2 |
-| RPDO2 | 0x300 + NodeID | Receive PDO 2 |
-| TSDO | 0x580 + NodeID | SDO Server→Client |
-| RSDO | 0x600 + NodeID | SDO Client→Server |
-| Heartbeat | 0x700 + NodeID | NMT Error Control |
+| Function Code | COB-ID Range   | Description        |
+|---------------|----------------|--------------------|
+| NMT           | 0x000          | Network Management |
+| SYNC          | 0x080          | Synchronization    |
+| EMCY          | 0x080 + NodeID | Emergency          |
+| TPDO1         | 0x180 + NodeID | Transmit PDO 1     |
+| RPDO1         | 0x200 + NodeID | Receive PDO 1      |
+| TPDO2         | 0x280 + NodeID | Transmit PDO 2     |
+| RPDO2         | 0x300 + NodeID | Receive PDO 2      |
+| TSDO          | 0x580 + NodeID | SDO Server→Client  |
+| RSDO          | 0x600 + NodeID | SDO Client→Server  |
+| Heartbeat     | 0x700 + NodeID | NMT Error Control  |
 
 ### NMT State Machine
 
 States: Initializing → Pre-operational ↔ Operational ↔ Stopped
 
-| CS | Command |
-|----|---------|
+| CS   | Command                           |
+|------|-----------------------------------|
 | 0x01 | Start Remote Node (→ Operational) |
-| 0x02 | Stop Remote Node (→ Stopped) |
-| 0x80 | Enter Pre-operational |
-| 0x81 | Reset Node |
-| 0x82 | Reset Communication |
+| 0x02 | Stop Remote Node (→ Stopped)      |
+| 0x80 | Enter Pre-operational             |
+| 0x81 | Reset Node                        |
+| 0x82 | Reset Communication               |
 
 NMT command frame: COB-ID 0x000, payload = [CS, Node-ID] (Node-ID 0 = all nodes)
 
