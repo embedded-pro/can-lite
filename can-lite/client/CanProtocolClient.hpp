@@ -48,7 +48,8 @@ namespace services
 
         void DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone);
 
-        uint8_t NextSequence(uint16_t nodeId);
+        uint8_t PeekSequence(uint16_t nodeId);
+        void CommitSequence(uint16_t nodeId);
 
     private:
         class SystemObserver

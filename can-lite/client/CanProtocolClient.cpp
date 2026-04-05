@@ -56,12 +56,12 @@ namespace services
         transport.SendFrame(nodeId, CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, emptyPayload, [] {});
     }
 
-    uint8_t CanProtocolClient::NextSequence(uint16_t nodeId)
+    uint8_t CanProtocolClient::PeekSequence(uint16_t nodeId)
     {
         for (auto& state : serverStates)
         {
             if (state.occupied && state.nodeId == nodeId)
-                return state.sequenceCounter++;
+                return state.sequenceCounter;
         }
 
         for (auto& state : serverStates)
@@ -70,12 +70,27 @@ namespace services
             {
                 state.occupied = true;
                 state.nodeId = nodeId;
-                state.sequenceCounter = 1;
+                state.sequenceCounter = 0;
                 return 0;
             }
         }
 
+        really_assert(false);
         return 0;
+    }
+
+    void CanProtocolClient::CommitSequence(uint16_t nodeId)
+    {
+        for (auto& state : serverStates)
+        {
+            if (state.occupied && state.nodeId == nodeId)
+            {
+                ++state.sequenceCounter;
+                return;
+            }
+        }
+
+        really_assert(false);
     }
 
     void CanProtocolClient::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)

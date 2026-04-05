@@ -25,114 +25,138 @@ namespace services
         return focMotorCategoryId;
     }
 
-    void FocMotorCategoryClient::SendSimpleCommand(uint16_t targetNodeId, uint8_t messageTypeId)
+    bool FocMotorCategoryClient::SendSimpleCommand(uint16_t targetNodeId, uint8_t messageTypeId)
     {
         hal::Can::Message data;
-        data.push_back(client.NextSequence(targetNodeId));
-        transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, messageTypeId, data, [] {});
+        data.push_back(client.PeekSequence(targetNodeId));
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, messageTypeId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
     }
 
-    void FocMotorCategoryClient::SendQueryMotorType(uint16_t targetNodeId)
+    bool FocMotorCategoryClient::SendQueryMotorType(uint16_t targetNodeId)
     {
-        SendSimpleCommand(targetNodeId, focQueryMotorTypeId);
+        return SendSimpleCommand(targetNodeId, focQueryMotorTypeId);
     }
 
-    void FocMotorCategoryClient::SendStart(uint16_t targetNodeId)
+    bool FocMotorCategoryClient::SendStart(uint16_t targetNodeId)
     {
-        SendSimpleCommand(targetNodeId, focStartId);
+        return SendSimpleCommand(targetNodeId, focStartId);
     }
 
-    void FocMotorCategoryClient::SendStop(uint16_t targetNodeId)
+    bool FocMotorCategoryClient::SendStop(uint16_t targetNodeId)
     {
-        SendSimpleCommand(targetNodeId, focStopId);
+        return SendSimpleCommand(targetNodeId, focStopId);
     }
 
-    void FocMotorCategoryClient::SendSetPidCurrent(uint16_t targetNodeId, const FocPidGains& gains)
-    {
-        hal::Can::Message data;
-        data.resize(7, 0);
-        data[0] = client.NextSequence(targetNodeId);
-        CanFrameCodec::WriteInt16(data, 1, gains.kp);
-        CanFrameCodec::WriteInt16(data, 3, gains.ki);
-        CanFrameCodec::WriteInt16(data, 5, gains.kd);
-        transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetPidCurrentId, data, [] {});
-    }
-
-    void FocMotorCategoryClient::SendSetPidSpeed(uint16_t targetNodeId, const FocPidGains& gains)
+    bool FocMotorCategoryClient::SendSetPidCurrent(uint16_t targetNodeId, const FocPidGains& gains)
     {
         hal::Can::Message data;
         data.resize(7, 0);
-        data[0] = client.NextSequence(targetNodeId);
+        data[0] = client.PeekSequence(targetNodeId);
         CanFrameCodec::WriteInt16(data, 1, gains.kp);
         CanFrameCodec::WriteInt16(data, 3, gains.ki);
         CanFrameCodec::WriteInt16(data, 5, gains.kd);
-        transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetPidSpeedId, data, [] {});
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetPidCurrentId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
     }
 
-    void FocMotorCategoryClient::SendSetPidPosition(uint16_t targetNodeId, const FocPidGains& gains)
+    bool FocMotorCategoryClient::SendSetPidSpeed(uint16_t targetNodeId, const FocPidGains& gains)
     {
         hal::Can::Message data;
         data.resize(7, 0);
-        data[0] = client.NextSequence(targetNodeId);
+        data[0] = client.PeekSequence(targetNodeId);
         CanFrameCodec::WriteInt16(data, 1, gains.kp);
         CanFrameCodec::WriteInt16(data, 3, gains.ki);
         CanFrameCodec::WriteInt16(data, 5, gains.kd);
-        transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetPidPositionId, data, [] {});
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetPidSpeedId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
     }
 
-    void FocMotorCategoryClient::SendIdentifyElectrical(uint16_t targetNodeId)
+    bool FocMotorCategoryClient::SendSetPidPosition(uint16_t targetNodeId, const FocPidGains& gains)
     {
-        SendSimpleCommand(targetNodeId, focIdentifyElectricalId);
+        hal::Can::Message data;
+        data.resize(7, 0);
+        data[0] = client.PeekSequence(targetNodeId);
+        CanFrameCodec::WriteInt16(data, 1, gains.kp);
+        CanFrameCodec::WriteInt16(data, 3, gains.ki);
+        CanFrameCodec::WriteInt16(data, 5, gains.kd);
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetPidPositionId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
     }
 
-    void FocMotorCategoryClient::SendIdentifyMechanical(uint16_t targetNodeId)
+    bool FocMotorCategoryClient::SendIdentifyElectrical(uint16_t targetNodeId)
     {
-        SendSimpleCommand(targetNodeId, focIdentifyMechanicalId);
+        return SendSimpleCommand(targetNodeId, focIdentifyElectricalId);
     }
 
-    void FocMotorCategoryClient::SendRequestTelemetry(uint16_t targetNodeId)
+    bool FocMotorCategoryClient::SendIdentifyMechanical(uint16_t targetNodeId)
     {
-        SendSimpleCommand(targetNodeId, focRequestTelemetryId);
+        return SendSimpleCommand(targetNodeId, focIdentifyMechanicalId);
     }
 
-    void FocMotorCategoryClient::SendSetEncoderResolution(uint16_t targetNodeId, uint16_t resolution)
+    bool FocMotorCategoryClient::SendRequestTelemetry(uint16_t targetNodeId)
+    {
+        return SendSimpleCommand(targetNodeId, focRequestTelemetryId);
+    }
+
+    bool FocMotorCategoryClient::SendSetEncoderResolution(uint16_t targetNodeId, uint16_t resolution)
     {
         hal::Can::Message data;
         data.resize(3, 0);
-        data[0] = client.NextSequence(targetNodeId);
+        data[0] = client.PeekSequence(targetNodeId);
         CanFrameCodec::WriteInt16(data, 1, static_cast<int16_t>(resolution));
-        transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetEncoderResolutionId, data, [] {});
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetEncoderResolutionId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
     }
 
-    void FocMotorCategoryClient::SendSetTarget(uint16_t targetNodeId, const FocSetpoint& setpoint)
+    bool FocMotorCategoryClient::SendSetTarget(uint16_t targetNodeId, const FocSetpoint& setpoint)
     {
         hal::Can::Message data;
         data.resize(4, 0);
-        data[0] = client.NextSequence(targetNodeId);
+        data[0] = client.PeekSequence(targetNodeId);
         data[1] = static_cast<uint8_t>(setpoint.mode);
         CanFrameCodec::WriteInt16(data, 2, setpoint.value);
-        transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetTargetId, data, [] {});
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetTargetId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
     }
 
-    void FocMotorCategoryClient::SendClearFault(uint16_t targetNodeId)
+    bool FocMotorCategoryClient::SendClearFault(uint16_t targetNodeId)
     {
-        SendSimpleCommand(targetNodeId, focClearFaultId);
+        return SendSimpleCommand(targetNodeId, focClearFaultId);
     }
 
-    void FocMotorCategoryClient::SendEmergencyStop(uint16_t targetNodeId)
+    bool FocMotorCategoryClient::SendEmergencyStop(uint16_t targetNodeId)
     {
         hal::Can::Message data;
-        data.push_back(client.NextSequence(targetNodeId));
-        transport.SendFrame(targetNodeId, CanPriority::emergency, focMotorCategoryId, focEmergencyStopId, data, [] {});
+        data.push_back(client.PeekSequence(targetNodeId));
+        if (!transport.SendFrame(targetNodeId, CanPriority::emergency, focMotorCategoryId, focEmergencyStopId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
     }
 
-    void FocMotorCategoryClient::SendConfigureTelemetryRate(uint16_t targetNodeId, uint8_t rateHz)
+    bool FocMotorCategoryClient::SendConfigureTelemetryRate(uint16_t targetNodeId, uint8_t rateHz)
     {
         hal::Can::Message data;
         data.resize(2, 0);
-        data[0] = client.NextSequence(targetNodeId);
+        data[0] = client.PeekSequence(targetNodeId);
         data[1] = rateHz;
-        transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focConfigureTelemetryRateId, data, [] {});
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focConfigureTelemetryRateId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
     }
 
     // MotorTypeResponse

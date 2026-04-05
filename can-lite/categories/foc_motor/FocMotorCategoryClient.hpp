@@ -35,23 +35,23 @@ namespace services
 
         uint8_t Id() const override;
 
-        void SendQueryMotorType(uint16_t targetNodeId);
-        void SendStart(uint16_t targetNodeId);
-        void SendStop(uint16_t targetNodeId);
-        void SendSetPidCurrent(uint16_t targetNodeId, const FocPidGains& gains);
-        void SendSetPidSpeed(uint16_t targetNodeId, const FocPidGains& gains);
-        void SendSetPidPosition(uint16_t targetNodeId, const FocPidGains& gains);
-        void SendIdentifyElectrical(uint16_t targetNodeId);
-        void SendIdentifyMechanical(uint16_t targetNodeId);
-        void SendRequestTelemetry(uint16_t targetNodeId);
-        void SendSetEncoderResolution(uint16_t targetNodeId, uint16_t resolution);
-        void SendSetTarget(uint16_t targetNodeId, const FocSetpoint& setpoint);
-        void SendClearFault(uint16_t targetNodeId);
-        void SendEmergencyStop(uint16_t targetNodeId);
-        void SendConfigureTelemetryRate(uint16_t targetNodeId, uint8_t rateHz);
+        bool SendQueryMotorType(uint16_t targetNodeId);
+        bool SendStart(uint16_t targetNodeId);
+        bool SendStop(uint16_t targetNodeId);
+        bool SendSetPidCurrent(uint16_t targetNodeId, const FocPidGains& gains);
+        bool SendSetPidSpeed(uint16_t targetNodeId, const FocPidGains& gains);
+        bool SendSetPidPosition(uint16_t targetNodeId, const FocPidGains& gains);
+        bool SendIdentifyElectrical(uint16_t targetNodeId);
+        bool SendIdentifyMechanical(uint16_t targetNodeId);
+        bool SendRequestTelemetry(uint16_t targetNodeId);
+        bool SendSetEncoderResolution(uint16_t targetNodeId, uint16_t resolution);
+        bool SendSetTarget(uint16_t targetNodeId, const FocSetpoint& setpoint);
+        bool SendClearFault(uint16_t targetNodeId);
+        bool SendEmergencyStop(uint16_t targetNodeId);
+        bool SendConfigureTelemetryRate(uint16_t targetNodeId, uint8_t rateHz);
 
     private:
-        void SendSimpleCommand(uint16_t targetNodeId, uint8_t messageTypeId);
+        bool SendSimpleCommand(uint16_t targetNodeId, uint8_t messageTypeId);
 
         class MotorTypeResponseMessageType
             : public CanMessageType

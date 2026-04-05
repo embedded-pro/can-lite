@@ -468,4 +468,24 @@ namespace
         EXPECT_EQ(seqToServer1, 0u);
         EXPECT_EQ(seqToServer2, 0u);
     }
+
+    TEST_F(TestFocMotorCategoryClient, Send_QueueFull_ReturnsFalseAndDoesNotAdvanceSequence)
+    {
+        // Use a separate blocked transport: SendData never calls back, so sendInProgress stays true
+        NiceMock<hal::CanMock> blockedCan;
+        CanProtocolClient blockedProtocolClient{ blockedCan };
+        CanFrameTransport blockedTransport{ blockedCan, 1 };
+        FocMotorCategoryClient focClient{ blockedTransport, blockedProtocolClient };
+
+        // 1 in-progress + 8 queued = 9 accepted frames
+        for (int i = 0; i < 9; ++i)
+            EXPECT_TRUE(focClient.SendStart(1));
+
+        // 10th send fails: queue full
+        EXPECT_FALSE(focClient.SendStart(1));
+
+        // Sequence must NOT have advanced after the failure:
+        // 9 successful commits left the counter at 9, failure left it there
+        EXPECT_EQ(blockedProtocolClient.PeekSequence(1), 9u);
+    }
 }

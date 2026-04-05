@@ -275,25 +275,35 @@ namespace
         CanProtocolClient testClient(testCan);
     }
 
-    // === NextSequence ===
+    // === PeekSequence / CommitSequence ===
 
-    TEST_F(CanProtocolClientTest, NextSequence_FirstCallReturnsZero)
+    TEST_F(CanProtocolClientTest, PeekSequence_FirstCallReturnsZero)
     {
-        EXPECT_EQ(client.NextSequence(1), 0u);
+        EXPECT_EQ(client.PeekSequence(1), 0u);
     }
 
-    TEST_F(CanProtocolClientTest, NextSequence_SecondCallIncrementsCounter)
+    TEST_F(CanProtocolClientTest, PeekSequence_DoesNotAdvanceWithoutCommit)
     {
-        client.NextSequence(1);
-        EXPECT_EQ(client.NextSequence(1), 1u);
+        client.PeekSequence(1);
+        EXPECT_EQ(client.PeekSequence(1), 0u);
     }
 
-    TEST_F(CanProtocolClientTest, NextSequence_IndependentPerServer)
+    TEST_F(CanProtocolClientTest, CommitSequence_AdvancesCounter)
     {
-        EXPECT_EQ(client.NextSequence(1), 0u);
-        EXPECT_EQ(client.NextSequence(2), 0u);
-        EXPECT_EQ(client.NextSequence(1), 1u);
-        EXPECT_EQ(client.NextSequence(2), 1u);
+        client.PeekSequence(1);
+        client.CommitSequence(1);
+        EXPECT_EQ(client.PeekSequence(1), 1u);
+    }
+
+    TEST_F(CanProtocolClientTest, PeekCommitSequence_IndependentPerServer)
+    {
+        EXPECT_EQ(client.PeekSequence(1), 0u);
+        client.CommitSequence(1);
+        EXPECT_EQ(client.PeekSequence(2), 0u);
+        client.CommitSequence(2);
+        EXPECT_EQ(client.PeekSequence(1), 1u);
+        client.CommitSequence(1);
+        EXPECT_EQ(client.PeekSequence(2), 1u);
     }
 
     // === Server liveness ===

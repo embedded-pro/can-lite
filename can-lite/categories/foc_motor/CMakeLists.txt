@@ -7,9 +7,6 @@ target_include_directories(can_lite.categories.foc_motor PUBLIC
 
 target_link_libraries(can_lite.categories.foc_motor PUBLIC
     can_lite.core
-)
-
-target_link_libraries(can_lite.categories.foc_motor PRIVATE
     can_lite.client
 )
 
