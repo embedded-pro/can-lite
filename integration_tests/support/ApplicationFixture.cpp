@@ -30,21 +30,19 @@ namespace integration
 
     void ApplicationFixture::RegisterFocMotor()
     {
-        serverTransport.emplace(serverCan, config.nodeId);
-        motorServer.emplace(*serverTransport);
+        motorServer.emplace(server.Transport());
         motorServerObserver.emplace(*motorServer);
         server.RegisterCategory(*motorServer);
 
         clientTransport.emplace(clientCan, config.nodeId);
-        motorClient.emplace(*clientTransport);
+        motorClient.emplace(*clientTransport, client);
         motorClientObserver.emplace(*motorClient);
         client.RegisterCategory(*motorClient);
     }
 
     void ApplicationFixture::RegisterFocMotorServerOnly()
     {
-        serverTransport.emplace(serverCan, config.nodeId);
-        motorServer.emplace(*serverTransport);
+        motorServer.emplace(server.Transport());
         motorServerObserver.emplace(*motorServer);
         server.RegisterCategory(*motorServer);
     }

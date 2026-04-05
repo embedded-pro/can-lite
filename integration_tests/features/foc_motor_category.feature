@@ -63,6 +63,30 @@ Feature: FOC Motor Category Integration
     When the client sends a set encoder resolution command with resolution 4096
     Then the server observer shall receive encoder resolution 4096
 
+  Scenario: Client sends set target command in speed mode
+    When the client sends a set target command with mode "speed" and value 3000
+    Then the server observer shall receive a set target event with mode "speed" and value 3000
+
+  Scenario: Client sends set target command in torque mode
+    When the client sends a set target command with mode "torque" and value 500
+    Then the server observer shall receive a set target event with mode "torque" and value 500
+
+  Scenario: Client sends set target command in position mode
+    When the client sends a set target command with mode "position" and value 18000
+    Then the server observer shall receive a set target event with mode "position" and value 18000
+
+  Scenario: Client clears active fault
+    When the client sends a clear fault command
+    Then the server observer shall receive an OnClearFault event
+
+  Scenario: Client sends emergency stop
+    When the client sends an emergency stop command
+    Then the server observer shall receive an OnEmergencyStop event
+
+  Scenario: Client configures telemetry rate
+    When the client sends a configure telemetry rate command with rate 10 Hz
+    Then the server observer shall receive a configure telemetry rate event with rate 10 Hz
+
   Scenario: FOC motor category appears in category discovery
     When the client sends a category discovery request to node 1
     Then the category list response shall contain category 2

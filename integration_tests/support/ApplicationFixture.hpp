@@ -40,7 +40,6 @@ namespace integration
         testing::StrictMock<ServerObserverMock> serverObserver;
         services::CanProtocolClient client;
 
-        std::optional<services::CanFrameTransport> serverTransport;
         std::optional<services::FocMotorCategoryServer> motorServer;
         std::optional<testing::StrictMock<FocMotorServerObserverMock>> motorServerObserver;
         std::optional<services::CanFrameTransport> clientTransport;

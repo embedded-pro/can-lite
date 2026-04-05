@@ -576,4 +576,31 @@ namespace
         server.UnregisterCategory(cat2);
         server.UnregisterCategory(cat1);
     }
+
+    TEST_F(CanProtocolServerTest, HeartbeatTimer_DeferredWhileCommunicating)
+    {
+        auto statusRequestId = MakeSystemId(canStatusRequestMessageTypeId);
+
+        int heartbeatCount = 0;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillRepeatedly([&heartbeatCount](hal::Can::Id id, const hal::Can::Message&, const auto& cb)
+            {
+                uint32_t rawId = id.Get29BitId();
+                if (ExtractCanCategory(rawId) == canSystemCategoryId && ExtractCanMessageType(rawId) == canHeartbeatMessageTypeId)
+                    ++heartbeatCount;
+                cb(true);
+            });
+
+        // At t=800ms, receive a status request — server sends a heartbeat and resets the timer
+        ForwardTime(std::chrono::milliseconds(800));
+        SimulateRx(statusRequestId, MakeMessage({}));
+        EXPECT_EQ(heartbeatCount, 1);
+
+        // At t=1000ms, the original timer would have fired — but it was deferred to t=1800ms
+        ForwardTime(std::chrono::milliseconds(200));
+        EXPECT_EQ(heartbeatCount, 1);
+
+        // At t=1800ms, the deferred heartbeat fires
+        ForwardTime(std::chrono::milliseconds(800));
+        EXPECT_EQ(heartbeatCount, 2);
+    }
 }

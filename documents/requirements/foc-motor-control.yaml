@@ -144,3 +144,43 @@
     Response message types within the FOC category shall use IDs
     formed by adding 0x80 to the corresponding command message type
     ID, reserving 0x00–0x7F for commands and 0x80–0xFF for responses.
+
+# --- Setpoint Control ---
+
+- id: REQ-FOC-015
+  title: Active setpoint command
+  shall: >
+    The client shall be able to send a Set Target command (0x0A) to
+    set the active closed-loop setpoint for the motor. The command
+    payload shall contain: sequence byte (byte 0), mode byte (byte 1,
+    values 0–2), and a big-endian int16 value (bytes 2–3). The server
+    shall reject payloads shorter than 4 bytes or with an invalid mode
+    byte (> 2) without notifying the observer.
+
+# --- Fault Recovery ---
+
+- id: REQ-FOC-016
+  title: Fault clear command
+  shall: >
+    The client shall be able to send a Clear Fault command (0x0B) to
+    clear an active fault condition on the server and return it to the
+    Idle state. The server's observer shall be notified via
+    OnClearFault().
+
+- id: REQ-FOC-017
+  title: Emergency stop command
+  shall: >
+    The client shall be able to send an Emergency Stop command (0x0C)
+    at CanPriority::emergency to immediately de-energize the motor.
+    The server's observer shall be notified via OnEmergencyStop().
+
+# --- Push Telemetry Rate ---
+
+- id: REQ-FOC-018
+  title: Telemetry rate configuration
+  shall: >
+    The client shall be able to send a Configure Telemetry Rate command
+    (0x0D) containing a uint8 rate value in bytes 1 (0 = disabled).
+    The server's observer shall be notified via
+    OnConfigureTelemetryRate(rateHz). Payloads shorter than 2 bytes
+    shall be silently rejected.

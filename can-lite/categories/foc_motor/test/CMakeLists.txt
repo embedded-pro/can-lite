@@ -4,7 +4,9 @@ emil_add_test(can_lite.categories.foc_motor_test)
 
 target_link_libraries(can_lite.categories.foc_motor_test PRIVATE
     can_lite.categories.foc_motor
+    can_lite.client
     can_lite.test_util
+    infra.timer_test_helper
     gmock_main
 )
 

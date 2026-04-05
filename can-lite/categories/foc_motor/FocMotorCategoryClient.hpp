@@ -9,6 +9,8 @@
 
 namespace services
 {
+    class CanProtocolClient;
+
     class FocMotorCategoryClient;
 
     class FocMotorCategoryClientObserver
@@ -29,23 +31,27 @@ namespace services
         , public infra::Subject<FocMotorCategoryClientObserver>
     {
     public:
-        explicit FocMotorCategoryClient(CanFrameTransport& transport);
+        FocMotorCategoryClient(CanFrameTransport& transport, CanProtocolClient& client);
 
         uint8_t Id() const override;
 
-        void SendQueryMotorType();
-        void SendStart();
-        void SendStop();
-        void SendSetPidCurrent(const FocPidGains& gains);
-        void SendSetPidSpeed(const FocPidGains& gains);
-        void SendSetPidPosition(const FocPidGains& gains);
-        void SendIdentifyElectrical();
-        void SendIdentifyMechanical();
-        void SendRequestTelemetry();
-        void SendSetEncoderResolution(uint16_t resolution);
+        bool SendQueryMotorType(uint16_t targetNodeId);
+        bool SendStart(uint16_t targetNodeId);
+        bool SendStop(uint16_t targetNodeId);
+        bool SendSetPidCurrent(uint16_t targetNodeId, const FocPidGains& gains);
+        bool SendSetPidSpeed(uint16_t targetNodeId, const FocPidGains& gains);
+        bool SendSetPidPosition(uint16_t targetNodeId, const FocPidGains& gains);
+        bool SendIdentifyElectrical(uint16_t targetNodeId);
+        bool SendIdentifyMechanical(uint16_t targetNodeId);
+        bool SendRequestTelemetry(uint16_t targetNodeId);
+        bool SendSetEncoderResolution(uint16_t targetNodeId, uint16_t resolution);
+        bool SendSetTarget(uint16_t targetNodeId, const FocSetpoint& setpoint);
+        bool SendClearFault(uint16_t targetNodeId);
+        bool SendEmergencyStop(uint16_t targetNodeId);
+        bool SendConfigureTelemetryRate(uint16_t targetNodeId, uint8_t rateHz);
 
     private:
-        void SendSimpleCommand(uint8_t messageTypeId);
+        bool SendSimpleCommand(uint16_t targetNodeId, uint8_t messageTypeId);
 
         class MotorTypeResponseMessageType
             : public CanMessageType
@@ -108,7 +114,7 @@ namespace services
         };
 
         CanFrameTransport& transport;
-        uint8_t sequenceCounter = 0;
+        CanProtocolClient& client;
 
         MotorTypeResponseMessageType motorTypeResponse;
         ElectricalParamsResponseMessageType electricalParamsResponse;

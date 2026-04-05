@@ -17,6 +17,10 @@ namespace services
     static constexpr uint8_t focIdentifyMechanicalId = 0x07;
     static constexpr uint8_t focRequestTelemetryId = 0x08;
     static constexpr uint8_t focSetEncoderResolutionId = 0x09;
+    static constexpr uint8_t focSetTargetId = 0x0A;
+    static constexpr uint8_t focClearFaultId = 0x0B;
+    static constexpr uint8_t focEmergencyStopId = 0x0C;
+    static constexpr uint8_t focConfigureTelemetryRateId = 0x0D;
 
     // Response message type IDs (Server → Client) = 0x80 + command ID
     static constexpr uint8_t focMotorTypeResponseId = 0x80;
@@ -66,6 +70,12 @@ namespace services
         int16_t kp;
         int16_t ki;
         int16_t kd;
+    };
+
+    struct FocSetpoint
+    {
+        FocMotorMode mode;
+        int16_t value;
     };
 
     struct FocElectricalParams

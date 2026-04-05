@@ -240,3 +240,36 @@
     with a category list response containing the IDs of all registered
     category handlers. The response payload shall list one category ID
     per byte, limited to the maximum CAN frame payload size (8 bytes).
+
+# --- Multi-Server Client ---
+
+- id: REQ-CAN-026
+  title: Per-server sequence counter on client
+  shall: >
+    The client shall maintain independent 8-bit sequence counters for
+    each server node it communicates with. The sequence counter for a
+    node shall start at 0 on the first command and increment by 1 for
+    each subsequent command to that same node. Counters for different
+    nodes shall be independent. Up to 8 server nodes may be tracked
+    simultaneously.
+
+- id: REQ-CAN-027
+  title: Server liveness detection
+  shall: >
+    The client shall track server liveness independently for each
+    server node. When any frame is received from a source node ID
+    (non-zero), the client shall call OnServerOnline(nodeId) the first
+    time and reset a per-server timeout timer (default 3 s). If no
+    frame is received from a server within the timeout period, the
+    client shall call OnServerOffline(nodeId). Up to 8 server liveness
+    slots may be tracked simultaneously.
+
+# --- Send Queue ---
+
+- id: REQ-CAN-028
+  title: Send queue overflow indication
+  shall: >
+    The CanFrameTransport::SendFrame() method shall return true if the
+    frame was successfully sent or enqueued, and false if the internal
+    send queue was full and the frame was dropped. The onDone callback
+    shall not be called when false is returned.

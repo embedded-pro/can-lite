@@ -1,5 +1,6 @@
 #include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/core/test/CanMock.hpp"
+#include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -10,6 +11,7 @@ namespace
 
     class CanProtocolClientTest
         : public ::testing::Test
+        , public infra::ClockFixture
     {
     public:
         struct FixtureInit
@@ -271,5 +273,119 @@ namespace
                 }));
 
         CanProtocolClient testClient(testCan);
+    }
+
+    // === PeekSequence / CommitSequence ===
+
+    TEST_F(CanProtocolClientTest, PeekSequence_FirstCallReturnsZero)
+    {
+        EXPECT_EQ(client.PeekSequence(1), 0u);
+    }
+
+    TEST_F(CanProtocolClientTest, PeekSequence_DoesNotAdvanceWithoutCommit)
+    {
+        client.PeekSequence(1);
+        EXPECT_EQ(client.PeekSequence(1), 0u);
+    }
+
+    TEST_F(CanProtocolClientTest, CommitSequence_AdvancesCounter)
+    {
+        client.PeekSequence(1);
+        client.CommitSequence(1);
+        EXPECT_EQ(client.PeekSequence(1), 1u);
+    }
+
+    TEST_F(CanProtocolClientTest, PeekCommitSequence_IndependentPerServer)
+    {
+        EXPECT_EQ(client.PeekSequence(1), 0u);
+        client.CommitSequence(1);
+        EXPECT_EQ(client.PeekSequence(2), 0u);
+        client.CommitSequence(2);
+        EXPECT_EQ(client.PeekSequence(1), 1u);
+        client.CommitSequence(1);
+        EXPECT_EQ(client.PeekSequence(2), 1u);
+    }
+
+    // === Server liveness ===
+
+    class CanProtocolClientObserverMock
+        : public CanProtocolClientObserver
+    {
+    public:
+        using CanProtocolClientObserver::CanProtocolClientObserver;
+
+        MOCK_METHOD(void, OnServerOnline, (uint16_t nodeId), (override));
+        MOCK_METHOD(void, OnServerOffline, (uint16_t nodeId), (override));
+    };
+
+    class CanProtocolClientLivenessTest
+        : public ::testing::Test
+        , public infra::ClockFixture
+    {
+    public:
+        struct FixtureInit
+        {
+            FixtureInit(NiceMock<hal::CanMock>& canMock,
+                infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& receiveCallback)
+            {
+                EXPECT_CALL(canMock, ReceiveData(_)).WillOnce([&receiveCallback](const auto& callback)
+                    {
+                        receiveCallback = callback;
+                    });
+                ON_CALL(canMock, SendData(_, _, _))
+                    .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                        {
+                            cb(true);
+                        }));
+            }
+        };
+
+        void SimulateServerFrame(uint16_t sourceNodeId)
+        {
+            uint32_t rawId = MakeCanId(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, sourceNodeId);
+            auto id = hal::Can::Id::Create29BitId(rawId);
+            receiveCallback(id, hal::Can::Message{});
+        }
+
+        NiceMock<hal::CanMock> canMock;
+        infra::Function<void(hal::Can::Id, const hal::Can::Message&)> receiveCallback;
+        FixtureInit fixtureInit{ canMock, receiveCallback };
+        CanProtocolClient::Config config{ std::chrono::seconds(3) };
+        CanProtocolClient client{ canMock, config };
+        StrictMock<CanProtocolClientObserverMock> observer{ client };
+    };
+
+    TEST_F(CanProtocolClientLivenessTest, ReceivedFrame_NotifiesServerOnline)
+    {
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        SimulateServerFrame(5);
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, TwoFramesFromSameServer_NotifiesOnlineOnce)
+    {
+        EXPECT_CALL(observer, OnServerOnline(5u)).Times(1);
+        SimulateServerFrame(5);
+        SimulateServerFrame(5);
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, ServerGoesOfflineAfterTimeout)
+    {
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        SimulateServerFrame(5);
+
+        EXPECT_CALL(observer, OnServerOffline(5u));
+        ForwardTime(std::chrono::seconds(3));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, FrameBeforeTimeoutDefersOffline)
+    {
+        EXPECT_CALL(observer, OnServerOnline(5u)).Times(1);
+        SimulateServerFrame(5);
+        ForwardTime(std::chrono::seconds(2));
+        SimulateServerFrame(5);
+        ForwardTime(std::chrono::seconds(2));
+
+        EXPECT_CALL(observer, OnServerOffline(5u));
+        ForwardTime(std::chrono::seconds(1));
     }
 }

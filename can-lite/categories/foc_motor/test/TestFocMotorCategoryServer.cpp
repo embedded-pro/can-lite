@@ -29,6 +29,10 @@ namespace
         MOCK_METHOD(void, OnIdentifyMechanical, (), (override));
         MOCK_METHOD(void, OnRequestTelemetry, (), (override));
         MOCK_METHOD(void, OnSetEncoderResolution, (uint16_t resolution), (override));
+        MOCK_METHOD(void, OnSetTarget, (const FocSetpoint& setpoint), (override));
+        MOCK_METHOD(void, OnClearFault, (), (override));
+        MOCK_METHOD(void, OnEmergencyStop, (), (override));
+        MOCK_METHOD(void, OnConfigureTelemetryRate, (uint8_t rateHz), (override));
     };
 
     class TestFocMotorCategoryServer : public ::testing::Test
@@ -319,5 +323,75 @@ namespace
 
         FocTelemetryStatus status{ FocMotorState::running, FocFaultCode::none, 3000, 1800 };
         server.SendTelemetryStatusResponse(status);
+    }
+
+    TEST_F(TestFocMotorCategoryServer, SetTarget_SpeedMode_NotifiesObserver)
+    {
+        StrictMock<FocMotorCategoryServerObserverMock> observer{ server };
+        EXPECT_CALL(observer, OnSetTarget(_)).WillOnce([](const FocSetpoint& sp)
+            {
+                EXPECT_EQ(sp.mode, FocMotorMode::speed);
+                EXPECT_EQ(sp.value, 3000);
+            });
+
+        hal::Can::Message data;
+        data.resize(4, 0);
+        data[0] = 0;
+        data[1] = static_cast<uint8_t>(FocMotorMode::speed);
+        CanFrameCodec::WriteInt16(data, 2, 3000);
+        server.HandleMessage(focSetTargetId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryServer, SetTarget_TooShortPayload_Ignored)
+    {
+        hal::Can::Message data;
+        data.resize(3, 0);
+        server.HandleMessage(focSetTargetId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryServer, SetTarget_InvalidMode_Ignored)
+    {
+        hal::Can::Message data;
+        data.resize(4, 0);
+        data[1] = 0xFF;
+        server.HandleMessage(focSetTargetId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryServer, ClearFault_NotifiesObserver)
+    {
+        StrictMock<FocMotorCategoryServerObserverMock> observer{ server };
+        EXPECT_CALL(observer, OnClearFault());
+
+        hal::Can::Message data;
+        data.push_back(0);
+        server.HandleMessage(focClearFaultId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryServer, EmergencyStop_NotifiesObserver)
+    {
+        StrictMock<FocMotorCategoryServerObserverMock> observer{ server };
+        EXPECT_CALL(observer, OnEmergencyStop());
+
+        hal::Can::Message data;
+        data.push_back(0);
+        server.HandleMessage(focEmergencyStopId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryServer, ConfigureTelemetryRate_ParsesRate)
+    {
+        StrictMock<FocMotorCategoryServerObserverMock> observer{ server };
+        EXPECT_CALL(observer, OnConfigureTelemetryRate(10u));
+
+        hal::Can::Message data;
+        data.push_back(0);
+        data.push_back(10);
+        server.HandleMessage(focConfigureTelemetryRateId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryServer, ConfigureTelemetryRate_TooShortPayload_Ignored)
+    {
+        hal::Can::Message data;
+        data.push_back(0);
+        server.HandleMessage(focConfigureTelemetryRateId, data);
     }
 }

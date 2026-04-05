@@ -27,6 +27,10 @@ namespace services
         virtual void OnIdentifyMechanical() = 0;
         virtual void OnRequestTelemetry() = 0;
         virtual void OnSetEncoderResolution(uint16_t resolution) = 0;
+        virtual void OnSetTarget(const FocSetpoint& setpoint) = 0;
+        virtual void OnClearFault() = 0;
+        virtual void OnEmergencyStop() = 0;
+        virtual void OnConfigureTelemetryRate(uint8_t rateHz) = 0;
     };
 
     class FocMotorCategoryServer
@@ -165,6 +169,54 @@ namespace services
             FocMotorCategoryServer& parent;
         };
 
+        class SetTargetMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit SetTargetMessageType(FocMotorCategoryServer& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryServer& parent;
+        };
+
+        class ClearFaultMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit ClearFaultMessageType(FocMotorCategoryServer& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryServer& parent;
+        };
+
+        class EmergencyStopMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit EmergencyStopMessageType(FocMotorCategoryServer& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryServer& parent;
+        };
+
+        class ConfigureTelemetryRateMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit ConfigureTelemetryRateMessageType(FocMotorCategoryServer& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryServer& parent;
+        };
+
         CanFrameTransport& transport;
 
         QueryMotorTypeMessageType queryMotorType;
@@ -177,5 +229,9 @@ namespace services
         IdentifyMechanicalMessageType identifyMechanical;
         RequestTelemetryMessageType requestTelemetry;
         SetEncoderResolutionMessageType setEncoderResolution;
+        SetTargetMessageType setTarget;
+        ClearFaultMessageType clearFault;
+        EmergencyStopMessageType emergencyStop;
+        ConfigureTelemetryRateMessageType configureTelemetryRate;
     };
 }
