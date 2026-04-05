@@ -39,7 +39,8 @@ The protocol follows a **client-server** model:
 - The server automatically begins transmitting heartbeat messages on startup.
   The client uses the presence or absence of heartbeats to determine whether
   a server is **online** or **offline**, and notifies the application layer
-  accordingly via observer callbacks (`Online()` / `Offline()`).
+  accordingly via `CanProtocolClientObserver` callbacks (`OnServerOnline(nodeId)` /
+  `OnServerOffline(nodeId)`).
 
 ```mermaid
 flowchart LR
@@ -133,9 +134,12 @@ periods of silence.
 
 The client uses received heartbeats to track server liveness. When a
 heartbeat (or any message) is received from a server, the client
-considers that server **online**. If no messages are received from a
-server within a configurable timeout, the client considers it
-**offline**.
+considers that server **online** and resets that server's timeout timer.
+If no messages are received from a server within a configurable timeout
+(default 3 s), the client considers it **offline** and notifies the
+application via `CanProtocolClientObserver::OnServerOffline(nodeId)`.
+Multiple servers (up to 8) can be tracked simultaneously with
+independent liveness timers.
 
 #### 8.1.2 Command Acknowledgement (Type 0x02)
 

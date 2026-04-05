@@ -6,10 +6,6 @@ namespace services
     CanProtocolServer::CanProtocolServer(hal::Can& can, const Config& config)
         : config(config)
         , transport(can, config.nodeId)
-        , heartbeatTimer(config.heartbeatInterval, [this]()
-              {
-                  SendHeartbeat();
-              })
         , rateResetTimer(std::chrono::seconds(1), [this]()
               {
                   ResetRateCounter();
@@ -22,6 +18,13 @@ namespace services
             {
                 ProcessReceivedMessage(id, data);
             });
+
+        transport.SetOnSendNotification([this]()
+            {
+                ResetHeartbeatTimer();
+            });
+
+        ResetHeartbeatTimer();
     }
 
     CanProtocolServer::SystemObserver::SystemObserver(CanSystemCategoryServer& subject, CanProtocolServer& server)
@@ -132,6 +135,14 @@ namespace services
         transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [] {});
     }
 
+    void CanProtocolServer::ResetHeartbeatTimer()
+    {
+        heartbeatTimer.Start(config.heartbeatInterval, [this]()
+            {
+                SendHeartbeat();
+            });
+    }
+
     void CanProtocolServer::SendCategoryList()
     {
         hal::Can::Message msg;
@@ -172,5 +183,10 @@ namespace services
 
         lastSequenceNumber = sequenceNumber;
         return true;
+    }
+
+    CanFrameTransport& CanProtocolServer::Transport()
+    {
+        return transport;
     }
 }

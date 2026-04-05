@@ -1,7 +1,9 @@
 #include "can-lite/categories/foc_motor/FocMotorCategoryClient.hpp"
+#include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/core/CanFrameCodec.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "can-lite/core/test/CanMock.hpp"
+#include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -26,7 +28,9 @@ namespace
         MOCK_METHOD(void, OnTelemetryStatusResponse, (const FocTelemetryStatus& status), (override));
     };
 
-    class TestFocMotorCategoryClient : public ::testing::Test
+    class TestFocMotorCategoryClient
+        : public ::testing::Test
+        , public infra::ClockFixture
     {
     public:
         TestFocMotorCategoryClient()
@@ -39,8 +43,9 @@ namespace
         }
 
         NiceMock<hal::CanMock> canMock;
+        CanProtocolClient protocolClient{ canMock };
         CanFrameTransport transport{ canMock, 1 };
-        FocMotorCategoryClient client{ transport };
+        FocMotorCategoryClient client{ transport, protocolClient };
     };
 
     class TestFocMotorCategoryClientWithObserver : public TestFocMotorCategoryClient
@@ -201,7 +206,7 @@ namespace
                 cb(true);
             });
 
-        client.SendQueryMotorType();
+        client.SendQueryMotorType(1);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendStart_SendsCorrectFrame)
@@ -216,7 +221,7 @@ namespace
                 cb(true);
             });
 
-        client.SendStart();
+        client.SendStart(1);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendStop_SendsCorrectFrame)
@@ -231,7 +236,7 @@ namespace
                 cb(true);
             });
 
-        client.SendStop();
+        client.SendStop(1);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendSetPidCurrent_SendsCorrectFrame)
@@ -250,7 +255,7 @@ namespace
             });
 
         FocPidGains gains{ 100, 200, 300 };
-        client.SendSetPidCurrent(gains);
+        client.SendSetPidCurrent(1, gains);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendSetPidSpeed_SendsCorrectFrame)
@@ -269,7 +274,7 @@ namespace
             });
 
         FocPidGains gains{ -500, 1000, 50 };
-        client.SendSetPidSpeed(gains);
+        client.SendSetPidSpeed(1, gains);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendSetPidPosition_SendsCorrectFrame)
@@ -288,7 +293,7 @@ namespace
             });
 
         FocPidGains gains{ 10, 20, 30 };
-        client.SendSetPidPosition(gains);
+        client.SendSetPidPosition(1, gains);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendIdentifyElectrical_SendsCorrectFrame)
@@ -303,7 +308,7 @@ namespace
                 cb(true);
             });
 
-        client.SendIdentifyElectrical();
+        client.SendIdentifyElectrical(1);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendIdentifyMechanical_SendsCorrectFrame)
@@ -318,7 +323,7 @@ namespace
                 cb(true);
             });
 
-        client.SendIdentifyMechanical();
+        client.SendIdentifyMechanical(1);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendRequestTelemetry_SendsCorrectFrame)
@@ -333,7 +338,7 @@ namespace
                 cb(true);
             });
 
-        client.SendRequestTelemetry();
+        client.SendRequestTelemetry(1);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendSetEncoderResolution_SendsCorrectFrame)
@@ -349,7 +354,7 @@ namespace
                 cb(true);
             });
 
-        client.SendSetEncoderResolution(4096);
+        client.SendSetEncoderResolution(1, 4096);
     }
 
     TEST_F(TestFocMotorCategoryClient, SequenceCounterIncrements)
@@ -369,10 +374,98 @@ namespace
                     cb(true);
                 });
 
-        client.SendStart();
-        client.SendStop();
+        client.SendStart(1);
+        client.SendStop(1);
 
         EXPECT_EQ(firstSeq, 0);
         EXPECT_EQ(secondSeq, 1);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SendSetTarget_SendsCorrectFrame)
+    {
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
+            {
+                auto rawId = id.Get29BitId();
+                EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
+                EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focSetTargetId);
+                ASSERT_EQ(data.size(), 4u);
+                EXPECT_EQ(data[1], static_cast<uint8_t>(FocMotorMode::speed));
+                EXPECT_EQ(CanFrameCodec::ReadInt16(data, 2), 3000);
+                cb(true);
+            });
+
+        FocSetpoint setpoint{ FocMotorMode::speed, 3000 };
+        client.SendSetTarget(1, setpoint);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SendClearFault_SendsCorrectFrame)
+    {
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
+            {
+                auto rawId = id.Get29BitId();
+                EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
+                EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focClearFaultId);
+                ASSERT_EQ(data.size(), 1u);
+                cb(true);
+            });
+
+        client.SendClearFault(1);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SendEmergencyStop_SendsCorrectFrame)
+    {
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
+            {
+                auto rawId = id.Get29BitId();
+                EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::emergency);
+                EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focEmergencyStopId);
+                ASSERT_EQ(data.size(), 1u);
+                cb(true);
+            });
+
+        client.SendEmergencyStop(1);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SendConfigureTelemetryRate_SendsCorrectFrame)
+    {
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
+            {
+                auto rawId = id.Get29BitId();
+                EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
+                EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focConfigureTelemetryRateId);
+                ASSERT_EQ(data.size(), 2u);
+                EXPECT_EQ(data[1], 10u);
+                cb(true);
+            });
+
+        client.SendConfigureTelemetryRate(1, 10);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SendCommandsToTwoDifferentServersHaveIndependentSequences)
+    {
+        uint8_t seqToServer1 = 0xFF;
+        uint8_t seqToServer2 = 0xFF;
+
+        EXPECT_CALL(canMock, SendData(_, _, _))
+            .WillOnce([&seqToServer1](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+                {
+                    seqToServer1 = data[0];
+                    cb(true);
+                })
+            .WillOnce([&seqToServer2](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+                {
+                    seqToServer2 = data[0];
+                    cb(true);
+                });
+
+        client.SendStart(1);
+        client.SendStart(2);
+
+        EXPECT_EQ(seqToServer1, 0u);
+        EXPECT_EQ(seqToServer2, 0u);
     }
 }

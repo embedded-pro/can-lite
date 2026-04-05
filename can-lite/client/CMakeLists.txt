@@ -13,6 +13,7 @@ target_sources(can_lite.client PRIVATE
 target_link_libraries(can_lite.client PUBLIC
     can_lite.categories.system
     can_lite.core
+    infra.timer
 )
 
 add_subdirectory(test)

@@ -198,7 +198,57 @@ Configure the encoder resolution (counts per mechanical revolution).
 
 Total: 3 bytes.
 
-## 7. Message Types — Responses (Server → Client)
+### 6.11 Set Target (0x0A)
+
+Set the active closed-loop setpoint. The mode byte selects which
+control loop is targeted. Sent at `CanPriority::command`.
+
+| Byte | Field    | Type  | Scale         | Description                     |
+|------|----------|-------|---------------|---------------------------------|
+| 0    | Sequence | uint8 | —             | Sequence counter                |
+| 1    | Mode     | uint8 | —             | Control mode (Section 2)        |
+| 2–3  | Value    | int16 | mode-specific | Setpoint value (see below)      |
+
+Value scale by mode:
+- Torque (0): scale 10 → 0.1 A resolution, ±3276.7 A
+- Speed (1): scale 1 → 1 RPM resolution, ±32767 RPM
+- Position (2): scale 100 → 0.01 rad resolution, ±327.67 rad
+
+Invalid mode byte (> 2) is silently rejected by the server.
+
+Total: 4 bytes.
+
+### 6.12 Clear Fault (0x0B)
+
+Clear an active fault condition and return to Idle state.
+Server ignores this command if no fault is active.
+
+| Byte | Field    | Type  | Description       |
+|------|----------|-------|-------------------|
+| 0    | Sequence | uint8 | Sequence counter  |
+
+### 6.13 Emergency Stop (0x0C)
+
+Immediately de-energize all motor phases and set the motor to Idle.
+Sent at `CanPriority::emergency`. Override any active control loop.
+
+| Byte | Field    | Type  | Description       |
+|------|----------|-------|-------------------|
+| 0    | Sequence | uint8 | Sequence counter  |
+
+### 6.14 Configure Telemetry Rate (0x0D)
+
+Set the rate at which the server emits unsolicited telemetry frames.
+A rate of 0 disables push telemetry.
+
+| Byte | Field    | Type  | Description                    |
+|------|----------|-------|--------------------------------|
+| 0    | Sequence | uint8 | Sequence counter               |
+| 1    | RateHz   | uint8 | Telemetry rate (0–255 Hz)      |
+
+Total: 2 bytes.
+
+
 
 Response message type IDs use the convention `0x80 + command_id`,
 providing a clear mapping between request and response. All responses
@@ -272,15 +322,18 @@ sequenceDiagram
     C->>S: setPidSpeed (seq=3, kp, ki, kd)
     S->>C: commandAck (0x2, 0x04, success)
 
-    C->>S: start (seq=4)
+    C->>S: setTarget (seq=4, speed, 3000)
+    S->>C: commandAck (0x2, 0x0A, success)
+
+    C->>S: start (seq=5)
     S->>C: commandAck (0x2, 0x01, success)
 
-    C->>S: requestTelemetry (seq=5)
+    C->>S: requestTelemetry (seq=6)
     S->>C: telemetryElectrical (V, Imax, Iq, Id)
     S->>C: telemetryStatus (running, none, rpm, pos)
     S->>C: commandAck (0x2, 0x08, success)
 
-    C->>S: stop (seq=6)
+    C->>S: stop (seq=7)
     S->>C: commandAck (0x2, 0x02, success)
 ```
 

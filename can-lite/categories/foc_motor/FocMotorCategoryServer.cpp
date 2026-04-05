@@ -15,6 +15,10 @@ namespace services
         , identifyMechanical(*this)
         , requestTelemetry(*this)
         , setEncoderResolution(*this)
+        , setTarget(*this)
+        , clearFault(*this)
+        , emergencyStop(*this)
+        , configureTelemetryRate(*this)
     {
         AddMessageType(queryMotorType);
         AddMessageType(start);
@@ -26,6 +30,10 @@ namespace services
         AddMessageType(identifyMechanical);
         AddMessageType(requestTelemetry);
         AddMessageType(setEncoderResolution);
+        AddMessageType(setTarget);
+        AddMessageType(clearFault);
+        AddMessageType(emergencyStop);
+        AddMessageType(configureTelemetryRate);
     }
 
     uint8_t FocMotorCategoryServer::Id() const
@@ -299,6 +307,96 @@ namespace services
         parent.NotifyObservers([resolution](auto& observer)
             {
                 observer.OnSetEncoderResolution(resolution);
+            });
+    }
+
+    // SetTarget
+
+    FocMotorCategoryServer::SetTargetMessageType::SetTargetMessageType(FocMotorCategoryServer& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryServer::SetTargetMessageType::Id() const
+    {
+        return focSetTargetId;
+    }
+
+    void FocMotorCategoryServer::SetTargetMessageType::Handle(const hal::Can::Message& data)
+    {
+        if (data.size() < 4)
+            return;
+
+        auto mode = static_cast<FocMotorMode>(data[1]);
+        if (mode != FocMotorMode::torque && mode != FocMotorMode::speed && mode != FocMotorMode::position)
+            return;
+
+        FocSetpoint setpoint{ mode, CanFrameCodec::ReadInt16(data, 2) };
+
+        parent.NotifyObservers([&setpoint](auto& observer)
+            {
+                observer.OnSetTarget(setpoint);
+            });
+    }
+
+    // ClearFault
+
+    FocMotorCategoryServer::ClearFaultMessageType::ClearFaultMessageType(FocMotorCategoryServer& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryServer::ClearFaultMessageType::Id() const
+    {
+        return focClearFaultId;
+    }
+
+    void FocMotorCategoryServer::ClearFaultMessageType::Handle(const hal::Can::Message& data)
+    {
+        parent.NotifyObservers([](auto& observer)
+            {
+                observer.OnClearFault();
+            });
+    }
+
+    // EmergencyStop
+
+    FocMotorCategoryServer::EmergencyStopMessageType::EmergencyStopMessageType(FocMotorCategoryServer& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryServer::EmergencyStopMessageType::Id() const
+    {
+        return focEmergencyStopId;
+    }
+
+    void FocMotorCategoryServer::EmergencyStopMessageType::Handle(const hal::Can::Message& data)
+    {
+        parent.NotifyObservers([](auto& observer)
+            {
+                observer.OnEmergencyStop();
+            });
+    }
+
+    // ConfigureTelemetryRate
+
+    FocMotorCategoryServer::ConfigureTelemetryRateMessageType::ConfigureTelemetryRateMessageType(FocMotorCategoryServer& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryServer::ConfigureTelemetryRateMessageType::Id() const
+    {
+        return focConfigureTelemetryRateId;
+    }
+
+    void FocMotorCategoryServer::ConfigureTelemetryRateMessageType::Handle(const hal::Can::Message& data)
+    {
+        if (data.size() < 2)
+            return;
+
+        auto rateHz = data[1];
+
+        parent.NotifyObservers([rateHz](auto& observer)
+            {
+                observer.OnConfigureTelemetryRate(rateHz);
             });
     }
 }

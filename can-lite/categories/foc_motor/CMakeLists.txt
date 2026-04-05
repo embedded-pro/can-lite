@@ -9,6 +9,10 @@ target_link_libraries(can_lite.categories.foc_motor PUBLIC
     can_lite.core
 )
 
+target_link_libraries(can_lite.categories.foc_motor PRIVATE
+    can_lite.client
+)
+
 target_sources(can_lite.categories.foc_motor PRIVATE
     FocMotorCategoryClient.cpp
     FocMotorCategoryClient.hpp

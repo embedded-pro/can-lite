@@ -213,9 +213,9 @@ classDiagram
 ```
 
 - **Server category**: Registers `CanMessageType` handlers for **commands** (IDs `0x00`–`0x7F`). Provides `Send*Response()` methods that build response frames and send them via `CanFrameTransport`.
-- **Client category**: Registers `CanMessageType` handlers for **responses** (IDs `0x80`–`0xFF`). Provides `Send*Command()` methods with an auto-incrementing sequence counter.
+- **Client category**: Registers `CanMessageType` handlers for **responses** (IDs `0x80`–`0xFF`). Provides `Send*Command(uint16_t targetNodeId, ...)` methods. The `targetNodeId` parameter directs each frame to a specific server. Sequence counters are tracked **per server node** via `CanProtocolClient::NextSequence(nodeId)`.
 
-Both sides take a `CanFrameTransport&` in their constructor to send frames.
+Both sides take a `CanFrameTransport&` in their constructor to send frames. Client-side categories additionally take a `CanProtocolClient&` to access the per-server sequence counter.
 
 ## 8. CAN Identifier Layout
 
@@ -232,7 +232,7 @@ Priority values (lower = higher priority on the CAN bus):
 
 | Priority | Value | Usage |
 |----------|-------|-------|
-| Emergency | 2 | Reserved for safety-critical messages |
+| Emergency | 0 | Reserved for safety-critical messages |
 | Command | 4 | Client-to-server commands |
 | Response | 8 | Server-to-client responses |
 | Telemetry | 12 | Periodic data streams |
@@ -243,11 +243,30 @@ Priority values (lower = higher priority on the CAN bus):
 Server-side categories validate an 8-bit sequence number in `data[0]` of every command frame:
 
 - The server tracks the last accepted sequence number.
-- A command is accepted if its sequence differs from the last accepted value.
+- A command is accepted if its sequence number equals `(previous + 1) mod 256`.
 - On sequence error, the server sends a `CommandAck` with `sequenceError` status.
 - The sequence counter wraps from 255 → 0.
 
 Client-side categories skip sequence validation (responses are stateless).
+
+## 9.1 Per-Server Sequence Tracking
+
+`CanProtocolClient` maintains **independent sequence counters per server node** in a fixed-size array (`maxServers = 8`). `NextSequence(nodeId)` returns the next sequence byte for the given node, creating a tracking entry on the first call. This ensures that commands directed to different servers do not share or interfere with each other's replay protection state.
+
+## 9.2 Server Liveness Detection
+
+`CanProtocolClient` detects server online/offline transitions:
+
+- Every received frame with a non-broadcast source node ID is passed to `MarkServerAlive(nodeId)`.
+- On first reception from a node, `CanProtocolClientObserver::OnServerOnline(nodeId)` is called.
+- A `TimerSingleShot` (configurable, default 3 s) is (re)started on each frame. If no frame is received before the timer fires, `CanProtocolClientObserver::OnServerOffline(nodeId)` is called.
+- Up to 8 server liveness slots are tracked simultaneously.
+
+Applications connect a `CanProtocolClientObserver` to receive these events and react accordingly (e.g., stop issuing commands, alert the UI).
+
+## 9.3 Heartbeat Timer (Server-side Silence Guard)
+
+`CanProtocolServer` uses a `TimerSingleShot` instead of a `TimerRepeating` for heartbeat emission. The timer is restarted (`ResetHeartbeatTimer()`) after every outgoing frame. This means a heartbeat is only sent when the server has been **silent** for the full heartbeat interval, preventing unnecessary heartbeat traffic on active buses.
 
 ## 10. Directory Structure
 

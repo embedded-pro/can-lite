@@ -2,6 +2,7 @@
 
 #include "can-lite/categories/foc_motor/FocMotorCategoryClient.hpp"
 #include "can-lite/categories/foc_motor/FocMotorCategoryServer.hpp"
+#include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/server/CanProtocolServer.hpp"
 #include "gmock/gmock.h"
 
@@ -23,6 +24,10 @@ namespace integration
         MOCK_METHOD(void, OnIdentifyMechanical, (), (override));
         MOCK_METHOD(void, OnRequestTelemetry, (), (override));
         MOCK_METHOD(void, OnSetEncoderResolution, (uint16_t resolution), (override));
+        MOCK_METHOD(void, OnSetTarget, (const services::FocSetpoint& setpoint), (override));
+        MOCK_METHOD(void, OnClearFault, (), (override));
+        MOCK_METHOD(void, OnEmergencyStop, (), (override));
+        MOCK_METHOD(void, OnConfigureTelemetryRate, (uint8_t rateHz), (override));
     };
 
     class FocMotorClientObserverMock
@@ -46,5 +51,15 @@ namespace integration
 
         MOCK_METHOD(void, Online, (), (override));
         MOCK_METHOD(void, Offline, (), (override));
+    };
+
+    class CanProtocolClientObserverMock
+        : public services::CanProtocolClientObserver
+    {
+    public:
+        using services::CanProtocolClientObserver::CanProtocolClientObserver;
+
+        MOCK_METHOD(void, OnServerOnline, (uint16_t nodeId), (override));
+        MOCK_METHOD(void, OnServerOffline, (uint16_t nodeId), (override));
     };
 }

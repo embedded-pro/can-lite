@@ -40,6 +40,8 @@ namespace services
         void RegisterCategory(CanCategoryServer& category);
         void UnregisterCategory(CanCategoryServer& category);
 
+        CanFrameTransport& Transport();
+
     private:
         class SystemObserver
             : public CanSystemCategoryServerObserver
@@ -63,10 +65,11 @@ namespace services
         void ResetRateCounter();
         bool ValidateSequence(uint8_t sequenceNumber);
         CanCategoryServer* FindCategory(uint8_t categoryId);
+        void ResetHeartbeatTimer();
 
         Config config;
         CanFrameTransport transport;
-        infra::TimerRepeating heartbeatTimer;
+        infra::TimerSingleShot heartbeatTimer;
         infra::TimerRepeating rateResetTimer;
         uint16_t messageCountThisPeriod = 0;
         uint8_t lastSequenceNumber = 0;

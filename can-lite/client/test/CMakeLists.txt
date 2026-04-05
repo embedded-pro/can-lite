@@ -5,6 +5,7 @@ emil_add_test(can_lite.client_test)
 target_link_libraries(can_lite.client_test PRIVATE
     can_lite.client
     can_lite.test_util
+    infra.timer_test_helper
     gmock_main
 )
 

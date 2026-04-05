@@ -4,7 +4,12 @@
 namespace services
 {
     CanProtocolClient::CanProtocolClient(hal::Can& can)
-        : transport(can, 0)
+        : CanProtocolClient(can, Config{})
+    {}
+
+    CanProtocolClient::CanProtocolClient(hal::Can& can, const Config& config)
+        : config(config)
+        , transport(can, 0)
         , systemObserver(systemCategory, *this)
     {
         categories.push_back(systemCategory);
@@ -51,20 +56,104 @@ namespace services
         transport.SendFrame(nodeId, CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, emptyPayload, [] {});
     }
 
+    uint8_t CanProtocolClient::NextSequence(uint16_t nodeId)
+    {
+        for (auto& state : serverStates)
+        {
+            if (state.occupied && state.nodeId == nodeId)
+                return state.sequenceCounter++;
+        }
+
+        for (auto& state : serverStates)
+        {
+            if (!state.occupied)
+            {
+                state.occupied = true;
+                state.nodeId = nodeId;
+                state.sequenceCounter = 1;
+                return 0;
+            }
+        }
+
+        return 0;
+    }
+
     void CanProtocolClient::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)
     {
         if (!id.Is29BitId())
             return;
 
         uint32_t rawId = id.Get29BitId();
+        auto sourceNodeId = ExtractCanNodeId(rawId);
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
+
+        if (sourceNodeId != 0)
+            MarkServerAlive(sourceNodeId);
 
         for (auto& category : categories)
         {
             if (category.Id() == categoryId)
             {
                 category.HandleMessage(messageType, data);
+                return;
+            }
+        }
+    }
+
+    void CanProtocolClient::MarkServerAlive(uint16_t nodeId)
+    {
+        for (auto& entry : serverLiveness)
+        {
+            if (entry.occupied && entry.nodeId == nodeId)
+            {
+                if (!entry.online)
+                {
+                    entry.online = true;
+                    NotifyObservers([nodeId](auto& obs)
+                        {
+                            obs.OnServerOnline(nodeId);
+                        });
+                }
+                entry.timeoutTimer.Start(config.serverTimeout, [this, nodeId]()
+                    {
+                        HandleServerTimeout(nodeId);
+                    });
+                return;
+            }
+        }
+
+        for (auto& entry : serverLiveness)
+        {
+            if (!entry.occupied)
+            {
+                entry.occupied = true;
+                entry.nodeId = nodeId;
+                entry.online = true;
+                NotifyObservers([nodeId](auto& obs)
+                    {
+                        obs.OnServerOnline(nodeId);
+                    });
+                entry.timeoutTimer.Start(config.serverTimeout, [this, nodeId]()
+                    {
+                        HandleServerTimeout(nodeId);
+                    });
+                return;
+            }
+        }
+    }
+
+    void CanProtocolClient::HandleServerTimeout(uint16_t nodeId)
+    {
+        for (auto& entry : serverLiveness)
+        {
+            if (entry.occupied && entry.nodeId == nodeId)
+            {
+                entry.online = false;
+                NotifyObservers([nodeId](auto& obs)
+                    {
+                        obs.OnServerOffline(nodeId);
+                    });
                 return;
             }
         }

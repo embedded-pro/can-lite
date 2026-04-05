@@ -17,13 +17,18 @@ namespace services
         return nodeId;
     }
 
-    void CanFrameTransport::SendFrame(CanPriority priority, uint8_t category, uint8_t messageType,
-        const hal::Can::Message& data, const infra::Function<void()>& onDone)
+    void CanFrameTransport::SetOnSendNotification(infra::Function<void()> callback)
     {
-        SendFrame(nodeId, priority, category, messageType, data, onDone);
+        onSendNotification = callback;
     }
 
-    void CanFrameTransport::SendFrame(uint16_t targetNodeId, CanPriority priority, uint8_t category, uint8_t messageType,
+    bool CanFrameTransport::SendFrame(CanPriority priority, uint8_t category, uint8_t messageType,
+        const hal::Can::Message& data, const infra::Function<void()>& onDone)
+    {
+        return SendFrame(nodeId, priority, category, messageType, data, onDone);
+    }
+
+    bool CanFrameTransport::SendFrame(uint16_t targetNodeId, CanPriority priority, uint8_t category, uint8_t messageType,
         const hal::Can::Message& data, const infra::Function<void()>& onDone)
     {
         auto rawId = MakeCanId(priority, category, messageType, targetNodeId);
@@ -39,11 +44,18 @@ namespace services
                     SendNextQueued();
                     done();
                 });
+            if (onSendNotification)
+                onSendNotification();
+            return true;
         }
-        else if (!sendQueue.full())
-        {
-            sendQueue.push_back(PendingFrame{ canId, data, onDone });
-        }
+
+        if (sendQueue.full())
+            return false;
+
+        sendQueue.push_back(PendingFrame{ canId, data, onDone });
+        if (onSendNotification)
+            onSendNotification();
+        return true;
     }
 
     void CanFrameTransport::SendNextQueued()
