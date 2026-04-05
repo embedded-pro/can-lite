@@ -63,6 +63,7 @@ transfers (thousands of blocks).
 | 5     | CrcMismatch     | CRC32 verification failed                |
 | 6     | NotReady        | Activate requested before verify passed  |
 | 7     | InvalidState    | Command not valid in current upgrade state|
+| 8     | SessionTimeout  | No activity within the session timeout   |
 
 ## 4. Message Types — Commands (Client → Server)
 
@@ -138,6 +139,19 @@ Request the current state of the upgrade process.
 Empty payload.
 
 The server responds with a Progress Response (0x85).
+
+### 4.7 Session Timeout
+
+If the server does not receive a DataBlock, Verify, Activate, or Abort
+command within a configurable inactivity period (default 30 s) after
+a BeginUpgrade or the last DataBlock, the server automatically aborts
+the upgrade session and transitions to Idle state. The application is
+notified via the `OnSessionTimeout()` observer callback.
+
+QueryProgress does not reset the session timer.
+
+The session timeout is configured per-category-instance via
+`FirmwareUpgradeCategoryServer::Config::sessionTimeout`.
 
 ## 5. Message Types — Responses (Server → Client)
 

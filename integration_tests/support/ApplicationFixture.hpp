@@ -1,5 +1,7 @@
 #pragma once
 
+#include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
+#include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryServer.hpp"
 #include "can-lite/categories/foc_motor/FocMotorCategoryClient.hpp"
 #include "can-lite/categories/foc_motor/FocMotorCategoryServer.hpp"
 #include "can-lite/client/CanProtocolClient.hpp"
@@ -28,6 +30,7 @@ namespace integration
 
         void RegisterFocMotor();
         void RegisterFocMotorServerOnly();
+        void RegisterFirmwareUpgrade();
         SequencedTestCategory& RegisterSequencedCategory(uint8_t id);
         SimpleTestCategory& RegisterSimpleCategory(uint8_t id);
         SequencedTestCategory* FindSequencedCategory(uint8_t id);
@@ -45,6 +48,12 @@ namespace integration
         std::optional<services::CanFrameTransport> clientTransport;
         std::optional<services::FocMotorCategoryClient> motorClient;
         std::optional<testing::StrictMock<FocMotorClientObserverMock>> motorClientObserver;
+
+        std::optional<services::FirmwareUpgradeCategoryServer> fwuServer;
+        std::optional<testing::StrictMock<FirmwareUpgradeServerObserverMock>> fwuServerObserver;
+        std::optional<services::CanFrameTransport> fwuClientTransport;
+        std::optional<services::FirmwareUpgradeCategoryClient> fwuClient;
+        std::optional<testing::StrictMock<FirmwareUpgradeClientObserverMock>> fwuClientObserver;
 
         std::vector<std::unique_ptr<SequencedTestCategory>> sequencedCategories;
         std::vector<std::unique_ptr<SimpleTestCategory>> simpleCategories;
