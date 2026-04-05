@@ -12,12 +12,12 @@ Feature: Firmware Upgrade
     When the client sends a begin upgrade command with firmware size 12288
     Then the firmware upgrade server observer shall have received a begin upgrade with size 12288
 
-  # REQ-FWU-011: Session inactivity timeout
+  # REQ-FWU-015: Session inactivity timeout
   Scenario: Session timeout fires after inactivity
     When the client sends a begin upgrade command with firmware size 1024
     And 30 seconds elapse expecting a session timeout
 
-  # REQ-FWU-011: Session timeout reset by data block
+  # REQ-FWU-015: Session timeout reset by data block
   Scenario: Data block resets the session timeout
     When the client sends a begin upgrade command with firmware size 12
     And 25 seconds elapse without a session timeout

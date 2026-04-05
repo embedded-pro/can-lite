@@ -151,6 +151,17 @@ namespace
         EXPECT_TRUE(captured.empty());
     }
 
+    TEST_F(TestFirmwareUpgradeCategoryClient, SendDataBlock_RejectsOversizePayload)
+    {
+        hal::Can::Message blockData;
+        for (uint8_t i = 0; i < 7; ++i)
+            blockData.push_back(i);
+
+        bool result = client.SendDataBlock(1, 0, blockData);
+
+        EXPECT_FALSE(result);
+    }
+
     // --- Response handling ---
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, BeginResponse_ParsesStatusAndPageSize)

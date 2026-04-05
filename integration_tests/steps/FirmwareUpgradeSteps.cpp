@@ -9,6 +9,9 @@ using namespace testing;
 using namespace services;
 using integration::ApplicationFixture;
 
+// Note: Cucumber {int} maps to std::int32_t. FirmwareSize and CRC32 are uint32 on the wire;
+// test values must therefore fit within INT32_MAX (0x7FFFFFFF).
+
 GIVEN(R"(the firmware upgrade category is registered on both client and server)")
 {
     auto& fixture = context.Get<ApplicationFixture>();

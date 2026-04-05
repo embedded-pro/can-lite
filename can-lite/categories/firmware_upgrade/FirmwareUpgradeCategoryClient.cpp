@@ -35,15 +35,14 @@ namespace services
 
     bool FirmwareUpgradeCategoryClient::SendDataBlock(uint16_t targetNodeId, uint16_t blockIndex, const hal::Can::Message& blockData)
     {
+        if (blockData.size() > 6)
+            return false;
+
         hal::Can::Message data;
         data.resize(2, 0);
         CanFrameCodec::WriteInt16(data, 0, static_cast<int16_t>(blockIndex));
         for (auto byte : blockData)
-        {
-            if (data.full())
-                break;
             data.push_back(byte);
-        }
         return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuDataBlockId, data, [] {});
     }
 

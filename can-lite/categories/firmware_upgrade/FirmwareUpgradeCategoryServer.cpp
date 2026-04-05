@@ -138,9 +138,13 @@ namespace services
         auto blockIndex = static_cast<uint16_t>(CanFrameCodec::ReadInt16(data, 0));
         parent.ResetSessionTimer();
 
-        parent.NotifyObservers([blockIndex, &data](auto& observer)
+        hal::Can::Message payload;
+        for (std::size_t i = 2; i < data.size(); ++i)
+            payload.push_back(data[i]);
+
+        parent.NotifyObservers([blockIndex, payload](auto& observer)
             {
-                observer.OnDataBlock(blockIndex, data);
+                observer.OnDataBlock(blockIndex, payload);
             });
     }
 

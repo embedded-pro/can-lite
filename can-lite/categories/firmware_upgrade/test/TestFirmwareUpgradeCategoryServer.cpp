@@ -93,7 +93,9 @@ namespace
         EXPECT_CALL(observer, OnDataBlock(42, _)).WillOnce([](uint16_t blockIndex, const hal::Can::Message& data)
             {
                 EXPECT_EQ(blockIndex, 42);
-                EXPECT_GE(data.size(), 2u);
+                EXPECT_EQ(data.size(), 6u);
+                EXPECT_EQ(data[0], 0xAA);
+                EXPECT_EQ(data[1], 0xBB);
             });
 
         hal::Can::Message begin;
