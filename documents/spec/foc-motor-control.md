@@ -203,11 +203,11 @@ Total: 3 bytes.
 Set the active closed-loop setpoint. The mode byte selects which
 control loop is targeted. Sent at `CanPriority::command`.
 
-| Byte | Field    | Type  | Scale         | Description                     |
-|------|----------|-------|---------------|---------------------------------|
-| 0    | Sequence | uint8 | —             | Sequence counter                |
-| 1    | Mode     | uint8 | —             | Control mode (Section 2)        |
-| 2–3  | Value    | int16 | mode-specific | Setpoint value (see below)      |
+| Byte | Field    | Type  | Scale         | Description                |
+|------|----------|-------|---------------|----------------------------|
+| 0    | Sequence | uint8 | —             | Sequence counter           |
+| 1    | Mode     | uint8 | —             | Control mode (Section 2)   |
+| 2–3  | Value    | int16 | mode-specific | Setpoint value (see below) |
 
 Value scale by mode:
 - Torque (0): scale 10 → 0.1 A resolution, ±3276.7 A
@@ -223,28 +223,28 @@ Total: 4 bytes.
 Clear an active fault condition and return to Idle state.
 Server ignores this command if no fault is active.
 
-| Byte | Field    | Type  | Description       |
-|------|----------|-------|-------------------|
-| 0    | Sequence | uint8 | Sequence counter  |
+| Byte | Field    | Type  | Description      |
+|------|----------|-------|------------------|
+| 0    | Sequence | uint8 | Sequence counter |
 
 ### 6.13 Emergency Stop (0x0C)
 
 Immediately de-energize all motor phases and set the motor to Idle.
 Sent at `CanPriority::emergency`. Override any active control loop.
 
-| Byte | Field    | Type  | Description       |
-|------|----------|-------|-------------------|
-| 0    | Sequence | uint8 | Sequence counter  |
+| Byte | Field    | Type  | Description      |
+|------|----------|-------|------------------|
+| 0    | Sequence | uint8 | Sequence counter |
 
 ### 6.14 Configure Telemetry Rate (0x0D)
 
 Set the rate at which the server emits unsolicited telemetry frames.
 A rate of 0 disables push telemetry.
 
-| Byte | Field    | Type  | Description                    |
-|------|----------|-------|--------------------------------|
-| 0    | Sequence | uint8 | Sequence counter               |
-| 1    | RateHz   | uint8 | Telemetry rate (0–255 Hz)      |
+| Byte | Field    | Type  | Description               |
+|------|----------|-------|---------------------------|
+| 0    | Sequence | uint8 | Sequence counter          |
+| 1    | RateHz   | uint8 | Telemetry rate (0–255 Hz) |
 
 Total: 2 bytes.
 
