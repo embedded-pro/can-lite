@@ -139,3 +139,15 @@
     use IDs formed by adding 0x80 to the corresponding command
     message type ID, reserving 0x00–0x7F for commands and
     0x80–0xFF for responses.
+
+# --- Session Timeout ---
+
+- id: REQ-FWU-015
+  title: Session inactivity timeout
+  shall: >
+    The server shall abort a firmware upgrade session if no DataBlock,
+    Verify, Activate, or Abort command is received within a configurable
+    inactivity timeout period (default 30 s) after BeginUpgrade or the last
+    DataBlock. On timeout the server shall transition to Idle state and notify
+    the application via the OnSessionTimeout() observer callback. QueryProgress
+    commands shall not reset the inactivity timer.

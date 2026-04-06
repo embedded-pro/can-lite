@@ -2,6 +2,7 @@ add_library(can_lite.integration_tests.steps OBJECT
     CanBusSteps.cpp
     CategoryDiscoverySteps.cpp
     ErrorHandlingSteps.cpp
+    FirmwareUpgradeSteps.cpp
     FocMotorSteps.cpp
     RateLimitingSteps.cpp
     SequenceValidationSteps.cpp

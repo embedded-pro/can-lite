@@ -315,4 +315,32 @@ namespace
         EXPECT_EQ(msg[0], 0xBB);
         EXPECT_EQ(CanFrameCodec::ReadInt32(msg, 1), 65536);
     }
+
+    TEST(CanFrameCodecTest, WriteAndReadUInt16_RoundTrip)
+    {
+        hal::Can::Message msg;
+        CanFrameCodec::WriteUInt16(msg, 0, 40000u);
+        EXPECT_EQ(CanFrameCodec::ReadUInt16(msg, 0), 40000u);
+    }
+
+    TEST(CanFrameCodecTest, WriteAndReadUInt16_MaxValue)
+    {
+        hal::Can::Message msg;
+        CanFrameCodec::WriteUInt16(msg, 0, 0xFFFFu);
+        EXPECT_EQ(CanFrameCodec::ReadUInt16(msg, 0), 0xFFFFu);
+    }
+
+    TEST(CanFrameCodecTest, WriteAndReadUInt32_RoundTrip)
+    {
+        hal::Can::Message msg;
+        CanFrameCodec::WriteUInt32(msg, 0, 0x80000000u);
+        EXPECT_EQ(CanFrameCodec::ReadUInt32(msg, 0), 0x80000000u);
+    }
+
+    TEST(CanFrameCodecTest, WriteAndReadUInt32_MaxValue)
+    {
+        hal::Can::Message msg;
+        CanFrameCodec::WriteUInt32(msg, 0, 0xFFFFFFFFu);
+        EXPECT_EQ(CanFrameCodec::ReadUInt32(msg, 0), 0xFFFFFFFFu);
+    }
 }
