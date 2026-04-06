@@ -154,3 +154,88 @@ TEST_F(IsoTpReceiverTest, FlowControlFrame_WhileIdle_Ignored)
     receiver.ProcessFrame(fc);
     EXPECT_TRUE(receiver.IsIdle());
 }
+
+TEST_F(IsoTpReceiverTest, Receive_SingleFrame_WhileReceivingCF_AbortsOngoing)
+{
+    // Start multi-frame reception
+    auto ff = MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 });
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(ff);
+    EXPECT_FALSE(receiver.IsIdle());
+
+    // Send a single frame — ongoing reception is silently aborted, SF processed
+    auto sf = MakeMessage({ 0x01, 0xAB });
+    EXPECT_CALL(mocks, OnPduReady(_))
+        .WillOnce(Invoke([](infra::ConstByteRange pdu)
+            {
+                ASSERT_EQ(pdu.size(), 1u);
+                EXPECT_EQ(pdu[0], 0xABu);
+            }));
+
+    receiver.ProcessFrame(sf);
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, Receive_SingleFrame_ExceedsMaxSize_Aborts)
+{
+    // Use a receiver with max size 4 so a 5-byte payload overflows
+    using SmallReceiver = IsoTpReceiver::WithStorage<4>;
+    StrictMock<MockCallbacks> smallMocks;
+    SmallReceiver smallReceiver;
+    smallReceiver.Configure(
+        [&](const hal::Can::Message& f, const infra::Function<void()>& d)
+        {
+            smallMocks.SendFc(f, d);
+        },
+        [&](infra::ConstByteRange pdu)
+        {
+            smallMocks.OnPduReady(pdu);
+        },
+        [&](AbortReason r)
+        {
+            smallMocks.OnAbort(r);
+        });
+
+    auto sf = MakeMessage({ 0x05, 1, 2, 3, 4, 5 });
+
+    EXPECT_CALL(smallMocks, OnAbort(AbortReason::overflow));
+    smallReceiver.ProcessFrame(sf);
+}
+
+TEST_F(IsoTpReceiverTest, Receive_FirstFrame_TooShort_Aborts)
+{
+    // FF with fewer than 8 bytes triggers unexpectedFrame abort
+    auto ff = MakeMessage({ 0x10, 0x08, 1, 2, 3 });
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+    receiver.ProcessFrame(ff);
+}
+
+TEST_F(IsoTpReceiverTest, Receive_FirstFrame_LengthTooSmall_Aborts)
+{
+    // FF with total length <= sfMaxPayloadBytes (7) triggers unexpectedFrame abort
+    auto ff = MakeMessage({ 0x10, 0x05, 1, 2, 3, 4, 5, 0 });
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+    receiver.ProcessFrame(ff);
+}
+
+TEST_F(IsoTpReceiverTest, Receive_nCrTimeout_Aborts)
+{
+    auto ff = MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 });
+
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(ff);
+    EXPECT_FALSE(receiver.IsIdle());
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nCrTimeout));
+    ForwardTime(std::chrono::milliseconds(1000));
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, Receive_ConsecutiveFrame_WhileIdle_Ignored)
+{
+    auto cf = MakeMessage({ 0x21, 0x01, 0x02 });
+    receiver.ProcessFrame(cf);
+    EXPECT_TRUE(receiver.IsIdle());
+}

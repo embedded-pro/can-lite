@@ -180,3 +180,104 @@ TEST_F(IsoTpSenderTest, ProcessFlowControl_FCWait_Aborts)
 
     EXPECT_TRUE(sender.IsIdle());
 }
+
+TEST_F(IsoTpSenderTest, ProcessFlowControl_WhenIdle_Ignored)
+{
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
+    sender.ProcessFlowControl(fc);
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_MultiFrame_nBsTimeout_Aborts)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+    EXPECT_CALL(mocks, SendFrame(_, _));
+
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+    EXPECT_FALSE(sender.IsIdle());
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nBsTimeout));
+    ForwardTime(std::chrono::milliseconds(1000));
+
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_MultiFrame_WithBlockSize_WaitsForFC)
+{
+    // 14-byte PDU requires 2 CFs: with BS=1 sender goes back to waitingForFc after CF1
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
+    bool doneCalled = false;
+
+    testing::InSequence seq;
+
+    // FF
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void()>&)
+            {
+                EXPECT_EQ(f[0], 0x10u);
+            }));
+
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [&doneCalled]
+        {
+            doneCalled = true;
+        }));
+    EXPECT_FALSE(sender.IsIdle());
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 1u, 0u, fc);
+
+    // CF1 — invoke callback to trigger nBsTimer start (then sender waits for another FC)
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void()>& d)
+            {
+                EXPECT_EQ(f[0] & 0xF0u, 0x20u);
+                d();
+            }));
+
+    sender.ProcessFlowControl(fc);
+
+    EXPECT_FALSE(doneCalled);
+    EXPECT_FALSE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_MultiFrame_StMinDelay_DelaysNextCF)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    bool doneCalled = false;
+
+    testing::InSequence seq;
+
+    // FF
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void()>&)
+            {
+                EXPECT_EQ(f[0], 0x10u);
+            }));
+
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [&doneCalled]
+        {
+            doneCalled = true;
+        }));
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0x01u, fc);
+
+    // CF should NOT be sent before timer fires
+    sender.ProcessFlowControl(fc);
+    EXPECT_FALSE(doneCalled);
+
+    // Advance 1ms — stMinTimer fires, CF sent
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([&doneCalled](const hal::Can::Message& f, const infra::Function<void()>& d)
+            {
+                EXPECT_EQ(f[0] & 0xF0u, 0x20u);
+                d();
+                doneCalled = true;
+            }));
+
+    ForwardTime(std::chrono::milliseconds(1));
+    EXPECT_TRUE(doneCalled);
+    EXPECT_TRUE(sender.IsIdle());
+}

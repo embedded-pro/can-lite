@@ -315,4 +315,72 @@ namespace
         EXPECT_EQ(msg[0], 0xBB);
         EXPECT_EQ(CanFrameCodec::ReadInt32(msg, 1), 65536);
     }
+
+    // --- HandlePduMessage ---
+
+    class StubPduMessageType : public CanMessageType
+    {
+    public:
+        explicit StubPduMessageType(uint8_t id)
+            : id(id)
+        {}
+
+        uint8_t Id() const override
+        {
+            return id;
+        }
+
+        void Handle(const hal::Can::Message&) override
+        {}
+
+        void HandlePdu(infra::ConstByteRange data) override
+        {
+            lastPduSize = data.size();
+            handlePduCallCount++;
+        }
+
+        std::size_t lastPduSize = 0;
+        int handlePduCallCount = 0;
+
+    private:
+        uint8_t id;
+    };
+
+    TEST(CanCategoryTest, HandlePduMessage_DispatchesToRegisteredHandler)
+    {
+        StubCategoryServer category(0x01);
+        StubPduMessageType msgPdu(0x10);
+        category.AddMessageType(msgPdu);
+
+        uint8_t data[] = { 0x01, 0x02, 0x03 };
+
+        EXPECT_TRUE(category.HandlePduMessage(0x10, infra::MakeRange(data)));
+        EXPECT_EQ(msgPdu.handlePduCallCount, 1);
+        EXPECT_EQ(msgPdu.lastPduSize, 3u);
+    }
+
+    TEST(CanCategoryTest, HandlePduMessage_ReturnsFalseForUnknownType)
+    {
+        StubCategoryServer category(0x01);
+        StubPduMessageType msgPdu(0x10);
+        category.AddMessageType(msgPdu);
+
+        uint8_t data[] = { 0x01 };
+
+        EXPECT_FALSE(category.HandlePduMessage(0xFF, infra::MakeRange(data)));
+        EXPECT_EQ(msgPdu.handlePduCallCount, 0);
+    }
+
+    TEST(CanCategoryTest, HandlePduMessage_DefaultHandlePdu_IsNoOp)
+    {
+        // StubMessageType does NOT override HandlePdu — exercises the default no-op
+        StubCategoryServer category(0x01);
+        StubMessageType msgDefault(0x20);
+        category.AddMessageType(msgDefault);
+
+        uint8_t data[] = { 0xAB };
+
+        EXPECT_TRUE(category.HandlePduMessage(0x20, infra::MakeRange(data)));
+        EXPECT_EQ(msgDefault.handleCallCount, 0);
+    }
 }

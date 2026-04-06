@@ -1,5 +1,6 @@
 #include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/core/test/CanMock.hpp"
+#include "can-lite/transport/IsoTpTransport.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -8,6 +9,15 @@ namespace
 {
     using namespace testing;
     using namespace services;
+
+    class MockIsoTpTransport : public IsoTpTransport
+    {
+    public:
+        MOCK_METHOD(bool, RegisterReceiveChannel, (uint32_t, uint32_t), (override));
+        MOCK_METHOD(bool, SendPdu, (uint32_t, uint32_t, infra::ConstByteRange, const infra::Function<void()>&), (override));
+        MOCK_METHOD(bool, ProcessFrame, (uint32_t, const hal::Can::Message&), (override));
+        MOCK_METHOD(void, SetOnPduReceived, (infra::Function<void(uint32_t, infra::ConstByteRange)>), (override));
+    };
 
     class CanProtocolClientTest
         : public ::testing::Test
@@ -387,5 +397,101 @@ namespace
 
         EXPECT_CALL(observer, OnServerOffline(5u));
         ForwardTime(std::chrono::seconds(1));
+    }
+
+    // === ISO-TP transport integration ===
+
+    TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameInterceptsMessage)
+    {
+        NiceMock<MockIsoTpTransport> mockIsoTp;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
+        client.AttachIsoTpTransport(mockIsoTp);
+
+        auto id = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x01, 0x01, 0));
+        EXPECT_CALL(mockIsoTp, ProcessFrame(_, _)).WillOnce(Return(true));
+
+        SimulateRx(id, MakeMessage({ 0x01 }));
+    }
+
+    TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameReturnsFalse_ContinuesNormalDispatch)
+    {
+        NiceMock<MockIsoTpTransport> mockIsoTp;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
+        client.AttachIsoTpTransport(mockIsoTp);
+
+        auto id = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x0F, 0x01, 0));
+        EXPECT_CALL(mockIsoTp, ProcessFrame(_, _)).WillOnce(Return(false));
+
+        SimulateRx(id, MakeMessage({ 0xAA }));
+    }
+
+    TEST_F(CanProtocolClientTest, AttachIsoTpTransport_DispatchesPduToCategory)
+    {
+        class PduMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x42;
+            }
+
+            void Handle(const hal::Can::Message&) override
+            {}
+
+            void HandlePdu(infra::ConstByteRange) override
+            {
+                pduReceived = true;
+            }
+
+            bool pduReceived = false;
+        };
+
+        class PduCategory : public CanCategoryClient
+        {
+        public:
+            PduCategory()
+            {
+                AddMessageType(msg);
+            }
+
+            uint8_t Id() const override
+            {
+                return 0x05;
+            }
+
+            bool RequiresSequenceValidation() const override
+            {
+                return false;
+            }
+
+            PduMessageType msg;
+        };
+
+        PduCategory pduCategory;
+        client.RegisterCategory(pduCategory);
+
+        NiceMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        client.AttachIsoTpTransport(mockIsoTp);
+
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, 0);
+        uint8_t pduData[] = { 0xDE, 0xAD };
+        capturedPduCallback(rawId, infra::MakeRange(pduData));
+
+        EXPECT_TRUE(pduCategory.msg.pduReceived);
+        client.UnregisterCategory(pduCategory);
+    }
+
+    TEST_F(CanProtocolClientTest, AttachIsoTpTransport_DispatchPdu_UnknownCategory_Ignored)
+    {
+        NiceMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        client.AttachIsoTpTransport(mockIsoTp);
+
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x0F, 0x01, 0);
+        uint8_t pduData[] = { 0xAA };
+        capturedPduCallback(rawId, infra::MakeRange(pduData));
     }
 }

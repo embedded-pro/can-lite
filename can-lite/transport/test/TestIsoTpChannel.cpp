@@ -180,3 +180,27 @@ TEST_F(IsoTpChannelTest, ProcessFrame_UnrelatedId_ReturnsFalse)
 
     EXPECT_FALSE(channel.ProcessFrame(0x999u, sf));
 }
+
+TEST_F(IsoTpChannelTest, IsSenderIdle_Initially_ReturnsTrue)
+{
+    Configure();
+    EXPECT_TRUE(channel.IsSenderIdle());
+}
+
+TEST_F(IsoTpChannelTest, IsReceiverIdle_Initially_ReturnsTrue)
+{
+    Configure();
+    EXPECT_TRUE(channel.IsReceiverIdle());
+}
+
+TEST_F(IsoTpChannelTest, IsSenderIdle_AfterSendStart_ReturnsFalse)
+{
+    Configure();
+
+    uint8_t pdu[] = { 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u };
+
+    EXPECT_CALL(mocks, RawSend(dataId, _, _));
+
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
+    EXPECT_FALSE(channel.IsSenderIdle());
+}
