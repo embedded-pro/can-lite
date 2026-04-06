@@ -33,7 +33,7 @@ namespace services::iso_tp
         void HandleSingleFrame(const hal::Can::Message& frame);
         void HandleFirstFrame(const hal::Can::Message& frame);
         void HandleConsecutiveFrame(const hal::Can::Message& frame);
-        void SendCtsFlowControl();
+        void SendCtsFlowControl() const;
         void Abort(AbortReason reason);
 
         SendFcFunc sendFcFunc;

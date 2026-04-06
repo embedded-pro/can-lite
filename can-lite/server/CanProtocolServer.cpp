@@ -74,7 +74,7 @@ namespace services
 
     void CanProtocolServer::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
     {
-        auto nodeId = static_cast<uint16_t>(ExtractCanNodeId(rawId));
+        auto nodeId = ExtractCanNodeId(rawId);
         if (nodeId != config.nodeId && nodeId != canBroadcastNodeId)
             return;
 

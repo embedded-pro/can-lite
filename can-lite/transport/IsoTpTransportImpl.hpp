@@ -47,8 +47,8 @@ namespace services
 
         bool OnRawSend(uint32_t canId, const hal::Can::Message& frame,
             const infra::Function<void()>& onDone);
-        void OnPduReady(uint32_t dataId, infra::ConstByteRange pdu);
-        void OnAbort(uint32_t dataId, iso_tp::AbortReason reason);
+        void OnPduReady(uint32_t dataId, infra::ConstByteRange pdu) const;
+        void OnAbort(uint32_t dataId, iso_tp::AbortReason reason) const;
 
         infra::MemoryRange<iso_tp::IsoTpChannel*> channels_;
         CanFrameTransport& transport_;

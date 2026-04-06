@@ -105,12 +105,12 @@ namespace services::iso_tp
             NotifyAbort(AbortReason::unexpectedFrame);
     }
 
-    void IsoTpChannelImpl::NotifyPduReady(infra::ConstByteRange pdu)
+    void IsoTpChannelImpl::NotifyPduReady(infra::ConstByteRange pdu) const
     {
         onPduReady_(dataId_, pdu);
     }
 
-    void IsoTpChannelImpl::NotifyAbort(AbortReason reason)
+    void IsoTpChannelImpl::NotifyAbort(AbortReason reason) const
     {
         onAbort_(dataId_, reason);
     }

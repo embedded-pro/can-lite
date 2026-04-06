@@ -16,20 +16,21 @@ namespace services::iso_tp
 
     void IsoTpReceiver::ProcessFrame(const hal::Can::Message& frame)
     {
+        using enum FrameType;
         switch (IsoTpFrameCodec::DecodeFrameType(frame))
         {
-            case FrameType::singleFrame:
+            case singleFrame:
                 HandleSingleFrame(frame);
                 break;
-            case FrameType::firstFrame:
+            case firstFrame:
                 HandleFirstFrame(frame);
                 break;
-            case FrameType::consecutiveFrame:
+            case consecutiveFrame:
                 HandleConsecutiveFrame(frame);
                 break;
-            case FrameType::flowControl:
+            case flowControl:
                 break;
-            case FrameType::unknown:
+            case unknown:
                 Abort(AbortReason::unexpectedFrame);
                 break;
         }
@@ -142,7 +143,7 @@ namespace services::iso_tp
         }
     }
 
-    void IsoTpReceiver::SendCtsFlowControl()
+    void IsoTpReceiver::SendCtsFlowControl() const
     {
         hal::Can::Message fc;
         IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);

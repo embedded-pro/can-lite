@@ -47,8 +47,8 @@ namespace services::iso_tp
     private:
         void SendToDataId(const hal::Can::Message& frame, const infra::Function<void()>& onDone);
         void SendToFcId(const hal::Can::Message& frame, const infra::Function<void()>& onDone);
-        void NotifyPduReady(infra::ConstByteRange pdu);
-        void NotifyAbort(AbortReason reason);
+        void NotifyPduReady(infra::ConstByteRange pdu) const;
+        void NotifyAbort(AbortReason reason) const;
 
         uint32_t dataId_ = 0u;
         uint32_t fcId_ = 0u;
