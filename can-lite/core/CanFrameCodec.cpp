@@ -1,5 +1,6 @@
 #include "can-lite/core/CanFrameCodec.hpp"
 #include <cmath>
+#include <limits>
 
 namespace services
 {

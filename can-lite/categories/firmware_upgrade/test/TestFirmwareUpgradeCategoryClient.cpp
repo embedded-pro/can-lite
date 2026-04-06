@@ -1,7 +1,6 @@
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
 #include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/core/CanFrameCodec.hpp"
-#include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "can-lite/core/test/CanMock.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
@@ -171,7 +170,7 @@ namespace
         hal::Can::Message data;
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(FwuError::ok);
-        CanFrameCodec::WriteInt16(data, 1, static_cast<int16_t>(4096));
+        CanFrameCodec::WriteUInt16(data, 1, 4096);
         client.HandleMessage(fwuBeginResponseId, data);
     }
 
@@ -189,7 +188,7 @@ namespace
         hal::Can::Message data;
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(FwuError::writeError);
-        CanFrameCodec::WriteInt16(data, 1, 5);
+        CanFrameCodec::WriteUInt16(data, 1, 5);
         client.HandleMessage(fwuDataBlockAckId, data);
     }
 
@@ -224,8 +223,8 @@ namespace
         hal::Can::Message data;
         data.resize(5, 0);
         data[0] = static_cast<uint8_t>(FwuState::receiving);
-        CanFrameCodec::WriteInt16(data, 1, 100);
-        CanFrameCodec::WriteInt16(data, 3, 2048);
+        CanFrameCodec::WriteUInt16(data, 1, 100);
+        CanFrameCodec::WriteUInt16(data, 3, 2048);
         client.HandleMessage(fwuProgressResponseId, data);
     }
 
@@ -233,6 +232,73 @@ namespace
     {
         hal::Can::Message data;
         data.resize(4, 0);
+        client.HandleMessage(fwuProgressResponseId, data);
+    }
+
+    // --- Boundary values (high-bit fields) ---
+
+    TEST_F(TestFirmwareUpgradeCategoryClient, SendBeginUpgrade_EncodesSize_HighBit)
+    {
+        hal::Can::Message captured;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([&captured](hal::Can::Id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+            {
+                captured = data;
+                cb(true);
+            }));
+
+        client.SendBeginUpgrade(1, 0x80000001u);
+
+        ASSERT_EQ(captured.size(), 4u);
+        EXPECT_EQ(CanFrameCodec::ReadUInt32(captured, 0), 0x80000001u);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClient, SendDataBlock_EncodesHighBlockIndex)
+    {
+        hal::Can::Message captured;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([&captured](hal::Can::Id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+            {
+                captured = data;
+                cb(true);
+            }));
+
+        hal::Can::Message emptyBlock;
+        client.SendDataBlock(1, 0x8000u, emptyBlock);
+
+        ASSERT_GE(captured.size(), 2u);
+        EXPECT_EQ(CanFrameCodec::ReadUInt16(captured, 0), 0x8000u);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, BeginResponse_ParsesHighPageSize)
+    {
+        EXPECT_CALL(observer, OnBeginResponse(FwuError::ok, 0xC000u));
+
+        hal::Can::Message data;
+        data.resize(3, 0);
+        data[0] = static_cast<uint8_t>(FwuError::ok);
+        CanFrameCodec::WriteUInt16(data, 1, 0xC000u);
+        client.HandleMessage(fwuBeginResponseId, data);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, DataBlockAck_ParsesHighBlockIndex)
+    {
+        EXPECT_CALL(observer, OnDataBlockAck(FwuError::ok, 0xFFFFu));
+
+        hal::Can::Message data;
+        data.resize(3, 0);
+        data[0] = static_cast<uint8_t>(FwuError::ok);
+        CanFrameCodec::WriteUInt16(data, 1, 0xFFFFu);
+        client.HandleMessage(fwuDataBlockAckId, data);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ProgressResponse_ParsesHighBlockCounts)
+    {
+        EXPECT_CALL(observer, OnProgressResponse(FwuState::receiving, 0x8001u, 0xFFFFu));
+
+        hal::Can::Message data;
+        data.resize(5, 0);
+        data[0] = static_cast<uint8_t>(FwuState::receiving);
+        CanFrameCodec::WriteUInt16(data, 1, 0x8001u);
+        CanFrameCodec::WriteUInt16(data, 3, 0xFFFFu);
         client.HandleMessage(fwuProgressResponseId, data);
     }
 }
