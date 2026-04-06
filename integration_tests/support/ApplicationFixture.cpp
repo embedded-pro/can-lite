@@ -22,6 +22,11 @@ namespace integration
         if (motorServer)
             server.UnregisterCategory(*motorServer);
 
+        if (fwuClient)
+            client.UnregisterCategory(*fwuClient);
+        if (fwuServer)
+            server.UnregisterCategory(*fwuServer);
+
         for (auto& cat : sequencedCategories)
             server.UnregisterCategory(*cat);
         for (auto& cat : simpleCategories)
@@ -45,6 +50,19 @@ namespace integration
         motorServer.emplace(server.Transport());
         motorServerObserver.emplace(*motorServer);
         server.RegisterCategory(*motorServer);
+    }
+
+    void ApplicationFixture::RegisterFirmwareUpgrade()
+    {
+        services::FirmwareUpgradeCategoryServer::Config fwuConfig{};
+        fwuServer.emplace(server.Transport(), fwuConfig);
+        fwuServerObserver.emplace(*fwuServer);
+        server.RegisterCategory(*fwuServer);
+
+        fwuClientTransport.emplace(clientCan, config.nodeId);
+        fwuClient.emplace(*fwuClientTransport, client);
+        fwuClientObserver.emplace(*fwuClient);
+        client.RegisterCategory(*fwuClient);
     }
 
     SequencedTestCategory& ApplicationFixture::RegisterSequencedCategory(uint8_t id)

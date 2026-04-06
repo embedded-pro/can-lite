@@ -1,5 +1,6 @@
 #include "can-lite/core/CanFrameCodec.hpp"
 #include <cmath>
+#include <limits>
 
 namespace services
 {
@@ -67,5 +68,40 @@ namespace services
             (static_cast<uint32_t>(msg[offset + 1]) << 16) |
             (static_cast<uint32_t>(msg[offset + 2]) << 8) |
             static_cast<uint32_t>(msg[offset + 3]));
+    }
+
+    void CanFrameCodec::WriteUInt16(hal::Can::Message& msg, std::size_t offset, uint16_t value)
+    {
+        while (msg.size() < offset + 2)
+            msg.push_back(0);
+
+        msg[offset] = static_cast<uint8_t>(value >> 8);
+        msg[offset + 1] = static_cast<uint8_t>(value & 0xFF);
+    }
+
+    uint16_t CanFrameCodec::ReadUInt16(const hal::Can::Message& msg, std::size_t offset)
+    {
+        return static_cast<uint16_t>(
+            (static_cast<uint16_t>(msg[offset]) << 8) |
+            static_cast<uint16_t>(msg[offset + 1]));
+    }
+
+    void CanFrameCodec::WriteUInt32(hal::Can::Message& msg, std::size_t offset, uint32_t value)
+    {
+        while (msg.size() < offset + 4)
+            msg.push_back(0);
+
+        msg[offset] = static_cast<uint8_t>((value >> 24) & 0xFF);
+        msg[offset + 1] = static_cast<uint8_t>((value >> 16) & 0xFF);
+        msg[offset + 2] = static_cast<uint8_t>((value >> 8) & 0xFF);
+        msg[offset + 3] = static_cast<uint8_t>(value & 0xFF);
+    }
+
+    uint32_t CanFrameCodec::ReadUInt32(const hal::Can::Message& msg, std::size_t offset)
+    {
+        return (static_cast<uint32_t>(msg[offset]) << 24) |
+               (static_cast<uint32_t>(msg[offset + 1]) << 16) |
+               (static_cast<uint32_t>(msg[offset + 2]) << 8) |
+               static_cast<uint32_t>(msg[offset + 3]);
     }
 }
