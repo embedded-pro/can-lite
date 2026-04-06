@@ -29,6 +29,9 @@ namespace services::iso_tp
                 break;
             case FrameType::flowControl:
                 break;
+            case FrameType::unknown:
+                Abort(AbortReason::unexpectedFrame);
+                break;
         }
     }
 

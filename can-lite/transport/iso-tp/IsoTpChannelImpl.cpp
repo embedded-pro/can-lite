@@ -95,12 +95,14 @@ namespace services::iso_tp
 
     void IsoTpChannelImpl::SendToDataId(const hal::Can::Message& frame, const infra::Function<void()>& onDone)
     {
-        rawSend_(dataId_, frame, onDone);
+        if (!rawSend_(dataId_, frame, onDone))
+            NotifyAbort(AbortReason::unexpectedFrame);
     }
 
     void IsoTpChannelImpl::SendToFcId(const hal::Can::Message& frame, const infra::Function<void()>& onDone)
     {
-        rawSend_(fcId_, frame, onDone);
+        if (!rawSend_(fcId_, frame, onDone))
+            NotifyAbort(AbortReason::unexpectedFrame);
     }
 
     void IsoTpChannelImpl::NotifyPduReady(infra::ConstByteRange pdu)

@@ -193,7 +193,11 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_nBsTimeout_Aborts)
 {
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 
-    EXPECT_CALL(mocks, SendFrame(_, _));
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void()>& d)
+            {
+                d();
+            }));
 
     ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
     EXPECT_FALSE(sender.IsIdle());

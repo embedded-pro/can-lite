@@ -17,6 +17,7 @@ namespace
         MOCK_METHOD(bool, SendPdu, (uint32_t, uint32_t, infra::ConstByteRange, const infra::Function<void()>&), (override));
         MOCK_METHOD(bool, ProcessFrame, (uint32_t, const hal::Can::Message&), (override));
         MOCK_METHOD(void, SetOnPduReceived, (infra::Function<void(uint32_t, infra::ConstByteRange)>), (override));
+        MOCK_METHOD(void, SetOnAbort, (infra::Function<void(uint32_t, iso_tp::AbortReason)>), (override));
     };
 
     class CanProtocolServerObserverMock
@@ -654,9 +655,10 @@ namespace
             void Handle(const hal::Can::Message&) override
             {}
 
-            void HandlePdu(infra::ConstByteRange) override
+            bool HandlePdu(infra::ConstByteRange) override
             {
                 pduReceived = true;
+                return true;
             }
 
             bool pduReceived = false;
@@ -715,5 +717,165 @@ namespace
     {
         CanFrameTransport& t = server.Transport();
         EXPECT_EQ(&t, &server.Transport());
+    }
+
+    TEST_F(CanProtocolServerTest, DispatchPdu_WrongNodeId_Ignored)
+    {
+        class PduMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x42;
+            }
+
+            void Handle(const hal::Can::Message&) override
+            {}
+
+            bool HandlePdu(infra::ConstByteRange) override
+            {
+                pduReceived = true;
+                return true;
+            }
+
+            bool pduReceived = false;
+        };
+
+        class PduCategory : public CanCategoryServer
+        {
+        public:
+            PduCategory()
+            {
+                AddMessageType(msg);
+            }
+
+            uint8_t Id() const override
+            {
+                return 0x05;
+            }
+
+            bool RequiresSequenceValidation() const override
+            {
+                return false;
+            }
+
+            PduMessageType msg;
+        };
+
+        PduCategory pduCategory;
+        server.RegisterCategory(pduCategory);
+
+        NiceMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        server.AttachIsoTpTransport(mockIsoTp);
+
+        // nodeId=2 != config.nodeId(1) and != canBroadcastNodeId(0)
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, 2);
+        uint8_t pduData[] = { 0xDE };
+        capturedPduCallback(rawId, infra::MakeRange(pduData));
+
+        EXPECT_FALSE(pduCategory.msg.pduReceived);
+        server.UnregisterCategory(pduCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, DispatchPdu_BroadcastNodeId_Accepted)
+    {
+        class PduMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x42;
+            }
+
+            void Handle(const hal::Can::Message&) override
+            {}
+
+            bool HandlePdu(infra::ConstByteRange) override
+            {
+                pduReceived = true;
+                return true;
+            }
+
+            bool pduReceived = false;
+        };
+
+        class PduCategory : public CanCategoryServer
+        {
+        public:
+            PduCategory()
+            {
+                AddMessageType(msg);
+            }
+
+            uint8_t Id() const override
+            {
+                return 0x05;
+            }
+
+            bool RequiresSequenceValidation() const override
+            {
+                return false;
+            }
+
+            PduMessageType msg;
+        };
+
+        PduCategory pduCategory;
+        server.RegisterCategory(pduCategory);
+
+        NiceMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        server.AttachIsoTpTransport(mockIsoTp);
+
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, canBroadcastNodeId);
+        uint8_t pduData[] = { 0xDE, 0xAD };
+        capturedPduCallback(rawId, infra::MakeRange(pduData));
+
+        EXPECT_TRUE(pduCategory.msg.pduReceived);
+        server.UnregisterCategory(pduCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, DispatchPdu_UnknownMessageType_SendsUnknownCommandAck)
+    {
+        class EmptyCategory : public CanCategoryServer
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x05;
+            }
+
+            bool RequiresSequenceValidation() const override
+            {
+                return false;
+            }
+        };
+
+        EmptyCategory emptyCategory;
+        server.RegisterCategory(emptyCategory);
+
+        NiceMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        server.AttachIsoTpTransport(mockIsoTp);
+
+        // message type 0x99 is not registered in emptyCategory
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x99, 1);
+        uint8_t pduData[] = { 0xAA };
+
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+            {
+                ASSERT_GE(data.size(), 3u);
+                EXPECT_EQ(data[0], 0x05);
+                EXPECT_EQ(data[1], 0x99);
+                EXPECT_EQ(data[2], static_cast<uint8_t>(CanAckStatus::unknownCommand));
+                cb(true);
+            });
+
+        capturedPduCallback(rawId, infra::MakeRange(pduData));
+        server.UnregisterCategory(emptyCategory);
     }
 }

@@ -10,7 +10,8 @@ namespace services::iso_tp
         singleFrame = 0,
         firstFrame = 1,
         consecutiveFrame = 2,
-        flowControl = 3
+        flowControl = 3,
+        unknown = 0xFFu
     };
 
     enum class FlowStatus : uint8_t
@@ -23,6 +24,7 @@ namespace services::iso_tp
     enum class SenderState : uint8_t
     {
         idle,
+        sendingSf,
         waitingForFc,
         sendingCf
     };

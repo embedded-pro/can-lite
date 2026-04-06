@@ -333,10 +333,11 @@ namespace
         void Handle(const hal::Can::Message&) override
         {}
 
-        void HandlePdu(infra::ConstByteRange data) override
+        bool HandlePdu(infra::ConstByteRange data) override
         {
             lastPduSize = data.size();
             handlePduCallCount++;
+            return true;
         }
 
         std::size_t lastPduSize = 0;
@@ -371,16 +372,15 @@ namespace
         EXPECT_EQ(msgPdu.handlePduCallCount, 0);
     }
 
-    TEST(CanCategoryTest, HandlePduMessage_DefaultHandlePdu_IsNoOp)
+    TEST(CanCategoryTest, HandlePduMessage_DefaultHandlePdu_Asserts)
     {
-        // StubMessageType does NOT override HandlePdu — exercises the default no-op
+        // StubMessageType does NOT override HandlePdu — the loud default asserts
         StubCategoryServer category(0x01);
         StubMessageType msgDefault(0x20);
         category.AddMessageType(msgDefault);
 
         uint8_t data[] = { 0xAB };
 
-        EXPECT_TRUE(category.HandlePduMessage(0x20, infra::MakeRange(data)));
-        EXPECT_EQ(msgDefault.handleCallCount, 0);
+        EXPECT_DEATH(category.HandlePduMessage(0x20, infra::MakeRange(data)), "");
     }
 }

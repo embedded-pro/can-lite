@@ -59,6 +59,10 @@ namespace services
 
     void CanProtocolClient::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
     {
+        auto sourceNodeId = static_cast<uint16_t>(ExtractCanNodeId(rawId));
+        if (sourceNodeId != 0)
+            MarkServerAlive(sourceNodeId);
+
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
 

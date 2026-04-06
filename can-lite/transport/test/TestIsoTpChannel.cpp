@@ -9,6 +9,7 @@ using namespace services::iso_tp;
 using namespace services::iso_tp::test;
 using testing::_;
 using testing::Invoke;
+using testing::Return;
 using testing::StrictMock;
 
 namespace
@@ -21,7 +22,7 @@ namespace
 
     struct MockCallbacks
     {
-        MOCK_METHOD(void, RawSend, (uint32_t canId, const hal::Can::Message&, const infra::Function<void()>&));
+        MOCK_METHOD(bool, RawSend, (uint32_t canId, const hal::Can::Message&, const infra::Function<void()>&));
         MOCK_METHOD(void, OnPduReady, (uint32_t did, infra::ConstByteRange));
         MOCK_METHOD(void, OnAbort, (uint32_t did, AbortReason));
     };
@@ -37,9 +38,9 @@ protected:
 
     void Configure()
     {
-        channel.Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d)
+        channel.Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d) -> bool
             {
-                mocks.RawSend(cid, f, d);
+                return mocks.RawSend(cid, f, d);
             },
             [this](uint32_t did, infra::ConstByteRange pdu)
             {
@@ -86,6 +87,7 @@ TEST_F(IsoTpChannelTest, SendPdu_SingleFrame_CallsRawSendOnDataId)
             {
                 EXPECT_EQ(f[0], 0x03u);
                 d();
+                return true;
             }));
 
     ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [&done]
@@ -101,7 +103,8 @@ TEST_F(IsoTpChannelTest, SendPdu_WhenBusy_ReturnsFalse)
 
     uint8_t pdu[] = { 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u };
 
-    EXPECT_CALL(mocks, RawSend(dataId, _, _));
+    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+        .WillOnce(Return(true));
 
     ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
     EXPECT_FALSE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
@@ -139,6 +142,7 @@ TEST_F(IsoTpChannelTest, ProcessFrame_FcFrameRouted_ToSender)
             .WillOnce(Invoke([](uint32_t, const hal::Can::Message&, const infra::Function<void()>& d)
                 {
                     d();
+                    return true;
                 }));
 
         EXPECT_CALL(mocks, RawSend(dataId, _, _))
@@ -147,6 +151,7 @@ TEST_F(IsoTpChannelTest, ProcessFrame_FcFrameRouted_ToSender)
                     EXPECT_EQ(f[0] & 0xF0u, 0x20u);
                     EXPECT_EQ(f[0] & 0x0Fu, 0x01u);
                     d();
+                    return true;
                 }));
     }
 
@@ -199,7 +204,8 @@ TEST_F(IsoTpChannelTest, IsSenderIdle_AfterSendStart_ReturnsFalse)
 
     uint8_t pdu[] = { 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u };
 
-    EXPECT_CALL(mocks, RawSend(dataId, _, _));
+    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+        .WillOnce(Return(true));
 
     ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
     EXPECT_FALSE(channel.IsSenderIdle());

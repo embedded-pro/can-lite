@@ -17,6 +17,7 @@ namespace
         MOCK_METHOD(bool, SendPdu, (uint32_t, uint32_t, infra::ConstByteRange, const infra::Function<void()>&), (override));
         MOCK_METHOD(bool, ProcessFrame, (uint32_t, const hal::Can::Message&), (override));
         MOCK_METHOD(void, SetOnPduReceived, (infra::Function<void(uint32_t, infra::ConstByteRange)>), (override));
+        MOCK_METHOD(void, SetOnAbort, (infra::Function<void(uint32_t, iso_tp::AbortReason)>), (override));
     };
 
     class CanProtocolClientTest
@@ -438,9 +439,10 @@ namespace
             void Handle(const hal::Can::Message&) override
             {}
 
-            void HandlePdu(infra::ConstByteRange) override
+            bool HandlePdu(infra::ConstByteRange) override
             {
                 pduReceived = true;
+                return true;
             }
 
             bool pduReceived = false;

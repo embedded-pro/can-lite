@@ -26,10 +26,7 @@ namespace services
         for (auto& handler : messageTypes)
         {
             if (handler.Id() == messageType)
-            {
-                handler.HandlePdu(pdu);
-                return true;
-            }
+                return handler.HandlePdu(pdu);
         }
 
         return false;

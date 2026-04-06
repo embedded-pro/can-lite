@@ -11,7 +11,7 @@ namespace services::iso_tp
     class IsoTpChannel
     {
     public:
-        using RawSendFunc = infra::Function<void(uint32_t canId, const hal::Can::Message& frame,
+        using RawSendFunc = infra::Function<bool(uint32_t canId, const hal::Can::Message& frame,
             const infra::Function<void()>& onDone)>;
         using PduReadyFunc = infra::Function<void(uint32_t dataId, infra::ConstByteRange pdu)>;
         using AbortFunc = infra::Function<void(uint32_t dataId, AbortReason reason)>;

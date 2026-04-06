@@ -8,7 +8,10 @@
 #include "infra/util/BoundedVector.hpp"
 #include "infra/util/ByteRange.hpp"
 #include "infra/util/Function.hpp"
+#include "infra/util/ReallyAssert.hpp"
 #include "infra/util/WithStorage.hpp"
+#include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace services
@@ -35,11 +38,14 @@ namespace services
         void SetOnPduReceived(
             infra::Function<void(uint32_t dataId, infra::ConstByteRange pdu)> callback) override;
 
+        void SetOnAbort(
+            infra::Function<void(uint32_t dataId, iso_tp::AbortReason reason)> callback) override;
+
     private:
         iso_tp::IsoTpChannel* FindChannel(uint32_t canId);
         iso_tp::IsoTpChannel* AllocateFreeChannel();
 
-        void OnRawSend(uint32_t canId, const hal::Can::Message& frame,
+        bool OnRawSend(uint32_t canId, const hal::Can::Message& frame,
             const infra::Function<void()>& onDone);
         void OnPduReady(uint32_t dataId, infra::ConstByteRange pdu);
         void OnAbort(uint32_t dataId, iso_tp::AbortReason reason);
@@ -47,6 +53,7 @@ namespace services
         infra::MemoryRange<iso_tp::IsoTpChannel*> channels_;
         CanFrameTransport& transport_;
         infra::Function<void(uint32_t, infra::ConstByteRange)> onPduReceived_;
+        infra::Function<void(uint32_t, iso_tp::AbortReason)> onAbortCallback_;
 
         static constexpr uint8_t maxSupportedChannels = 16u;
         std::array<iso_tp::IsoTpChannel*, maxSupportedChannels> channelPtrs_{};
@@ -59,6 +66,8 @@ namespace services
     {
         while (channels.size() < channels.max_size())
             channels.emplace_back();
+
+        really_assert(channels.max_size() <= maxSupportedChannels);
 
         channelCount_ = static_cast<uint8_t>(channels.size());
         for (std::size_t i = 0u; i < channelCount_; ++i)

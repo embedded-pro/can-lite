@@ -6,13 +6,15 @@ namespace services
     {
         if (FindChannel(dataId) != nullptr)
             return false;
+        if (FindChannel(fcId) != nullptr)
+            return false;
         auto* slot = AllocateFreeChannel();
         if (slot == nullptr)
             return false;
 
-        slot->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d)
+        slot->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d) -> bool
             {
-                OnRawSend(cid, f, d);
+                return OnRawSend(cid, f, d);
             },
             [this](uint32_t did, infra::ConstByteRange pdu)
             {
@@ -34,9 +36,9 @@ namespace services
             ch = AllocateFreeChannel();
             if (ch == nullptr)
                 return false;
-            ch->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d)
+            ch->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d) -> bool
                 {
-                    OnRawSend(cid, f, d);
+                    return OnRawSend(cid, f, d);
                 },
                 [this](uint32_t did, infra::ConstByteRange p)
                 {
@@ -66,6 +68,12 @@ namespace services
         onPduReceived_ = callback;
     }
 
+    void IsoTpTransportImpl::SetOnAbort(
+        infra::Function<void(uint32_t dataId, iso_tp::AbortReason reason)> callback)
+    {
+        onAbortCallback_ = callback;
+    }
+
     iso_tp::IsoTpChannel* IsoTpTransportImpl::FindChannel(uint32_t canId)
     {
         for (auto* ch : channels_)
@@ -86,10 +94,10 @@ namespace services
         return nullptr;
     }
 
-    void IsoTpTransportImpl::OnRawSend(uint32_t canId,
+    bool IsoTpTransportImpl::OnRawSend(uint32_t canId,
         const hal::Can::Message& frame, const infra::Function<void()>& onDone)
     {
-        transport_.SendRawFrame(hal::Can::Id::Create29BitId(canId), frame, onDone);
+        return transport_.SendRawFrame(hal::Can::Id::Create29BitId(canId), frame, onDone);
     }
 
     void IsoTpTransportImpl::OnPduReady(uint32_t dataId, infra::ConstByteRange pdu)
@@ -98,7 +106,9 @@ namespace services
             onPduReceived_(dataId, pdu);
     }
 
-    void IsoTpTransportImpl::OnAbort(uint32_t /*dataId*/, iso_tp::AbortReason /*reason*/)
+    void IsoTpTransportImpl::OnAbort(uint32_t dataId, iso_tp::AbortReason reason)
     {
+        if (onAbortCallback_)
+            onAbortCallback_(dataId, reason);
     }
 }

@@ -15,6 +15,10 @@ namespace services::iso_tp
 
     bool IsoTpSender::Send(infra::ConstByteRange pdu, const infra::Function<void()>& onDone)
     {
+        if (pdu.empty())
+            return false;
+        if (pdu.size() > 0x0FFFu)
+            return false;
         if (state != SenderState::idle)
             return false;
         if (pdu.size() > pduBuffer.max_size())
@@ -68,9 +72,10 @@ namespace services::iso_tp
         if (pduBuffer.size() <= sfMaxPayloadBytes)
         {
             IsoTpFrameCodec::EncodeSingleFrame(infra::MakeRange(pduBuffer), frame);
-            state = SenderState::idle;
+            state = SenderState::sendingSf;
             sendFrameFunc(frame, [this]()
                 {
+                    state = SenderState::idle;
                     auto done = onDoneCallback;
                     done();
                 });
@@ -80,10 +85,12 @@ namespace services::iso_tp
             IsoTpFrameCodec::EncodeFirstFrame(infra::MakeRange(pduBuffer), frame);
             bytesSent = ffFirstDataBytes;
             state = SenderState::waitingForFc;
-            sendFrameFunc(frame, []() {});
-            nBsTimer.Start(nBsTimeout, [this]()
+            sendFrameFunc(frame, [this]()
                 {
-                    Abort(AbortReason::nBsTimeout);
+                    nBsTimer.Start(nBsTimeout, [this]()
+                        {
+                            Abort(AbortReason::nBsTimeout);
+                        });
                 });
         }
     }

@@ -38,6 +38,12 @@ TEST_F(IsoTpTransportImplTest, RegisterReceiveChannel_SameDataId_ReturnsFalse)
     EXPECT_FALSE(isoTp.RegisterReceiveChannel(dataId, fcId));
 }
 
+TEST_F(IsoTpTransportImplTest, RegisterReceiveChannel_SameFcId_ReturnsFalse)
+{
+    EXPECT_TRUE(isoTp.RegisterReceiveChannel(0x600u, 0x601u));
+    EXPECT_FALSE(isoTp.RegisterReceiveChannel(0x700u, 0x601u));
+}
+
 TEST_F(IsoTpTransportImplTest, RegisterReceiveChannel_AllChannelsFull_ReturnsFalse)
 {
     EXPECT_TRUE(isoTp.RegisterReceiveChannel(0x600u, 0x601u));

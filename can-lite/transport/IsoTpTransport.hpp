@@ -1,5 +1,6 @@
 #pragma once
 
+#include "can-lite/transport/iso-tp/IsoTpTypes.hpp"
 #include "hal/interfaces/Can.hpp"
 #include "infra/util/ByteRange.hpp"
 #include "infra/util/Function.hpp"
@@ -20,6 +21,9 @@ namespace services
 
         virtual void SetOnPduReceived(
             infra::Function<void(uint32_t dataId, infra::ConstByteRange pdu)> callback) = 0;
+
+        virtual void SetOnAbort(
+            infra::Function<void(uint32_t dataId, iso_tp::AbortReason reason)> callback) = 0;
 
     protected:
         ~IsoTpTransport() = default;

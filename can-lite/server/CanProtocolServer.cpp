@@ -74,6 +74,13 @@ namespace services
 
     void CanProtocolServer::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
     {
+        auto nodeId = static_cast<uint16_t>(ExtractCanNodeId(rawId));
+        if (nodeId != config.nodeId && nodeId != canBroadcastNodeId)
+            return;
+
+        if (!CheckAndIncrementRate())
+            return;
+
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
 
@@ -81,7 +88,24 @@ namespace services
         if (category == nullptr)
             return;
 
-        category->HandlePduMessage(messageType, pdu);
+        if (category->RequiresSequenceValidation())
+        {
+            if (pdu.empty())
+            {
+                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                return;
+            }
+
+            uint8_t sequenceNumber = pdu[0];
+            if (!ValidateSequence(sequenceNumber))
+            {
+                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError);
+                return;
+            }
+        }
+
+        if (!category->HandlePduMessage(messageType, pdu))
+            SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
     }
 
     void CanProtocolServer::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)

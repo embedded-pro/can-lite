@@ -4,6 +4,8 @@ namespace services::iso_tp
 {
     FrameType IsoTpFrameCodec::DecodeFrameType(const hal::Can::Message& frame)
     {
+        if (frame.empty())
+            return FrameType::unknown;
         return static_cast<FrameType>((frame[0] >> 4u) & 0x0Fu);
     }
 
@@ -21,6 +23,8 @@ namespace services::iso_tp
 
     uint8_t IsoTpFrameCodec::DecodeSingleFrameLength(const hal::Can::Message& frame)
     {
+        if (frame.empty())
+            return 0u;
         return frame[0] & 0x0Fu;
     }
 
@@ -36,6 +40,8 @@ namespace services::iso_tp
 
     uint16_t IsoTpFrameCodec::DecodeFirstFrameTotalLength(const hal::Can::Message& frame)
     {
+        if (frame.size() < 2u)
+            return 0u;
         return static_cast<uint16_t>(((frame[0] & 0x0Fu) << 8u) | frame[1]);
     }
 
@@ -54,6 +60,8 @@ namespace services::iso_tp
 
     uint8_t IsoTpFrameCodec::DecodeConsecutiveFrameSn(const hal::Can::Message& frame)
     {
+        if (frame.empty())
+            return 0u;
         return frame[0] & snMask;
     }
 
@@ -65,8 +73,16 @@ namespace services::iso_tp
         out.push_back(stMin);
     }
 
-    void IsoTpFrameCodec::DecodeFlowControl(const hal::Can::Message& frame, FlowStatus& fs, uint8_t& blockSize, uint8_t& stMin)
+    void IsoTpFrameCodec::DecodeFlowControl(const hal::Can::Message& frame,
+        FlowStatus& fs, uint8_t& blockSize, uint8_t& stMin)
     {
+        if (frame.size() < 3u)
+        {
+            fs = FlowStatus::overflow;
+            blockSize = 0u;
+            stMin = 0u;
+            return;
+        }
         fs = static_cast<FlowStatus>(frame[0] & 0x0Fu);
         blockSize = frame[1];
         stMin = frame[2];
