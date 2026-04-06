@@ -22,6 +22,8 @@ namespace services
             const hal::Can::Message& data, const infra::Function<void()>& onDone);
         bool SendFrame(uint16_t targetNodeId, CanPriority priority, uint8_t category, uint8_t messageType,
             const hal::Can::Message& data, const infra::Function<void()>& onDone);
+        bool SendRawFrame(hal::Can::Id id, const hal::Can::Message& data,
+            const infra::Function<void()>& onDone);
 
     private:
         struct PendingFrame

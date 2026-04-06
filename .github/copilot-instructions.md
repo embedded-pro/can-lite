@@ -10,6 +10,7 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
   - `can-lite/server/` — Server implementation: listens for commands, dispatches to category handlers, sends acknowledgements. Uses observer pattern for application callbacks.
   - `can-lite/client/` — Client implementation: sends commands/queries to servers, receives responses. Supports multiple servers via node addressing.
   - `can-lite/drivers/` — Hardware driver adapters.
+  - `can-lite/transport/` — ISO-TP (ISO 15765-2) segmentation layer. All classes (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`, `IsoTpTransportImpl`) are non-template with `WithStorage` aliases for zero-heap PDU buffer ownership.
   - `embedded-infra-lib/` — Infrastructure dependency: bounded containers, build helpers, `hal::Can`, `infra::Subject`/`infra::SingleObserver`.
 - Architecture: Client initiates all requests; Server listens and responds. Built-in System category (0x0) provides heartbeat, ack, status request, and category discovery. Categories are split into server/client pairs inheriting from `CanCategoryServer`/`CanCategoryClient` for compile-time type safety. All category handlers use `infra::Subject`/`infra::SingleObserver` for event notification. Applications extend via custom category implementations.
 - Documents: `documents/spec/can-protocol.md` (wire-format spec), `documents/requirements/can-protocol.yaml` (formal requirements), `documents/design/architecture.md` (architecture & design decisions), `README.md` (project overview).
@@ -30,6 +31,11 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
 - Prefer fixed-size integer types (`uint8_t`, `int32_t`, ...).
 - Favor `constexpr`, `inline`, and `const` correctness.
 - All multi-byte values on the wire are big-endian.
+- **`WithStorage` pattern (EMIL convention)**: Concrete `Impl` classes that own sized storage must use `infra::WithStorage<ImplClass, StorageType>` with these rules:
+  - The `Impl` class must NOT be templated on storage sizes — sizes live only in the `WithStorage` alias.
+  - The `Impl` constructor takes a reference to the EMIL container (e.g. `infra::BoundedVector<T>&`) as its first argument — not a custom `Storage` struct.
+  - Use `infra::BoundedVector<T>::WithMaxSize<N>` as the storage type for pool-style containers.
+  - See `.github/instructions/embedded-cpp.instructions.md` for full examples.
 
 4) Patterns & code locations (concrete examples)
 - Add a new message category:
@@ -45,7 +51,7 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
 
 5) Testing & CI expectations
 - Unit tests run on host using GoogleTest.
-- Tests are in `can-lite/core/test/`, `can-lite/server/test/`, `can-lite/client/test/`.
+- Tests are in `can-lite/core/test/`, `can-lite/server/test/`, `can-lite/client/test/`, `can-lite/transport/test/`.
 - Prefer small, deterministic tests that do not require hardware.
 - Mock the `hal::Can` interface for protocol-level tests.
 

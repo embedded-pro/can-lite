@@ -32,13 +32,17 @@ namespace services
         const hal::Can::Message& data, const infra::Function<void()>& onDone)
     {
         auto rawId = MakeCanId(priority, category, messageType, targetNodeId);
-        auto canId = hal::Can::Id::Create29BitId(rawId);
+        return SendRawFrame(hal::Can::Id::Create29BitId(rawId), data, onDone);
+    }
 
+    bool CanFrameTransport::SendRawFrame(hal::Can::Id id, const hal::Can::Message& data,
+        const infra::Function<void()>& onDone)
+    {
         if (!sendInProgress)
         {
             sendInProgress = true;
             currentOnDone = onDone;
-            can.SendData(canId, data, [this](bool)
+            can.SendData(id, data, [this](bool)
                 {
                     auto done = currentOnDone;
                     SendNextQueued();
@@ -52,7 +56,7 @@ namespace services
         if (sendQueue.full())
             return false;
 
-        sendQueue.push_back(PendingFrame{ canId, data, onDone });
+        sendQueue.push_back(PendingFrame{ id, data, onDone });
         if (onSendNotification)
             onSendNotification();
         return true;

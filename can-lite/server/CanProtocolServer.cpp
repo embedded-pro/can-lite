@@ -63,12 +63,62 @@ namespace services
         categories.erase(category);
     }
 
+    void CanProtocolServer::AttachIsoTpTransport(IsoTpTransport& isoTp)
+    {
+        isoTpTransport = &isoTp;
+        isoTp.SetOnPduReceived([this](uint32_t rawId, infra::ConstByteRange pdu)
+            {
+                DispatchPdu(rawId, pdu);
+            });
+    }
+
+    void CanProtocolServer::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
+    {
+        auto nodeId = ExtractCanNodeId(rawId);
+        if (nodeId != config.nodeId && nodeId != canBroadcastNodeId)
+            return;
+
+        if (!CheckAndIncrementRate())
+            return;
+
+        auto categoryId = ExtractCanCategory(rawId);
+        auto messageType = ExtractCanMessageType(rawId);
+
+        CanCategoryServer* category = FindCategory(categoryId);
+        if (category == nullptr)
+            return;
+
+        if (category->RequiresSequenceValidation())
+        {
+            if (pdu.empty())
+            {
+                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                return;
+            }
+
+            uint8_t sequenceNumber = pdu[0];
+            if (!ValidateSequence(sequenceNumber))
+            {
+                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError);
+                return;
+            }
+        }
+
+        if (!category->HandlePduMessage(messageType, pdu))
+            SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+    }
+
     void CanProtocolServer::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)
     {
         if (!id.Is29BitId())
             return;
 
         uint32_t rawId = id.Get29BitId();
+
+        if (isoTpTransport != nullptr &&
+            isoTpTransport->ProcessFrame(rawId, data))
+            return;
+
         uint16_t targetNodeId = ExtractCanNodeId(rawId);
 
         if (targetNodeId != config.nodeId && targetNodeId != canBroadcastNodeId)

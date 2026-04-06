@@ -59,6 +59,45 @@ flowchart LR
 - Identifier format: 29-bit extended only; 11-bit frames are silently discarded
 - Maximum payload: 8 bytes per frame (CAN 2.0 standard)
 
+## 4.1 ISO-TP Segmentation (ISO 15765-2)
+
+For payloads exceeding the 8-byte CAN frame limit, can-lite provides an optional ISO-TP transport layer (`IsoTpTransportImpl`) that implements ISO 15765-2 segmentation and reassembly.
+
+### Frame Types
+
+| PCI Nibble | Frame Type        | Description                                         |
+|------------|-------------------|-----------------------------------------------------|
+| `0x0N`     | Single Frame (SF) | N = data length (1–7); entire PDU fits in one frame |
+| `0x1NNN`   | First Frame (FF)  | NNN = total PDU length (8–4095); first 6 bytes      |
+| `0x2N`     | Consecutive Frame | N = sequence number 0–F (wraps); up to 7 bytes      |
+| `0x3S`     | Flow Control (FC) | S = status: 0=CTS, 1=Wait, 2=Overflow               |
+
+### Flow Control Fields
+
+| Byte | Field | Description                                                                                                                                    |
+|------|-------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0    | PCI   | `0x3S` — Flow Status (0=CTS, 1=Wait, 2=Overflow)                                                                                               |
+| 1    | BS    | Block Size — number of CFs before next FC (0 = unlimited)                                                                                      |
+| 2    | STmin | Minimum separation time: 0x00–0x7F = 0–127 ms; 0xF1–0xF9 = 100–900 µs (ISO-TP sub-ms range); 0x80–0xF0 and 0xFA–0xFF = reserved (treated as 0) |
+
+### Timing Parameters
+
+| Parameter | Value   | Description                                      |
+|-----------|---------|--------------------------------------------------|
+| N_Bs      | 1000 ms | Sender timeout waiting for a Flow Control frame  |
+| N_Cr      | 1000 ms | Receiver timeout waiting for a Consecutive Frame |
+
+### Integration
+
+`IsoTpTransportImpl` is attached to `CanProtocolServer` or `CanProtocolClient` via `AttachIsoTpTransport(IsoTpTransport&)`. When attached, incoming frames are first offered to the ISO-TP layer; if no registered channel claims the frame, it falls through to normal category dispatch. PDUs reassembled by the transport layer are delivered via the `SetOnPduReceived` callback.
+
+The implementation uses `WithStorage` for zero-heap construction. All internal components (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`) are non-template classes that receive their PDU buffer storage via `infra::WithStorage` aliases, following the EMIL convention:
+
+```cpp
+IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
+protocolServer.AttachIsoTpTransport(isoTp);
+```
+
 ## 5. CAN Identifier Layout
 
 All 29 bits of the extended CAN ID are structured as follows:

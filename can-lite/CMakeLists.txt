@@ -1,5 +1,6 @@
 add_subdirectory(core)
 add_subdirectory(categories/system)
+add_subdirectory(transport)
 add_subdirectory(server)
 add_subdirectory(client)
 add_subdirectory(categories/foc_motor)

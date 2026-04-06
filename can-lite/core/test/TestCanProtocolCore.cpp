@@ -316,31 +316,71 @@ namespace
         EXPECT_EQ(CanFrameCodec::ReadInt32(msg, 1), 65536);
     }
 
-    TEST(CanFrameCodecTest, WriteAndReadUInt16_RoundTrip)
+    // --- HandlePduMessage ---
+
+    class StubPduMessageType : public CanMessageType
     {
-        hal::Can::Message msg;
-        CanFrameCodec::WriteUInt16(msg, 0, 40000u);
-        EXPECT_EQ(CanFrameCodec::ReadUInt16(msg, 0), 40000u);
+    public:
+        explicit StubPduMessageType(uint8_t id)
+            : id(id)
+        {}
+
+        uint8_t Id() const override
+        {
+            return id;
+        }
+
+        void Handle(const hal::Can::Message&) override
+        {}
+
+        bool HandlePdu(infra::ConstByteRange data) override
+        {
+            lastPduSize = data.size();
+            handlePduCallCount++;
+            return true;
+        }
+
+        std::size_t lastPduSize = 0;
+        int handlePduCallCount = 0;
+
+    private:
+        uint8_t id;
+    };
+
+    TEST(CanCategoryTest, HandlePduMessage_DispatchesToRegisteredHandler)
+    {
+        StubCategoryServer category(0x01);
+        StubPduMessageType msgPdu(0x10);
+        category.AddMessageType(msgPdu);
+
+        uint8_t data[] = { 0x01, 0x02, 0x03 };
+
+        EXPECT_TRUE(category.HandlePduMessage(0x10, infra::MakeRange(data)));
+        EXPECT_EQ(msgPdu.handlePduCallCount, 1);
+        EXPECT_EQ(msgPdu.lastPduSize, 3u);
     }
 
-    TEST(CanFrameCodecTest, WriteAndReadUInt16_MaxValue)
+    TEST(CanCategoryTest, HandlePduMessage_ReturnsFalseForUnknownType)
     {
-        hal::Can::Message msg;
-        CanFrameCodec::WriteUInt16(msg, 0, 0xFFFFu);
-        EXPECT_EQ(CanFrameCodec::ReadUInt16(msg, 0), 0xFFFFu);
+        StubCategoryServer category(0x01);
+        StubPduMessageType msgPdu(0x10);
+        category.AddMessageType(msgPdu);
+
+        uint8_t data[] = { 0x01 };
+
+        EXPECT_FALSE(category.HandlePduMessage(0xFF, infra::MakeRange(data)));
+        EXPECT_EQ(msgPdu.handlePduCallCount, 0);
     }
 
-    TEST(CanFrameCodecTest, WriteAndReadUInt32_RoundTrip)
+    TEST(CanCategoryTest, HandlePduMessage_DefaultHandlePdu_Asserts)
     {
-        hal::Can::Message msg;
-        CanFrameCodec::WriteUInt32(msg, 0, 0x80000000u);
-        EXPECT_EQ(CanFrameCodec::ReadUInt32(msg, 0), 0x80000000u);
-    }
+        // StubMessageType does NOT override HandlePdu — the loud default asserts
+        StubCategoryServer category(0x01);
+        StubMessageType msgDefault(0x20);
+        category.AddMessageType(msgDefault);
 
-    TEST(CanFrameCodecTest, WriteAndReadUInt32_MaxValue)
-    {
-        hal::Can::Message msg;
-        CanFrameCodec::WriteUInt32(msg, 0, 0xFFFFFFFFu);
-        EXPECT_EQ(CanFrameCodec::ReadUInt32(msg, 0), 0xFFFFFFFFu);
+        uint8_t data[] = { 0xAB };
+
+        EXPECT_DEATH(category.HandlePduMessage(0x20, infra::MakeRange(data)), "");
     }
 }

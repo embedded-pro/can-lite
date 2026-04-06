@@ -4,6 +4,7 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
+#include "can-lite/transport/IsoTpTransport.hpp"
 #include "hal/interfaces/Can.hpp"
 #include "infra/timer/Timer.hpp"
 #include "infra/util/IntrusiveList.hpp"
@@ -40,6 +41,8 @@ namespace services
         void RegisterCategory(CanCategoryServer& category);
         void UnregisterCategory(CanCategoryServer& category);
 
+        void AttachIsoTpTransport(IsoTpTransport& isoTp);
+
         CanFrameTransport& Transport();
 
     private:
@@ -66,6 +69,7 @@ namespace services
         bool ValidateSequence(uint8_t sequenceNumber);
         CanCategoryServer* FindCategory(uint8_t categoryId);
         void ResetHeartbeatTimer();
+        void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
 
         Config config;
         CanFrameTransport transport;
@@ -78,5 +82,6 @@ namespace services
         CanSystemCategoryServer systemCategory;
         SystemObserver systemObserver;
         infra::IntrusiveList<CanCategoryServer> categories;
+        IsoTpTransport* isoTpTransport = nullptr;
     };
 }
