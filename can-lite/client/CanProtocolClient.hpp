@@ -4,6 +4,7 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
+#include "can-lite/transport/IsoTpTransport.hpp"
 #include "hal/interfaces/Can.hpp"
 #include "infra/timer/Timer.hpp"
 #include "infra/util/Function.hpp"
@@ -48,6 +49,8 @@ namespace services
 
         void DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone);
 
+        void AttachIsoTpTransport(IsoTpTransport& isoTp);
+
         uint8_t PeekSequence(uint16_t nodeId);
         void CommitSequence(uint16_t nodeId);
 
@@ -65,6 +68,7 @@ namespace services
         };
 
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
+        void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
         void MarkServerAlive(uint16_t nodeId);
         void HandleServerTimeout(uint16_t nodeId);
 
@@ -93,5 +97,6 @@ namespace services
         infra::Function<void(const hal::Can::Message&)> pendingDiscoveryCallback;
         std::array<PerServerState, maxServers> serverStates;
         std::array<ServerLiveness, maxServers> serverLiveness;
+        IsoTpTransport* isoTpTransport = nullptr;
     };
 }

@@ -48,6 +48,30 @@ namespace services
         categories.erase(category);
     }
 
+    void CanProtocolClient::AttachIsoTpTransport(IsoTpTransport& isoTp)
+    {
+        isoTpTransport = &isoTp;
+        isoTp.SetOnPduReceived([this](uint32_t rawId, infra::ConstByteRange pdu)
+            {
+                DispatchPdu(rawId, pdu);
+            });
+    }
+
+    void CanProtocolClient::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
+    {
+        auto categoryId = ExtractCanCategory(rawId);
+        auto messageType = ExtractCanMessageType(rawId);
+
+        for (auto& category : categories)
+        {
+            if (category.Id() == categoryId)
+            {
+                category.HandlePduMessage(messageType, pdu);
+                return;
+            }
+        }
+    }
+
     void CanProtocolClient::DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone)
     {
         pendingDiscoveryCallback = onDone;
@@ -99,6 +123,11 @@ namespace services
             return;
 
         uint32_t rawId = id.Get29BitId();
+
+        if (isoTpTransport != nullptr &&
+            isoTpTransport->ProcessFrame(rawId, data))
+            return;
+
         auto sourceNodeId = ExtractCanNodeId(rawId);
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);

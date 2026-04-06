@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hal/interfaces/Can.hpp"
+#include "infra/util/ByteRange.hpp"
 #include "infra/util/IntrusiveList.hpp"
 #include <cstdint>
 
@@ -12,6 +13,9 @@ namespace services
     public:
         virtual uint8_t Id() const = 0;
         virtual void Handle(const hal::Can::Message& data) = 0;
+
+        virtual void HandlePdu(infra::ConstByteRange data)
+        {}
 
     protected:
         CanMessageType() = default;

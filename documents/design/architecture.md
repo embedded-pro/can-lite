@@ -24,6 +24,10 @@ block-beta
         columns 2
         G["CanProtocolServer"] H["CanProtocolClient"]
     end
+    block:transport["Transport Layer"]
+        columns 1
+        T["IsoTpTransportImpl (ISO 15765-2)"]
+    end
     block:core["Core Layer"]
         columns 3
         I["CanFrameTransport"] J["CanFrameCodec"] K["CanCategory"]
@@ -35,7 +39,8 @@ block-beta
 
     app --> cat
     cat --> proto
-    proto --> core
+    proto --> transport
+    transport --> core
     core --> hal
 ```
 
@@ -287,6 +292,16 @@ can-lite/
 │       ├── FocMotorCategoryServer.hpp/cpp
 │       ├── FocMotorCategoryClient.hpp/cpp
 │       └── test/
+├── transport/                     # ISO-TP segmentation layer
+│   ├── IsoTpTransport.hpp         # Abstract interface
+│   ├── IsoTpTransportImpl.hpp/cpp # Non-template concrete impl (WithStorage)
+│   └── iso-tp/                    # ISO 15765-2 internals
+│       ├── IsoTpChannel.hpp       # Non-template abstract channel interface
+│       ├── IsoTpChannelImpl.hpp/cpp # Non-template concrete channel (WithStorage<MaxPduSize>)
+│       ├── IsoTpSender.hpp/cpp    # Non-template transmit FSM (WithStorage<MaxPduSize>)
+│       ├── IsoTpReceiver.hpp/cpp  # Non-template receive FSM (WithStorage<MaxPduSize>)
+│       ├── IsoTpFrameCodec.hpp/cpp # PCI encoding/decoding
+│       └── IsoTpTypes.hpp         # Enums, constants (FrameType, FlowStatus, AbortReason)
 ├── server/                        # CanProtocolServer
 │   ├── CanProtocolServer.hpp/cpp
 │   └── test/
@@ -295,6 +310,49 @@ can-lite/
 │   └── test/
 └── drivers/                       # Hardware driver adapters
 ```
+
+## 10.1 ISO-TP Transport Layer
+
+The transport layer provides multi-frame PDU segmentation and reassembly following ISO 15765-2 without coupling it to any specific application category. It is an optional, orthogonal mechanism: categories that need large payloads attach `IsoTpTransportImpl` to the server/client; categories that fit in 8 bytes continue using raw `CanFrameTransport` directly.
+
+**Key classes:**
+
+| Class | Role |
+|---|---|
+| `IsoTpTransport` | Abstract interface — `RegisterReceiveChannel`, `SendPdu`, `ProcessFrame`, `SetOnPduReceived` |
+| `IsoTpTransportImpl` | Non-template concrete implementation; channel pool via `WithStorage<MaxPduSize, MaxChannels>` |
+| `IsoTpChannel` | Non-template abstract channel interface used by `IsoTpTransportImpl` |
+| `IsoTpChannelImpl` | Non-template concrete channel; composes `IsoTpSender` + `IsoTpReceiver` via `WithStorage<MaxPduSize>` |
+| `IsoTpSender` | Non-template transmit FSM (SF → FF → wait-for-FC → CFs; N_Bs timeout); `WithStorage<MaxPduSize>` provides buffer |
+| `IsoTpReceiver` | Non-template receive FSM (SF dispatch or FF → wait-for-CFs; N_Cr timeout); `WithStorage<MaxPduSize>` provides buffer |
+| `IsoTpFrameCodec` | Stateless PCI encode/decode helpers |
+
+**WithStorage pattern — zero-heap construction chain:**
+
+All ISO-TP classes are non-template at their API surface. Sizes are injected via nested `WithStorage` type aliases that use EMIL's `infra::WithStorage` to compose storage ownership:
+
+```cpp
+// IsoTpSender takes BoundedVector<uint8_t>& — WithStorage provides the buffer
+IsoTpSender::WithStorage<MaxPduSize>  // IS-A IsoTpSender
+
+// IsoTpReceiver — same pattern
+IsoTpReceiver::WithStorage<MaxPduSize>  // IS-A IsoTpReceiver
+
+// IsoTpChannelImpl composes sender + receiver storage in a nested struct
+IsoTpChannelImpl::WithStorage<MaxPduSize>  // IS-A IsoTpChannelImpl IS-A IsoTpChannel
+
+// IsoTpTransportImpl composes a BoundedVector of channels
+IsoTpTransportImpl::WithStorage<MaxPduSize, MaxChannels>  // IS-A IsoTpTransportImpl
+```
+
+**Attachment pattern:**
+
+```cpp
+IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
+protocolServer.AttachIsoTpTransport(isoTp);
+```
+
+`CanProtocolServer::ProcessReceivedMessage` offers each incoming frame to the ISO-TP layer first (`isoTpTransport_->ProcessFrame(canId, frame)`). If the transport claims it (a registered channel matches), normal category dispatch is skipped. This keeps the transport layer transparent to existing category handlers.
 
 ## 11. Build System
 

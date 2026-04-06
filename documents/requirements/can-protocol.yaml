@@ -273,3 +273,61 @@
     frame was successfully sent or enqueued, and false if the internal
     send queue was full and the frame was dropped. The onDone callback
     shall not be called when false is returned.
+
+# --- ISO-TP Multi-Frame Transport ---
+
+- id: REQ-CAN-029
+  title: ISO-TP segmentation support
+  shall: >
+    The library shall provide an optional ISO 15765-2 (ISO-TP) transport
+    layer that segments PDUs exceeding 8 bytes into multiple CAN frames
+    and reassembles them at the receiver. The transport layer shall be
+    attachable to CanProtocolServer and CanProtocolClient via
+    AttachIsoTpTransport().
+
+- id: REQ-CAN-030
+  title: ISO-TP frame types
+  shall: >
+    The ISO-TP implementation shall support all four ISO 15765-2 frame
+    types: Single Frame (SF, PCI nibble 0x0), First Frame (FF, PCI nibble
+    0x1), Consecutive Frame (CF, PCI nibble 0x2), and Flow Control (FC,
+    PCI nibble 0x3).
+
+- id: REQ-CAN-031
+  title: ISO-TP flow control
+  shall: >
+    The sender shall wait for a Flow Control (ContinueToSend) frame from
+    the receiver before transmitting Consecutive Frames. The receiver shall
+    emit a Flow Control frame after receiving the First Frame. Block size
+    (BS=0) and separation time (STmin) fields shall be honoured.
+
+- id: REQ-CAN-032
+  title: ISO-TP N_Bs timeout
+  shall: >
+    The sender shall abort an in-progress multi-frame transmission and
+    notify the abort callback with reason nBsTimeout if no Flow Control
+    frame is received within 1000 ms of sending the First Frame or the
+    last block of Consecutive Frames.
+
+- id: REQ-CAN-033
+  title: ISO-TP N_Cr timeout
+  shall: >
+    The receiver shall abort reassembly and notify the abort callback with
+    reason nCrTimeout if no Consecutive Frame is received within 1000 ms
+    of the previous frame.
+
+- id: REQ-CAN-034
+  title: ISO-TP no dynamic memory allocation
+  shall: >
+    The ISO-TP transport layer shall not perform any dynamic memory
+    allocation. Channel state and PDU buffers shall use statically-sized
+    storage provided at construction time via IsoTpTransportImpl::WithStorage.
+
+- id: REQ-CAN-035
+  title: ISO-TP channel management
+  shall: >
+    IsoTpTransportImpl shall support registering multiple independent
+    receive channels identified by a (dataId, fcId) pair. The maximum
+    number of simultaneous channels shall be bounded at compile time via
+    the MaxChannels template parameter (default 4). Registering a channel
+    with a dataId already in use shall return false without modifying state.

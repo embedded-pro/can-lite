@@ -21,6 +21,20 @@ namespace services
         return false;
     }
 
+    bool CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
+    {
+        for (auto& handler : messageTypes)
+        {
+            if (handler.Id() == messageType)
+            {
+                handler.HandlePdu(pdu);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     bool CanCategoryServer::RequiresSequenceValidation() const
     {
         return true;

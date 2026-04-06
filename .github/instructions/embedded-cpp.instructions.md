@@ -26,6 +26,43 @@ applyTo: "**/*.{hpp,cpp,h}"
 - **Classes/Methods**: `PascalCase` — `CanCategoryServer`, `HandleMessage()`
 - **Member variables/Enum values**: `camelCase` — `nodeId`, `heartbeat`
 - **Namespaces**: lowercase — `services` (match the current can-lite codebase)
+- **Interfaces / abstract classes**: use the plain class name — no `I` prefix. Example: `IsoTpTransport` (not `IIsoTpTransport`)
+- **Concrete implementations**: use the plain name with `Impl` suffix. Example: `IsoTpTransportImpl` (not `IsoTpTransport`)
+- **No-heap instantiation via `WithStorage`**: concrete `Impl` classes define a nested `WithStorage` template alias following the EMIL pattern. The key rules:
+  1. The `Impl` class is **not** templated on storage sizes — sizes live only in the `WithStorage` alias.
+  2. The `Impl` constructor takes a **reference to the EMIL container** (e.g. `infra::BoundedVector<T>&`) as its first argument — not a custom `Storage` struct.
+  3. `infra::WithStorage<Base, StorageType>` privately owns the storage and passes it as the first constructor argument to `Base`.
+  4. Use `infra::BoundedVector<T>::WithMaxSize<N>` as the storage type for pool-style containers.
+
+  **Simple example** (pool of items):
+  ```cpp
+  class FooImpl : public Foo
+  {
+  public:
+      template<std::size_t MaxItems>
+      using WithStorage = infra::WithStorage<FooImpl,
+          typename infra::BoundedVector<Item>::template WithMaxSize<MaxItems>>;
+
+      explicit FooImpl(infra::BoundedVector<Item>& items, Bar& bar);
+  private:
+      infra::BoundedVector<Item>& items_;
+  };
+  // Usage: FooImpl::WithStorage<8> foo{ bar };
+  ```
+  **Non-template class with templated element storage** (all sizes in WithStorage alias):
+  ```cpp
+  class TransportImpl : public Transport
+  {
+  public:
+      template<uint16_t MaxPduSize, uint8_t MaxChannels = 4>
+      using WithStorage = infra::WithStorage<TransportImpl,
+          typename infra::BoundedVector<Channel<MaxPduSize>>::template WithMaxSize<MaxChannels>>;
+
+      template<typename ChannelType>
+      explicit TransportImpl(infra::BoundedVector<ChannelType>& channels, FrameTransport& ft);
+  };
+  // Usage: TransportImpl::WithStorage<64, 4> tp{ frameTransport };
+  ```
 
 ## Style
 

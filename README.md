@@ -26,6 +26,7 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **Sequence Validation**: 8-bit sequence counter with per-category opt-in
 - **Rate Limiting**: Configurable message rate enforcement on the server
 - **Fixed-Point Codec**: Saturation-clamped encoding for float-to-integer conversion
+- **ISO-TP (ISO 15765-2)**: Optional multi-frame segmentation and reassembly for payloads > 8 bytes
 
 ### Embedded Constraints
 - **Zero Heap Allocation**: All memory statically allocated at compile time
@@ -94,6 +95,11 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 │   ├── client/                 # Client implementation
 │   │   ├── CanProtocolClient.hpp       # Client with discovery & observer
 │   │   └── test/                       # Client unit tests
+│   ├── transport/              # ISO-TP segmentation layer (ISO 15765-2)
+│   │   ├── IsoTpTransport.hpp          # Abstract interface
+│   │   ├── IsoTpTransportImpl.hpp/cpp  # Concrete impl (WithStorage, zero-heap)
+│   │   ├── iso-tp/                     # ISO 15765-2 internals (all non-template with WithStorage)
+│   │   └── test/                       # Transport unit tests
 │   └── drivers/                # Hardware driver adapters
 ├── documents/
 │   ├── design/                 # Architecture & design decisions

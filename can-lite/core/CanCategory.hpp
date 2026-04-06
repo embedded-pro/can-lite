@@ -1,6 +1,7 @@
 #pragma once
 
 #include "can-lite/core/CanMessageType.hpp"
+#include "infra/util/ByteRange.hpp"
 #include "infra/util/IntrusiveList.hpp"
 #include <cstdint>
 
@@ -14,6 +15,7 @@ namespace services
 
         void AddMessageType(CanMessageType& messageType);
         bool HandleMessage(uint8_t messageType, const hal::Can::Message& data);
+        bool HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu);
 
     protected:
         CanCategory() = default;
