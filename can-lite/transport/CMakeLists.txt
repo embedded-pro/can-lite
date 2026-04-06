@@ -1,3 +1,5 @@
+add_subdirectory(iso-tp)
+
 add_library(can_lite.transport ${EMIL_EXCLUDE_FROM_ALL})
 
 target_include_directories(can_lite.transport PUBLIC
@@ -16,5 +18,4 @@ target_sources(can_lite.transport PRIVATE
     IsoTpTransportImpl.cpp
 )
 
-add_subdirectory(iso-tp)
 add_subdirectory(test)

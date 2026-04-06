@@ -78,7 +78,7 @@ For payloads exceeding the 8-byte CAN frame limit, can-lite provides an optional
 |------|-------|-----------------------------------------------------------|
 | 0    | PCI   | `0x3S` — Flow Status (0=CTS, 1=Wait, 2=Overflow)          |
 | 1    | BS    | Block Size — number of CFs before next FC (0 = unlimited) |
-| 2    | STmin | Minimum separation time (0x00–0x7F = 0–127 ms)            |
+| 2    | STmin | Minimum separation time: 0x00–0x7F = 0–127 ms; 0xF1–0xF9 = 100–900 µs (ISO-TP sub-ms range); 0x80–0xF0 and 0xFA–0xFF = reserved (treated as 0) |
 
 ### Timing Parameters
 
