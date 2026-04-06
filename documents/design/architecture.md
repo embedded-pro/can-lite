@@ -287,6 +287,11 @@ can-lite/
 │   ├── system/                    # Built-in System category (0x00)
 │   │   ├── CanSystemCategoryServer.hpp/cpp
 │   │   └── CanSystemCategoryClient.hpp/cpp
+│   ├── firmware_upgrade/          # Firmware Upgrade category (0x01)
+│   │   ├── FirmwareUpgradeDefinitions.hpp
+│   │   ├── FirmwareUpgradeCategoryServer.hpp/cpp
+│   │   ├── FirmwareUpgradeCategoryClient.hpp/cpp
+│   │   └── test/
 │   └── foc_motor/                 # FOC Motor Control category (0x02)
 │       ├── FocMotorDefinitions.hpp
 │       ├── FocMotorCategoryServer.hpp/cpp
@@ -391,6 +396,7 @@ integration_tests/
 - `CanProtocolServer` and `CanProtocolClient` wired to their respective CAN interfaces.
 - `StrictMock` observers for the server and (optionally) FOC motor category.
 - Optional FOC motor components (`CanFrameTransport`, `FocMotorCategoryServer`/`Client`, observers) activated via `RegisterFocMotor()`.
+- Optional Firmware Upgrade components (`FirmwareUpgradeCategoryServer`/`Client`, observers) activated via `RegisterFirmwareUpgrade()`.
 - Dynamic test categories (`SequencedTestCategory`, `SimpleTestCategory`) for sequence and discovery testing.
 
 ### StrictMock Everywhere

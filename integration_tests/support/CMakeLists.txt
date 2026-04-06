@@ -12,6 +12,7 @@ target_link_libraries(can_lite.integration_tests.support PUBLIC
     can_lite.server
     can_lite.client
     can_lite.categories.foc_motor
+    can_lite.categories.firmware_upgrade
     can_lite.core
     infra.timer
     infra.timer_test_helper

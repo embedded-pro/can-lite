@@ -88,6 +88,7 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 │   │   └── test/                       # Core unit tests
 │   ├── categories/             # Category implementations (server/client pairs)
 │   │   ├── system/             # Built-in System category (heartbeat, ack, discovery)
+│   │   ├── firmware_upgrade/   # Firmware Upgrade category (extension example)
 │   │   └── foc_motor/          # FOC Motor Control category (extension example)
 │   ├── server/                 # Server implementation
 │   │   ├── CanProtocolServer.hpp       # Server with dispatch & observer
