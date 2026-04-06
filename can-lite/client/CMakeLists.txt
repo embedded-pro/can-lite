@@ -13,7 +13,7 @@ target_sources(can_lite.client PRIVATE
 target_link_libraries(can_lite.client PUBLIC
     can_lite.categories.system
     can_lite.core
-    can_lite.iso_tp
+    can_lite.transport
     infra.timer
 )
 
