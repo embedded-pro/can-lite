@@ -29,7 +29,7 @@ namespace services
     {
         hal::Can::Message data;
         data.resize(4, 0);
-        CanFrameCodec::WriteInt32(data, 0, static_cast<int32_t>(firmwareSize));
+        CanFrameCodec::WriteUInt32(data, 0, firmwareSize);
         return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuBeginUpgradeId, data, [] {});
     }
 
@@ -40,7 +40,7 @@ namespace services
 
         hal::Can::Message data;
         data.resize(2, 0);
-        CanFrameCodec::WriteInt16(data, 0, static_cast<int16_t>(blockIndex));
+        CanFrameCodec::WriteUInt16(data, 0, blockIndex);
         for (auto byte : blockData)
             data.push_back(byte);
         return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuDataBlockId, data, [] {});
@@ -50,7 +50,7 @@ namespace services
     {
         hal::Can::Message data;
         data.resize(4, 0);
-        CanFrameCodec::WriteInt32(data, 0, static_cast<int32_t>(expectedCrc32));
+        CanFrameCodec::WriteUInt32(data, 0, expectedCrc32);
         return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuVerifyId, data, [] {});
     }
 
@@ -89,7 +89,7 @@ namespace services
             return;
 
         auto status = static_cast<FwuError>(data[0]);
-        auto pageSize = static_cast<uint16_t>(CanFrameCodec::ReadInt16(data, 1));
+        auto pageSize = CanFrameCodec::ReadUInt16(data, 1);
 
         parent.NotifyObservers([status, pageSize](auto& observer)
             {
@@ -114,7 +114,7 @@ namespace services
             return;
 
         auto status = static_cast<FwuError>(data[0]);
-        auto blockIndex = static_cast<uint16_t>(CanFrameCodec::ReadInt16(data, 1));
+        auto blockIndex = CanFrameCodec::ReadUInt16(data, 1);
 
         parent.NotifyObservers([status, blockIndex](auto& observer)
             {
@@ -187,8 +187,8 @@ namespace services
             return;
 
         auto state = static_cast<FwuState>(data[0]);
-        auto blocksReceived = static_cast<uint16_t>(CanFrameCodec::ReadInt16(data, 1));
-        auto totalBlocks = static_cast<uint16_t>(CanFrameCodec::ReadInt16(data, 3));
+        auto blocksReceived = CanFrameCodec::ReadUInt16(data, 1);
+        auto totalBlocks = CanFrameCodec::ReadUInt16(data, 3);
 
         parent.NotifyObservers([state, blocksReceived, totalBlocks](auto& observer)
             {

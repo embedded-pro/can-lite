@@ -80,7 +80,7 @@ namespace
         client.SendBeginUpgrade(1, 393216);
 
         ASSERT_EQ(captured.size(), 4u);
-        auto decoded = static_cast<uint32_t>(CanFrameCodec::ReadInt32(captured, 0));
+        auto decoded = CanFrameCodec::ReadUInt32(captured, 0);
         EXPECT_EQ(decoded, 393216u);
     }
 
@@ -100,7 +100,7 @@ namespace
         client.SendDataBlock(1, 7, blockData);
 
         ASSERT_GE(captured.size(), 2u);
-        auto blockIndex = static_cast<uint16_t>(CanFrameCodec::ReadInt16(captured, 0));
+        auto blockIndex = CanFrameCodec::ReadUInt16(captured, 0);
         EXPECT_EQ(blockIndex, 7);
         EXPECT_EQ(captured[2], 0xAA);
         EXPECT_EQ(captured[3], 0xBB);
@@ -119,7 +119,7 @@ namespace
         client.SendVerify(1, 0xDEADBEEFu);
 
         ASSERT_EQ(captured.size(), 4u);
-        auto decoded = static_cast<uint32_t>(CanFrameCodec::ReadInt32(captured, 0));
+        auto decoded = CanFrameCodec::ReadUInt32(captured, 0);
         EXPECT_EQ(decoded, 0xDEADBEEFu);
     }
 

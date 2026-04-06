@@ -36,7 +36,7 @@ namespace services
         hal::Can::Message data;
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(status);
-        CanFrameCodec::WriteInt16(data, 1, static_cast<int16_t>(pageSize));
+        CanFrameCodec::WriteUInt16(data, 1, pageSize);
         transport.SendFrame(CanPriority::response, firmwareUpgradeCategoryId, fwuBeginResponseId, data, [] {});
     }
 
@@ -45,7 +45,7 @@ namespace services
         hal::Can::Message data;
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(status);
-        CanFrameCodec::WriteInt16(data, 1, static_cast<int16_t>(blockIndex));
+        CanFrameCodec::WriteUInt16(data, 1, blockIndex);
         transport.SendFrame(CanPriority::response, firmwareUpgradeCategoryId, fwuDataBlockAckId, data, [] {});
     }
 
@@ -68,8 +68,8 @@ namespace services
         hal::Can::Message data;
         data.resize(5, 0);
         data[0] = static_cast<uint8_t>(state);
-        CanFrameCodec::WriteInt16(data, 1, static_cast<int16_t>(blocksReceived));
-        CanFrameCodec::WriteInt16(data, 3, static_cast<int16_t>(totalBlocks));
+        CanFrameCodec::WriteUInt16(data, 1, blocksReceived);
+        CanFrameCodec::WriteUInt16(data, 3, totalBlocks);
         transport.SendFrame(CanPriority::response, firmwareUpgradeCategoryId, fwuProgressResponseId, data, [] {});
     }
 
@@ -110,7 +110,7 @@ namespace services
         if (data.size() < 4)
             return;
 
-        auto firmwareSize = static_cast<uint32_t>(CanFrameCodec::ReadInt32(data, 0));
+        auto firmwareSize = CanFrameCodec::ReadUInt32(data, 0);
         parent.ResetSessionTimer();
 
         parent.NotifyObservers([firmwareSize](auto& observer)
@@ -135,7 +135,7 @@ namespace services
         if (data.size() < 2)
             return;
 
-        auto blockIndex = static_cast<uint16_t>(CanFrameCodec::ReadInt16(data, 0));
+        auto blockIndex = CanFrameCodec::ReadUInt16(data, 0);
         parent.ResetSessionTimer();
 
         hal::Can::Message payload;
@@ -164,7 +164,7 @@ namespace services
         if (data.size() < 4)
             return;
 
-        auto expectedCrc32 = static_cast<uint32_t>(CanFrameCodec::ReadInt32(data, 0));
+        auto expectedCrc32 = CanFrameCodec::ReadUInt32(data, 0);
         parent.StopSessionTimer();
 
         parent.NotifyObservers([expectedCrc32](auto& observer)

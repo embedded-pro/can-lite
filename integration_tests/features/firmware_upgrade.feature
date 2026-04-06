@@ -24,13 +24,13 @@ Feature: Firmware Upgrade
     And the client sends data block 0
     And 25 seconds elapse without a session timeout
 
-  # REQ-FWU-002: Abort stops the session timeout
+  # REQ-FWU-015: Abort stops the session timeout
   Scenario: Abort stops the session timeout
     When the client sends a begin upgrade command with firmware size 12
     And the client sends an abort command
     And 60 seconds elapse without a session timeout
 
-  # REQ-FWU-006: Verify stops the session timeout
+  # REQ-FWU-015: Verify stops the session timeout
   Scenario: Verify stops the session timeout
     When the client sends a begin upgrade command with firmware size 12
     And the client sends a verify command with CRC32 305419896
