@@ -71,6 +71,8 @@ End with a summary: total criticals, warnings, suggestions, and overall verdict 
 - [ ] `const` on all non-mutating methods
 - [ ] `constexpr` where applicable
 - [ ] Fixed-size integer types (`uint8_t`, `int32_t`, etc.)
+- [ ] Brace `{}` initialization used for all variables and member data (not parenthesis `()`)
+- [ ] No pure virtual destructors unless strictly necessary — they add vtable overhead; flag as WARNING if present without clear justification
 
 ### 4. CAN Protocol Correctness (CRITICAL)
 
@@ -142,12 +144,13 @@ If the code implements or maps to an industry CAN standard, verify:
 ### 9. Test Coverage (WARNING)
 
 - [ ] Every new message type has at least one unit test
-- [ ] Tests use GoogleTest + GoogleMock with `testing::StrictMock<>`
+- [ ] **ONLY `testing::StrictMock<>` is used** — `NiceMock`, `NaggyMock`, and bare mock classes are **forbidden**; flag as CRITICAL if any are found
 - [ ] `hal::Can` is mocked (not real hardware)
 - [ ] Test file named `Test{ComponentName}.cpp` in `{module}/test/`
 - [ ] Edge cases tested: empty payload, max payload, boundary values, invalid inputs
 - [ ] Sequence error path tested for server categories
 - [ ] Observer notification verified in tests
+- [ ] Tests were written to match requirements (TDD): each test traces to a specific requirement in `documents/requirements/`
 
 ### 10. Document Consistency (WARNING)
 

@@ -9,8 +9,8 @@ namespace
 {
     using namespace services;
     using testing::_;
+    using testing::AnyNumber;
     using testing::Invoke;
-    using testing::NiceMock;
     using testing::StrictMock;
 
     class FocMotorCategoryServerObserverMock
@@ -40,14 +40,13 @@ namespace
     public:
         TestFocMotorCategoryServer()
         {
-            ON_CALL(canMock, SendData(_, _, _))
-                .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                    {
-                        cb(true);
-                    }));
+            EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                {
+                    cb(true);
+                }));
         }
 
-        NiceMock<hal::CanMock> canMock;
+        StrictMock<hal::CanMock> canMock;
         CanFrameTransport transport{ canMock, 1 };
         FocMotorCategoryServer server{ transport };
     };
