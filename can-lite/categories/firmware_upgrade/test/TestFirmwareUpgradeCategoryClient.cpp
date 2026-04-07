@@ -10,8 +10,8 @@ namespace
 {
     using namespace services;
     using testing::_;
+    using testing::AnyNumber;
     using testing::Invoke;
-    using testing::NiceMock;
     using testing::StrictMock;
 
     class FirmwareUpgradeCategoryClientObserverMock
@@ -32,16 +32,20 @@ namespace
         , public infra::ClockFixture
     {
     public:
-        TestFirmwareUpgradeCategoryClient()
+        StrictMock<hal::CanMock> canMock;
+
+        struct FixtureInit
         {
-            ON_CALL(canMock, SendData(_, _, _))
-                .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            explicit FixtureInit(StrictMock<hal::CanMock>& canMock)
+            {
+                EXPECT_CALL(canMock, ReceiveData(_));
+                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                     {
                         cb(true);
                     }));
-        }
+            }
+        } fixtureInit{ canMock };
 
-        NiceMock<hal::CanMock> canMock;
         CanProtocolClient protocolClient{ canMock };
         CanFrameTransport transport{ canMock, 1 };
         FirmwareUpgradeCategoryClient client{ transport, protocolClient };

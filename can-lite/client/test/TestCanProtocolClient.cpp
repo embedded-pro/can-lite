@@ -336,18 +336,17 @@ namespace
     public:
         struct FixtureInit
         {
-            FixtureInit(NiceMock<hal::CanMock>& canMock,
+            FixtureInit(hal::CanMock& canMock,
                 infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& receiveCallback)
             {
                 EXPECT_CALL(canMock, ReceiveData(_)).WillOnce([&receiveCallback](const auto& callback)
                     {
                         receiveCallback = callback;
                     });
-                ON_CALL(canMock, SendData(_, _, _))
-                    .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                        {
-                            cb(true);
-                        }));
+                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                    {
+                        cb(true);
+                    }));
             }
         };
 
@@ -358,7 +357,7 @@ namespace
             receiveCallback(id, hal::Can::Message{});
         }
 
-        NiceMock<hal::CanMock> canMock;
+        StrictMock<hal::CanMock> canMock;
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> receiveCallback;
         FixtureInit fixtureInit{ canMock, receiveCallback };
         CanProtocolClient::Config config{ std::chrono::seconds(3) };
@@ -404,7 +403,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameInterceptsMessage)
     {
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
         client.AttachIsoTpTransport(mockIsoTp);
 
@@ -416,7 +415,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameReturnsFalse_ContinuesNormalDispatch)
     {
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
         client.AttachIsoTpTransport(mockIsoTp);
 
@@ -472,7 +471,7 @@ namespace
         PduCategory pduCategory;
         client.RegisterCategory(pduCategory);
 
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         client.AttachIsoTpTransport(mockIsoTp);
@@ -487,7 +486,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_DispatchPdu_UnknownCategory_Ignored)
     {
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         client.AttachIsoTpTransport(mockIsoTp);

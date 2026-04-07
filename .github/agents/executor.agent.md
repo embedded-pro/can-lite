@@ -76,6 +76,8 @@ namespace can_lite
 - **`const` correctness**: Mark all non-mutating methods `const`
 - **`constexpr`**: Use for compile-time calculations
 - **Fixed-size types**: Prefer `uint8_t`, `int32_t`, etc., over `int`
+- **`{}` initialization**: Prefer brace initialization for all variables and member data: `uint8_t count{}`, `MyClass obj{arg1, arg2}`
+- **No pure virtual destructors unless strictly necessary**: they add vtable entries and increase binary/RAM size; prefer a non-pure virtual destructor or omit the destructor when the class is not deleted polymorphically through a base pointer
 
 ### CAN Protocol — Wire Format Rules
 
@@ -200,7 +202,7 @@ When implementing categories based on industry CAN standards, apply these protoc
 
 - Test files: `can-lite/{module}/test/Test{ComponentName}.cpp`
 - Framework: GoogleTest + GoogleMock
-- Use `testing::StrictMock<>` for strict expectations
+- **ONLY `testing::StrictMock<>` is allowed** — `NiceMock`, `NaggyMock`, and bare mock classes are **forbidden**
 - Mock `hal::Can` interface for protocol-level tests
 - Test edge cases and boundary conditions
 - Pattern:
@@ -228,13 +230,15 @@ After any protocol, structural, or behavioral change, check:
 ## Implementation Workflow
 
 1. **Read the plan or task** carefully
-2. **Search for existing patterns** in the codebase — follow them exactly (start with `categories/system/` and `categories/foc_motor/`)
-3. **Implement changes** one file at a time, following all rules above
-4. **Create or update tests** for every change
-5. **Update CMakeLists.txt** if new files were added (library naming: `can_lite.<component>`)
-6. **Build and test**: run `cmake --build --preset host-Debug` and `ctest --preset host-Debug`
-7. **Check document consistency**: update spec/requirements/architecture/README if needed
-8. **Hand off to reviewer** using the handoff button
+2. **Clarify requirements before writing code**: If any requirement is ambiguous, ask the user to clarify before proceeding — unclear requirements lead to wrong tests and wrong implementations
+3. **Write tests first (TDD)**: Write failing unit tests that capture the requirements, then implement the minimum production code to make them pass (Red → Green → Refactor)
+4. **Search for existing patterns** in the codebase — follow them exactly (start with `categories/system/` and `categories/foc_motor/`)
+5. **Implement changes** one file at a time, following all rules above
+6. **Create or update tests** for every change
+7. **Update CMakeLists.txt** if new files were added (library naming: `can_lite.<component>`)
+8. **Build and test**: run `cmake --build --preset host-Debug` and `ctest --preset host-Debug`
+9. **Check document consistency**: update spec/requirements/architecture/README if needed
+10. **Hand off to reviewer** using the handoff button
 
 ## What NOT to Do
 

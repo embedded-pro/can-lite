@@ -71,6 +71,7 @@ applyTo: "**/*.{hpp,cpp,h}"
 - `const` on all non-mutating methods
 - `constexpr` for compile-time calculations
 - Fixed-size integer types: `uint8_t`, `int32_t`, etc.
+- Prefer `{}` (brace) initialization over `()` for all variables and member data: `uint8_t count{}`, `MyClass obj{arg1, arg2}`
 - No exceptions — use `std::optional<T>` or status enums
 
 ## CAN Wire Format
@@ -95,4 +96,5 @@ applyTo: "**/*.{hpp,cpp,h}"
 - Dependency Injection: all dependencies via constructor
 - DRY: never duplicate logic
 - Self-documenting code through clear naming — no comments restating code
+- No pure virtual destructors unless strictly necessary — they add vtable entries and increase binary/RAM size; prefer a non-pure virtual destructor or omit the destructor entirely when the class is not deleted polymorphically through a base pointer
 - Observer callbacks must not allocate or block

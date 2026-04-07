@@ -11,8 +11,8 @@ namespace
 {
     using namespace services;
     using testing::_;
+    using testing::AnyNumber;
     using testing::Invoke;
-    using testing::NiceMock;
     using testing::StrictMock;
 
     class FocMotorCategoryClientObserverMock
@@ -33,16 +33,20 @@ namespace
         , public infra::ClockFixture
     {
     public:
-        TestFocMotorCategoryClient()
+        StrictMock<hal::CanMock> canMock;
+
+        struct FixtureInit
         {
-            ON_CALL(canMock, SendData(_, _, _))
-                .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            explicit FixtureInit(StrictMock<hal::CanMock>& canMock)
+            {
+                EXPECT_CALL(canMock, ReceiveData(_));
+                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                     {
                         cb(true);
                     }));
-        }
+            }
+        } fixtureInit{ canMock };
 
-        NiceMock<hal::CanMock> canMock;
         CanProtocolClient protocolClient{ canMock };
         CanFrameTransport transport{ canMock, 1 };
         FocMotorCategoryClient client{ transport, protocolClient };
@@ -472,7 +476,9 @@ namespace
     TEST_F(TestFocMotorCategoryClient, Send_QueueFull_ReturnsFalseAndDoesNotAdvanceSequence)
     {
         // Use a separate blocked transport: SendData never calls back, so sendInProgress stays true
-        NiceMock<hal::CanMock> blockedCan;
+        StrictMock<hal::CanMock> blockedCan;
+        EXPECT_CALL(blockedCan, ReceiveData(_));
+        EXPECT_CALL(blockedCan, SendData(_, _, _)).Times(AnyNumber());
         CanProtocolClient blockedProtocolClient{ blockedCan };
         CanFrameTransport blockedTransport{ blockedCan, 1 };
         FocMotorCategoryClient focClient{ blockedTransport, blockedProtocolClient };

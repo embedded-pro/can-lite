@@ -37,18 +37,17 @@ namespace
     public:
         struct FixtureInit
         {
-            FixtureInit(NiceMock<hal::CanMock>& canMock,
+            FixtureInit(hal::CanMock& canMock,
                 infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& receiveCallback)
             {
                 EXPECT_CALL(canMock, ReceiveData(_)).WillOnce([&receiveCallback](const auto& callback)
                     {
                         receiveCallback = callback;
                     });
-                ON_CALL(canMock, SendData(_, _, _))
-                    .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                        {
-                            cb(true);
-                        }));
+                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                    {
+                        cb(true);
+                    }));
             }
         };
 
@@ -78,7 +77,7 @@ namespace
         }
 
         CanProtocolServer::Config config{ 1, 500, std::chrono::seconds(1) };
-        NiceMock<hal::CanMock> canMock;
+        StrictMock<hal::CanMock> canMock;
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> receiveCallback;
         FixtureInit fixtureInit{ canMock, receiveCallback };
 
@@ -173,7 +172,7 @@ namespace
     TEST_F(CanProtocolServerTest, RateLimiting_RejectsExcessMessages)
     {
         CanProtocolServer::Config limitedConfig{ 1, 3, std::chrono::seconds(1) };
-        NiceMock<hal::CanMock> limitedCan;
+        StrictMock<hal::CanMock> limitedCan;
 
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
@@ -181,11 +180,10 @@ namespace
             {
                 limitedReceiveCallback = callback;
             });
-        ON_CALL(limitedCan, SendData(_, _, _))
-            .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                {
-                    cb(true);
-                }));
+        EXPECT_CALL(limitedCan, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
 
         CanProtocolServer limitedServer(limitedCan, limitedConfig);
         StrictMock<CanProtocolServerObserverMock> limitedObserver(limitedServer);
@@ -203,7 +201,7 @@ namespace
     TEST_F(CanProtocolServerTest, RateLimiting_ResetsCounterAutomatically)
     {
         CanProtocolServer::Config limitedConfig{ 1, 2, std::chrono::seconds(1) };
-        NiceMock<hal::CanMock> limitedCan;
+        StrictMock<hal::CanMock> limitedCan;
 
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
@@ -211,11 +209,10 @@ namespace
             {
                 limitedReceiveCallback = callback;
             });
-        ON_CALL(limitedCan, SendData(_, _, _))
-            .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                {
-                    cb(true);
-                }));
+        EXPECT_CALL(limitedCan, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
 
         CanProtocolServer limitedServer(limitedCan, limitedConfig);
         StrictMock<CanProtocolServerObserverMock> limitedObserver(limitedServer);
@@ -619,7 +616,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_ProcessFrameInterceptsMessage)
     {
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
@@ -631,7 +628,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_ProcessFrameReturnsFalse_ContinuesNormalDispatch)
     {
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
@@ -688,7 +685,7 @@ namespace
         PduCategory pduCategory;
         server.RegisterCategory(pduCategory);
 
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         server.AttachIsoTpTransport(mockIsoTp);
@@ -703,7 +700,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_DispatchPdu_UnknownCategory_Ignored)
     {
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         server.AttachIsoTpTransport(mockIsoTp);
@@ -765,7 +762,7 @@ namespace
         PduCategory pduCategory;
         server.RegisterCategory(pduCategory);
 
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         server.AttachIsoTpTransport(mockIsoTp);
@@ -825,7 +822,7 @@ namespace
         PduCategory pduCategory;
         server.RegisterCategory(pduCategory);
 
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         server.AttachIsoTpTransport(mockIsoTp);
@@ -857,7 +854,7 @@ namespace
         EmptyCategory emptyCategory;
         server.RegisterCategory(emptyCategory);
 
-        NiceMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         server.AttachIsoTpTransport(mockIsoTp);

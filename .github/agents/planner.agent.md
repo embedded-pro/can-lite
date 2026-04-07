@@ -28,6 +28,7 @@ Before planning, thoroughly investigate:
   - [can-protocol.md](../../documents/spec/can-protocol.md) — wire-format specification
   - [architecture.md](../../documents/design/architecture.md) — architecture & design decisions
   - [can-protocol.yaml](../../documents/requirements/can-protocol.yaml) — formal requirements
+- **TDD approach**: Ensure requirements are clear and unambiguous before planning any tests or implementation. If any requirement is uncertain, flag it explicitly and recommend the orchestrator ask the user for clarification before routing to the executor.
 
 ### 2. Plan Structure
 
@@ -61,9 +62,11 @@ How industry-standard protocol concepts map to can-lite's model:
 - Timing and flow control considerations
 
 ## Test Strategy
-- Unit tests for each new class
-- Integration test scenarios (Gherkin features)
+- **TDD**: Write failing tests first, then implement to make them pass
+- Unit tests for each new class (written before the implementation)
+- Integration test scenarios (Gherkin features) with expected outcomes defined upfront
 - Edge cases and error paths
+- **ONLY `testing::StrictMock<>` is allowed** — no `NiceMock`, `NaggyMock`, or bare mocks
 
 ## Build Integration
 - New CMakeLists.txt targets and their dependencies
@@ -239,6 +242,8 @@ Bit:  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  12  11  10
 - [ ] Dependency Injection: all dependencies via constructor
 - [ ] Small functions: ~30 lines max (hard limit ~50)
 - [ ] No comments restating code — self-documenting names
+- [ ] Prefer `{}` brace initialization for all variables and member data
+- [ ] No pure virtual destructors unless strictly necessary (adds vtable overhead)
 - [ ] `const` correctness on all non-mutating methods
 - [ ] `constexpr` for compile-time calculations
 - [ ] Fixed-size integer types (`uint8_t`, `int32_t`, etc.)

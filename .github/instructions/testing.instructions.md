@@ -36,7 +36,7 @@ TEST(ComponentTest, specific_behavior_description)
 
 ## Rules
 
-- Use `testing::StrictMock<>` — unexpected calls cause immediate failure
+- **ONLY `testing::StrictMock<>` is allowed** — `NiceMock`, `NaggyMock`, and bare mock classes are **forbidden**; every unexpected call must cause immediate test failure
 - Mock `hal::Can` interface for protocol-level tests
 - No heap allocation in tests — same memory constraints as production code
 - Test edge cases: empty payload, max payload (8 bytes), boundary values, invalid inputs
@@ -44,12 +44,19 @@ TEST(ComponentTest, specific_behavior_description)
 - Verify observer notifications in tests
 - Each new `CanMessageType` must have at least one test
 
+## Test-Driven Development (TDD)
+
+- Write tests **before** production code: Red → Green → Refactor
+- Requirements must be **clear and unambiguous** before writing tests — if anything is uncertain, ask the user to clarify before proceeding
+- Each test must correspond to a specific requirement from `documents/requirements/`
+- Failing tests define the acceptance criteria; implementation is only done to make those tests pass
+
 ## Integration Tests
 
 - `ApplicationFixture` composes connected `VirtualCan` pairs, `CanProtocolServer`, `CanProtocolClient`, and mock observers
 - `VirtualCan` simulates a CAN bus — frames sent by one instance are delivered to the connected instance
 - Use `ForwardTime()` to advance timers (heartbeat, rate limiting)
-- `StrictMock` on all observers — every interaction must be explicitly expected
+- `testing::StrictMock<>` on all observers — every interaction must be explicitly expected; no `NiceMock` or `NaggyMock` exceptions
 - Avoid capturing `shared_ptr` to fixture in step lambdas (prevents circular references)
 
 ## Build & Run
