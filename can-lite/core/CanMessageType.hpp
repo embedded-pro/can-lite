@@ -15,7 +15,7 @@ namespace services
         virtual uint8_t Id() const = 0;
         virtual void Handle(const hal::Can::Message& data) = 0;
 
-        virtual bool HandlePdu(infra::ConstByteRange data)
+        virtual bool HandlePdu(infra::ConstByteRange)
         {
             really_assert(false);
             return false;
