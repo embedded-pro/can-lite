@@ -45,9 +45,9 @@ namespace services
     static constexpr int32_t focInertiaScale = 10000;
     static constexpr int32_t focFrictionScale = 10000;
     static constexpr int32_t focVoltageScale = 10;
-    static constexpr int32_t focCurrentScale = 10;
-    static constexpr int32_t focSpeedScale = 1;
-    static constexpr int32_t focPositionScale = 100;
+    static constexpr int32_t focCurrentScale = 100;
+    static constexpr int32_t focSpeedScale = 10;
+    static constexpr int32_t focPositionScale = 1000;
 
     enum class FocMotorMode : uint8_t
     {
