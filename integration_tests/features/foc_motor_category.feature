@@ -8,7 +8,6 @@ Feature: FOC Motor Category Integration
     And a CAN bus client connected to the same bus
     And the FOC motor category is registered on both client and server
 
-  # Client sends command -> Server receives -> Server sends response -> Client receives
   Scenario: Client queries motor type and receives response
     When the client sends a query motor type command
     Then the server observer shall receive an OnQueryMotorType event

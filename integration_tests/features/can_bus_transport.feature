@@ -1,12 +1,12 @@
 Feature: CAN Bus Transport
-  The protocol uses CAN 2.0B (29-bit extended identifiers) for all
+  The protocol uses CAN 2.0B (29-bit extended identifiers) for
   communication. Both client and server must discard 11-bit standard frames.
 
   Background:
     Given a CAN bus with a server at node 1 and rate limit 500
     And a CAN bus client connected to the same bus
 
-  # REQ-CAN-002: Extended CAN identifiers
+  @REQ-CAN-002
   Scenario: Server discards 11-bit standard identifier frames
     When a frame is received with an 11-bit standard identifier
     Then the server shall silently discard the frame
@@ -15,7 +15,7 @@ Feature: CAN Bus Transport
     When the client receives a frame with an 11-bit standard identifier
     Then the client shall silently discard the frame
 
-  # REQ-CAN-003: CAN identifier structure
+  @REQ-CAN-003
   Scenario: CAN identifier encodes priority, category, message type, and node ID
     When a CAN identifier is constructed with priority 4, category 2, message type 1, and node ID 42
     Then the 29-bit identifier shall encode priority in bits 28-24

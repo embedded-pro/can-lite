@@ -8,7 +8,7 @@ Feature: Sequence Validation
     And a CAN bus client connected to the same bus
     And a sequenced test category with ID 3 is registered on the server
 
-  # REQ-CAN-017: Sequence number validation
+  @REQ-CAN-017
   Scenario: First command is accepted regardless of sequence value
     When the client sends a command to category 3 with sequence number 42
     Then the server category handler shall have received 1 command
@@ -31,18 +31,17 @@ Feature: Sequence Validation
     Then the server category handler shall have received 1 command
     And the server shall send an acknowledgement with status "sequenceError"
 
-  # REQ-CAN-018: Sequence number wrap-around
+  @REQ-CAN-018
   Scenario: Sequence counter wraps from 255 to 0
     When the client sends a command to category 3 with sequence number 255
     And the client sends a command to category 3 with sequence number 0
     Then the server category handler shall have received 2 commands
 
-  # REQ-CAN-019: Sequence bypass per category
+  @REQ-CAN-019
   Scenario: System category does not require sequence validation
     When the client sends a status request to the server with empty payload
     Then the server shall respond with a heartbeat message
 
-  # Bad flow: empty payload on sequenced category
   Scenario: Empty payload on sequenced category is rejected with invalidPayload
     When the client sends a command to category 3 with empty payload
     Then the server category handler shall have received 0 commands

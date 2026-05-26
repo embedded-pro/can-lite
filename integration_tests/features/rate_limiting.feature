@@ -2,7 +2,7 @@ Feature: Rate Limiting
   The server enforces a configurable maximum number of received
   messages per second. Excess messages are silently discarded.
 
-  # REQ-CAN-022: Message rate limiting
+  @REQ-CAN-022
   Scenario: Messages within the rate limit are accepted
     Given a CAN bus with a server at node 1 and rate limit 3
     And a CAN bus client connected to the same bus
