@@ -1,5 +1,5 @@
 Feature: CAN Bus Transport
-  The protocol uses CAN 2.0B (29-bit extended identifiers) for all
+  The protocol uses CAN 2.0B (29-bit extended identifiers) for
   communication. Both client and server must discard 11-bit standard frames.
 
   Background:
