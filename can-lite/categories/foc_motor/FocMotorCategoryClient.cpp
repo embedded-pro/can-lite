@@ -12,12 +12,16 @@ namespace services
         , mechanicalParamsResponse(*this)
         , telemetryElectricalResponse(*this)
         , telemetryStatusResponse(*this)
+        , selectControlModeResponse(*this)
+        , commandRejectedResponse(*this)
     {
         AddMessageType(motorTypeResponse);
         AddMessageType(electricalParamsResponse);
         AddMessageType(mechanicalParamsResponse);
         AddMessageType(telemetryElectricalResponse);
         AddMessageType(telemetryStatusResponse);
+        AddMessageType(selectControlModeResponse);
+        AddMessageType(commandRejectedResponse);
     }
 
     uint8_t FocMotorCategoryClient::Id() const
@@ -119,14 +123,49 @@ namespace services
         return true;
     }
 
-    bool FocMotorCategoryClient::SendSetTarget(uint16_t targetNodeId, const FocSetpoint& setpoint)
+    bool FocMotorCategoryClient::SendSelectControlMode(uint16_t targetNodeId, FocMotorMode mode)
     {
         hal::Can::Message data;
-        data.resize(4, 0);
+        data.resize(2, 0);
         data[0] = client.PeekSequence(targetNodeId);
-        data[1] = static_cast<uint8_t>(setpoint.mode);
-        CanFrameCodec::WriteInt16(data, 2, setpoint.value);
-        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetTargetId, data, [] {}))
+        data[1] = static_cast<uint8_t>(mode);
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSelectControlModeId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
+    }
+
+    bool FocMotorCategoryClient::SendSetTorqueSetpoint(uint16_t targetNodeId, int16_t value)
+    {
+        hal::Can::Message data;
+        data.resize(3, 0);
+        data[0] = client.PeekSequence(targetNodeId);
+        CanFrameCodec::WriteInt16(data, 1, value);
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetTorqueSetpointId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
+    }
+
+    bool FocMotorCategoryClient::SendSetSpeedSetpoint(uint16_t targetNodeId, int16_t value)
+    {
+        hal::Can::Message data;
+        data.resize(3, 0);
+        data[0] = client.PeekSequence(targetNodeId);
+        CanFrameCodec::WriteInt16(data, 1, value);
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetSpeedSetpointId, data, [] {}))
+            return false;
+        client.CommitSequence(targetNodeId);
+        return true;
+    }
+
+    bool FocMotorCategoryClient::SendSetPositionSetpoint(uint16_t targetNodeId, int16_t value)
+    {
+        hal::Can::Message data;
+        data.resize(3, 0);
+        data[0] = client.PeekSequence(targetNodeId);
+        CanFrameCodec::WriteInt16(data, 1, value);
+        if (!transport.SendFrame(targetNodeId, CanPriority::command, focMotorCategoryId, focSetPositionSetpointId, data, [] {}))
             return false;
         client.CommitSequence(targetNodeId);
         return true;
@@ -292,6 +331,56 @@ namespace services
         parent.NotifyObservers([&status](auto& observer)
             {
                 observer.OnTelemetryStatusResponse(status);
+            });
+    }
+
+    // SelectControlModeResponse
+
+    FocMotorCategoryClient::SelectControlModeResponseMessageType::SelectControlModeResponseMessageType(FocMotorCategoryClient& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryClient::SelectControlModeResponseMessageType::Id() const
+    {
+        return focSelectControlModeResponseId;
+    }
+
+    void FocMotorCategoryClient::SelectControlModeResponseMessageType::Handle(const hal::Can::Message& data)
+    {
+        if (data.size() < 2)
+            return;
+
+        auto activeMode = static_cast<FocMotorMode>(data[0]);
+        auto reason = static_cast<FocRejectReason>(data[1]);
+
+        parent.NotifyObservers([activeMode, reason](auto& observer)
+            {
+                observer.OnSelectControlModeResponse(activeMode, reason);
+            });
+    }
+
+    // CommandRejectedResponse
+
+    FocMotorCategoryClient::CommandRejectedResponseMessageType::CommandRejectedResponseMessageType(FocMotorCategoryClient& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryClient::CommandRejectedResponseMessageType::Id() const
+    {
+        return focCommandRejectedResponseId;
+    }
+
+    void FocMotorCategoryClient::CommandRejectedResponseMessageType::Handle(const hal::Can::Message& data)
+    {
+        if (data.size() < 2)
+            return;
+
+        uint8_t origCmdId = data[0];
+        auto reason = static_cast<FocRejectReason>(data[1]);
+
+        parent.NotifyObservers([origCmdId, reason](auto& observer)
+            {
+                observer.OnCommandRejected(origCmdId, reason);
             });
     }
 }

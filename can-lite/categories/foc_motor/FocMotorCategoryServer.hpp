@@ -27,7 +27,10 @@ namespace services
         virtual void OnIdentifyMechanical() = 0;
         virtual void OnRequestTelemetry() = 0;
         virtual void OnSetEncoderResolution(uint16_t resolution) = 0;
-        virtual void OnSetTarget(const FocSetpoint& setpoint) = 0;
+        virtual void OnSelectControlMode(FocMotorMode mode) = 0;
+        virtual void OnSetTorqueSetpoint(int16_t value) = 0;
+        virtual void OnSetSpeedSetpoint(int16_t value) = 0;
+        virtual void OnSetPositionSetpoint(int16_t value) = 0;
         virtual void OnClearFault() = 0;
         virtual void OnEmergencyStop() = 0;
         virtual void OnConfigureTelemetryRate(uint8_t rateHz) = 0;
@@ -47,6 +50,8 @@ namespace services
         void SendMechanicalParamsResponse(const FocMechanicalParams& params);
         void SendTelemetryElectricalResponse(const FocTelemetryElectrical& telemetry);
         void SendTelemetryStatusResponse(const FocTelemetryStatus& status);
+        void SendSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason reason);
+        void SendCommandRejected(uint8_t origCmdId, FocRejectReason reason);
 
     private:
         class QueryMotorTypeMessageType
@@ -169,11 +174,47 @@ namespace services
             FocMotorCategoryServer& parent;
         };
 
-        class SetTargetMessageType
+        class SelectControlModeMessageType
             : public CanMessageType
         {
         public:
-            explicit SetTargetMessageType(FocMotorCategoryServer& parent);
+            explicit SelectControlModeMessageType(FocMotorCategoryServer& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryServer& parent;
+        };
+
+        class SetTorqueSetpointMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit SetTorqueSetpointMessageType(FocMotorCategoryServer& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryServer& parent;
+        };
+
+        class SetSpeedSetpointMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit SetSpeedSetpointMessageType(FocMotorCategoryServer& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryServer& parent;
+        };
+
+        class SetPositionSetpointMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit SetPositionSetpointMessageType(FocMotorCategoryServer& parent);
             uint8_t Id() const override;
             void Handle(const hal::Can::Message& data) override;
 
@@ -229,7 +270,10 @@ namespace services
         IdentifyMechanicalMessageType identifyMechanical;
         RequestTelemetryMessageType requestTelemetry;
         SetEncoderResolutionMessageType setEncoderResolution;
-        SetTargetMessageType setTarget;
+        SelectControlModeMessageType selectControlMode;
+        SetTorqueSetpointMessageType setTorqueSetpoint;
+        SetSpeedSetpointMessageType setSpeedSetpoint;
+        SetPositionSetpointMessageType setPositionSetpoint;
         ClearFaultMessageType clearFault;
         EmergencyStopMessageType emergencyStop;
         ConfigureTelemetryRateMessageType configureTelemetryRate;

@@ -15,7 +15,10 @@ namespace services
         , identifyMechanical(*this)
         , requestTelemetry(*this)
         , setEncoderResolution(*this)
-        , setTarget(*this)
+        , selectControlMode(*this)
+        , setTorqueSetpoint(*this)
+        , setSpeedSetpoint(*this)
+        , setPositionSetpoint(*this)
         , clearFault(*this)
         , emergencyStop(*this)
         , configureTelemetryRate(*this)
@@ -30,7 +33,10 @@ namespace services
         AddMessageType(identifyMechanical);
         AddMessageType(requestTelemetry);
         AddMessageType(setEncoderResolution);
-        AddMessageType(setTarget);
+        AddMessageType(selectControlMode);
+        AddMessageType(setTorqueSetpoint);
+        AddMessageType(setSpeedSetpoint);
+        AddMessageType(setPositionSetpoint);
         AddMessageType(clearFault);
         AddMessageType(emergencyStop);
         AddMessageType(configureTelemetryRate);
@@ -86,6 +92,24 @@ namespace services
         CanFrameCodec::WriteInt16(data, 2, status.speed);
         CanFrameCodec::WriteInt16(data, 4, status.position);
         transport.SendFrame(CanPriority::telemetry, focMotorCategoryId, focTelemetryStatusResponseId, data, [] {});
+    }
+
+    void FocMotorCategoryServer::SendSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason reason)
+    {
+        hal::Can::Message data;
+        data.resize(2, 0);
+        data[0] = static_cast<uint8_t>(activeMode);
+        data[1] = static_cast<uint8_t>(reason);
+        transport.SendFrame(CanPriority::response, focMotorCategoryId, focSelectControlModeResponseId, data, [] {});
+    }
+
+    void FocMotorCategoryServer::SendCommandRejected(uint8_t origCmdId, FocRejectReason reason)
+    {
+        hal::Can::Message data;
+        data.resize(2, 0);
+        data[0] = origCmdId;
+        data[1] = static_cast<uint8_t>(reason);
+        transport.SendFrame(CanPriority::response, focMotorCategoryId, focCommandRejectedResponseId, data, [] {});
     }
 
     // QueryMotorType
@@ -310,31 +334,101 @@ namespace services
             });
     }
 
-    // SetTarget
+    // SelectControlMode
 
-    FocMotorCategoryServer::SetTargetMessageType::SetTargetMessageType(FocMotorCategoryServer& parent)
+    FocMotorCategoryServer::SelectControlModeMessageType::SelectControlModeMessageType(FocMotorCategoryServer& parent)
         : parent(parent)
     {}
 
-    uint8_t FocMotorCategoryServer::SetTargetMessageType::Id() const
+    uint8_t FocMotorCategoryServer::SelectControlModeMessageType::Id() const
     {
-        return focSetTargetId;
+        return focSelectControlModeId;
     }
 
-    void FocMotorCategoryServer::SetTargetMessageType::Handle(const hal::Can::Message& data)
+    void FocMotorCategoryServer::SelectControlModeMessageType::Handle(const hal::Can::Message& data)
     {
-        if (data.size() < 4)
+        if (data.size() < 2)
             return;
 
         auto mode = static_cast<FocMotorMode>(data[1]);
         if (mode != FocMotorMode::torque && mode != FocMotorMode::speed && mode != FocMotorMode::position)
             return;
 
-        FocSetpoint setpoint{ mode, CanFrameCodec::ReadInt16(data, 2) };
-
-        parent.NotifyObservers([&setpoint](auto& observer)
+        parent.NotifyObservers([mode](auto& observer)
             {
-                observer.OnSetTarget(setpoint);
+                observer.OnSelectControlMode(mode);
+            });
+    }
+
+    // SetTorqueSetpoint
+
+    FocMotorCategoryServer::SetTorqueSetpointMessageType::SetTorqueSetpointMessageType(FocMotorCategoryServer& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryServer::SetTorqueSetpointMessageType::Id() const
+    {
+        return focSetTorqueSetpointId;
+    }
+
+    void FocMotorCategoryServer::SetTorqueSetpointMessageType::Handle(const hal::Can::Message& data)
+    {
+        if (data.size() < 3)
+            return;
+
+        auto value = CanFrameCodec::ReadInt16(data, 1);
+
+        parent.NotifyObservers([value](auto& observer)
+            {
+                observer.OnSetTorqueSetpoint(value);
+            });
+    }
+
+    // SetSpeedSetpoint
+
+    FocMotorCategoryServer::SetSpeedSetpointMessageType::SetSpeedSetpointMessageType(FocMotorCategoryServer& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryServer::SetSpeedSetpointMessageType::Id() const
+    {
+        return focSetSpeedSetpointId;
+    }
+
+    void FocMotorCategoryServer::SetSpeedSetpointMessageType::Handle(const hal::Can::Message& data)
+    {
+        if (data.size() < 3)
+            return;
+
+        auto value = CanFrameCodec::ReadInt16(data, 1);
+
+        parent.NotifyObservers([value](auto& observer)
+            {
+                observer.OnSetSpeedSetpoint(value);
+            });
+    }
+
+    // SetPositionSetpoint
+
+    FocMotorCategoryServer::SetPositionSetpointMessageType::SetPositionSetpointMessageType(FocMotorCategoryServer& parent)
+        : parent(parent)
+    {}
+
+    uint8_t FocMotorCategoryServer::SetPositionSetpointMessageType::Id() const
+    {
+        return focSetPositionSetpointId;
+    }
+
+    void FocMotorCategoryServer::SetPositionSetpointMessageType::Handle(const hal::Can::Message& data)
+    {
+        if (data.size() < 3)
+            return;
+
+        auto value = CanFrameCodec::ReadInt16(data, 1);
+
+        parent.NotifyObservers([value](auto& observer)
+            {
+                observer.OnSetPositionSetpoint(value);
             });
     }
 

@@ -26,6 +26,8 @@ namespace
         MOCK_METHOD(void, OnMechanicalParamsResponse, (const FocMechanicalParams& params), (override));
         MOCK_METHOD(void, OnTelemetryElectricalResponse, (const FocTelemetryElectrical& telemetry), (override));
         MOCK_METHOD(void, OnTelemetryStatusResponse, (const FocTelemetryStatus& status), (override));
+        MOCK_METHOD(void, OnSelectControlModeResponse, (FocMotorMode activeMode, FocRejectReason reason), (override));
+        MOCK_METHOD(void, OnCommandRejected, (uint8_t origCmdId, FocRejectReason reason), (override));
     };
 
     class TestFocMotorCategoryClient
@@ -192,7 +194,7 @@ namespace
 
     TEST_F(TestFocMotorCategoryClient, UnknownMessageType_ReturnsFalse)
     {
-        EXPECT_FALSE(client.HandleMessage(0xFF, hal::Can::Message{}));
+        EXPECT_FALSE(client.HandleMessage(0xFE, hal::Can::Message{}));
     }
 
     // --- Command sending ---
@@ -385,22 +387,20 @@ namespace
         EXPECT_EQ(secondSeq, 1);
     }
 
-    TEST_F(TestFocMotorCategoryClient, SendSetTarget_SendsCorrectFrame)
+    TEST_F(TestFocMotorCategoryClient, SendSelectControlMode_SendsCorrectFrame)
     {
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
             {
                 auto rawId = id.Get29BitId();
                 EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
                 EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
-                EXPECT_EQ(ExtractCanMessageType(rawId), focSetTargetId);
-                ASSERT_EQ(data.size(), 4u);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focSelectControlModeId);
+                ASSERT_EQ(data.size(), 2u);
                 EXPECT_EQ(data[1], static_cast<uint8_t>(FocMotorMode::speed));
-                EXPECT_EQ(CanFrameCodec::ReadInt16(data, 2), 3000);
                 cb(true);
             });
 
-        FocSetpoint setpoint{ FocMotorMode::speed, 3000 };
-        client.SendSetTarget(1, setpoint);
+        client.SendSelectControlMode(1, FocMotorMode::speed);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendClearFault_SendsCorrectFrame)
@@ -493,5 +493,73 @@ namespace
         // Sequence must NOT have advanced after the failure:
         // 9 successful commits left the counter at 9, failure left it there
         EXPECT_EQ(blockedProtocolClient.PeekSequence(1), 9u);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SendSetSpeedSetpoint_SendsCorrectFrame)
+    {
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
+            {
+                auto rawId = id.Get29BitId();
+                EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
+                EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focSetSpeedSetpointId);
+                ASSERT_EQ(data.size(), 3u);
+                EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), 3000);
+                cb(true);
+            });
+
+        client.SendSetSpeedSetpoint(1, 3000);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SendSetPositionSetpoint_SendsCorrectFrame)
+    {
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
+            {
+                auto rawId = id.Get29BitId();
+                EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
+                EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focSetPositionSetpointId);
+                ASSERT_EQ(data.size(), 3u);
+                EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), -18000);
+                cb(true);
+            });
+
+        client.SendSetPositionSetpoint(1, -18000);
+    }
+
+    TEST_F(TestFocMotorCategoryClientWithObserver, SelectControlModeResponse_ParsesResponse)
+    {
+        EXPECT_CALL(observer, OnSelectControlModeResponse(FocMotorMode::speed, FocRejectReason::ok));
+
+        hal::Can::Message data;
+        data.resize(2, 0);
+        data[0] = static_cast<uint8_t>(FocMotorMode::speed);
+        data[1] = static_cast<uint8_t>(FocRejectReason::ok);
+        client.HandleMessage(focSelectControlModeResponseId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SelectControlModeResponse_TooShortIgnored)
+    {
+        hal::Can::Message data;
+        data.resize(1, 0);
+        client.HandleMessage(focSelectControlModeResponseId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryClientWithObserver, CommandRejectedResponse_ParsesPayload)
+    {
+        EXPECT_CALL(observer, OnCommandRejected(focSetTorqueSetpointId, FocRejectReason::controlModeMismatch));
+
+        hal::Can::Message data;
+        data.resize(2, 0);
+        data[0] = focSetTorqueSetpointId;
+        data[1] = static_cast<uint8_t>(FocRejectReason::controlModeMismatch);
+        client.HandleMessage(focCommandRejectedResponseId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, CommandRejectedResponse_TooShortIgnored)
+    {
+        hal::Can::Message data;
+        data.resize(1, 0);
+        client.HandleMessage(focCommandRejectedResponseId, data);
     }
 }

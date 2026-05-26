@@ -308,14 +308,26 @@ WHEN(R"(the client sends a set target command with mode {string} and value {int}
     auto expectedMode = ParseMotorMode(mode);
     auto expectedValue = static_cast<int16_t>(value);
 
-    EXPECT_CALL(*fixture.motorServerObserver, OnSetTarget(_)).WillOnce([expectedMode, expectedValue](const FocSetpoint& sp)
-        {
-            EXPECT_EQ(sp.mode, expectedMode);
-            EXPECT_EQ(sp.value, expectedValue);
-        });
+    EXPECT_CALL(*fixture.motorServerObserver, OnSelectControlMode(expectedMode));
 
-    FocSetpoint setpoint{ expectedMode, expectedValue };
-    fixture.motorClient->SendSetTarget(fixture.config.nodeId, setpoint);
+    if (expectedMode == FocMotorMode::torque)
+    {
+        EXPECT_CALL(*fixture.motorServerObserver, OnSetTorqueSetpoint(expectedValue));
+        fixture.motorClient->SendSelectControlMode(fixture.config.nodeId, expectedMode);
+        fixture.motorClient->SendSetTorqueSetpoint(fixture.config.nodeId, expectedValue);
+    }
+    else if (expectedMode == FocMotorMode::speed)
+    {
+        EXPECT_CALL(*fixture.motorServerObserver, OnSetSpeedSetpoint(expectedValue));
+        fixture.motorClient->SendSelectControlMode(fixture.config.nodeId, expectedMode);
+        fixture.motorClient->SendSetSpeedSetpoint(fixture.config.nodeId, expectedValue);
+    }
+    else
+    {
+        EXPECT_CALL(*fixture.motorServerObserver, OnSetPositionSetpoint(expectedValue));
+        fixture.motorClient->SendSelectControlMode(fixture.config.nodeId, expectedMode);
+        fixture.motorClient->SendSetPositionSetpoint(fixture.config.nodeId, expectedValue);
+    }
 }
 
 THEN(R"(the server observer shall receive a set target event with mode {string} and value {int})", (const std::string&, std::int32_t))

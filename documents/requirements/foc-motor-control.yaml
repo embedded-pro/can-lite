@@ -141,21 +141,75 @@
 - id: REQ-FOC-014
   title: Response message type IDs
   shall: >
-    Response message types within the FOC category shall use IDs
-    formed by adding 0x80 to the corresponding command message type
-    ID, reserving 0x00–0x7F for commands and 0x80–0xFF for responses.
+    Solicited response message types within the FOC category shall generally
+    use IDs formed by adding 0x80 to the corresponding command message type
+    ID, reserving 0x00–0x7F for commands and 0x80–0xFE for paired responses.
+    The Command Rejected Response shall use the fixed well-known ID 0xFF,
+    which is outside the 0x80 + command_id mapping range and serves as a
+    generic cross-cutting error frame.
 
 # --- Setpoint Control ---
 
 - id: REQ-FOC-015
-  title: Active setpoint command
+  title: Select control mode command
   shall: >
-    The client shall be able to send a Set Target command (0x0A) to
-    set the active closed-loop setpoint for the motor. The command
-    payload shall contain: sequence byte (byte 0), mode byte (byte 1,
-    values 0–2), and a big-endian int16 value (bytes 2–3). The server
-    shall reject payloads shorter than 4 bytes or with an invalid mode
-    byte (> 2) without notifying the observer.
+    The client shall be able to send a Select Control Mode command (0x0E) to
+    choose the active closed-loop control mode. The command payload shall
+    contain: sequence byte (byte 0) and mode byte (byte 1, values 0–2).
+    The server shall reject payloads shorter than 2 bytes or with an invalid
+    mode byte (> 2) without notifying the observer. On success the server
+    shall respond with a Select Control Mode Response (0x8E).
+
+- id: REQ-FOC-019
+  title: Set torque setpoint command
+  shall: >
+    The client shall be able to send a Set Torque Setpoint command (0x0F)
+    to set the quadrature current setpoint. The command payload shall
+    contain: sequence byte (byte 0) and a big-endian int16 value (bytes 1–2,
+    scale 10, unit A). The server shall notify the observer via
+    OnSetTorqueSetpoint(value) after decoding. Payloads shorter than 3 bytes
+    shall be silently rejected.
+
+- id: REQ-FOC-020
+  title: Set speed setpoint command
+  shall: >
+    The client shall be able to send a Set Speed Setpoint command (0x10)
+    to set the speed closed-loop target. The command payload shall contain:
+    sequence byte (byte 0) and a big-endian int16 value (bytes 1–2,
+    scale 1, unit RPM). The server shall notify the observer via
+    OnSetSpeedSetpoint(value) after decoding. Payloads shorter than 3 bytes
+    shall be silently rejected.
+
+- id: REQ-FOC-021
+  title: Set position setpoint command
+  shall: >
+    The client shall be able to send a Set Position Setpoint command (0x11)
+    to set the position closed-loop target. The command payload shall contain:
+    sequence byte (byte 0) and a big-endian int16 value (bytes 1–2,
+    scale 100, unit rad). The server shall notify the observer via
+    OnSetPositionSetpoint(value) after decoding. Payloads shorter than 3 bytes
+    shall be silently rejected.
+
+- id: REQ-FOC-022
+  title: Select control mode response
+  shall: >
+    The server shall send a Select Control Mode Response (0x8E) at
+    CanPriority::response after processing a Select Control Mode command.
+    The payload shall contain: activeMode byte (byte 0) and reason byte
+    (byte 1, FocRejectReason). The client shall notify its observer via
+    OnSelectControlModeResponse(activeMode, reason). Payloads shorter than
+    2 bytes shall be silently ignored by the client.
+
+- id: REQ-FOC-023
+  title: Command rejected response
+  shall: >
+    The server shall send a Command Rejected Response (0xFF) at
+    CanPriority::response when a command is rejected for a cross-cutting
+    reason (e.g. control mode mismatch). The payload shall contain:
+    origCmdId byte (byte 0, the message type ID of the rejected command) and
+    reason byte (byte 1, FocRejectReason). The client shall notify its
+    observer via OnCommandRejected(origCmdId, reason). Payloads shorter than
+    2 bytes shall be silently ignored by the client.
 
 # --- Fault Recovery ---
 
