@@ -24,6 +24,8 @@ namespace services
         virtual void OnMechanicalParamsResponse(const FocMechanicalParams& params) = 0;
         virtual void OnTelemetryElectricalResponse(const FocTelemetryElectrical& telemetry) = 0;
         virtual void OnTelemetryStatusResponse(const FocTelemetryStatus& status) = 0;
+        virtual void OnSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason result) = 0;
+        virtual void OnCommandRejected(uint8_t origCmdId, FocRejectReason reason) = 0;
     };
 
     class FocMotorCategoryClient
@@ -45,7 +47,10 @@ namespace services
         bool SendIdentifyMechanical(uint16_t targetNodeId);
         bool SendRequestTelemetry(uint16_t targetNodeId);
         bool SendSetEncoderResolution(uint16_t targetNodeId, uint16_t resolution);
-        bool SendSetTarget(uint16_t targetNodeId, const FocSetpoint& setpoint);
+        bool SendSelectControlMode(uint16_t targetNodeId, FocMotorMode mode);
+        bool SendSetTorqueSetpoint(uint16_t targetNodeId, int16_t value);
+        bool SendSetSpeedSetpoint(uint16_t targetNodeId, int16_t value);
+        bool SendSetPositionSetpoint(uint16_t targetNodeId, int16_t value);
         bool SendClearFault(uint16_t targetNodeId);
         bool SendEmergencyStop(uint16_t targetNodeId);
         bool SendConfigureTelemetryRate(uint16_t targetNodeId, uint8_t rateHz);
@@ -113,6 +118,30 @@ namespace services
             FocMotorCategoryClient& parent;
         };
 
+        class SelectControlModeResponseMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit SelectControlModeResponseMessageType(FocMotorCategoryClient& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryClient& parent;
+        };
+
+        class CommandRejectedResponseMessageType
+            : public CanMessageType
+        {
+        public:
+            explicit CommandRejectedResponseMessageType(FocMotorCategoryClient& parent);
+            uint8_t Id() const override;
+            void Handle(const hal::Can::Message& data) override;
+
+        private:
+            FocMotorCategoryClient& parent;
+        };
+
         CanFrameTransport& transport;
         CanProtocolClient& client;
 
@@ -121,5 +150,7 @@ namespace services
         MechanicalParamsResponseMessageType mechanicalParamsResponse;
         TelemetryElectricalResponseMessageType telemetryElectricalResponse;
         TelemetryStatusResponseMessageType telemetryStatusResponse;
+        SelectControlModeResponseMessageType selectControlModeResponse;
+        CommandRejectedResponseMessageType commandRejectedResponse;
     };
 }

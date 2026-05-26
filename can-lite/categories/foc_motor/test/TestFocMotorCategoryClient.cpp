@@ -26,6 +26,8 @@ namespace
         MOCK_METHOD(void, OnMechanicalParamsResponse, (const FocMechanicalParams& params), (override));
         MOCK_METHOD(void, OnTelemetryElectricalResponse, (const FocTelemetryElectrical& telemetry), (override));
         MOCK_METHOD(void, OnTelemetryStatusResponse, (const FocTelemetryStatus& status), (override));
+        MOCK_METHOD(void, OnSelectControlModeResponse, (FocMotorMode activeMode, FocRejectReason reason), (override));
+        MOCK_METHOD(void, OnCommandRejected, (uint8_t origCmdId, FocRejectReason reason), (override));
     };
 
     class TestFocMotorCategoryClient
@@ -385,22 +387,20 @@ namespace
         EXPECT_EQ(secondSeq, 1);
     }
 
-    TEST_F(TestFocMotorCategoryClient, SendSetTarget_SendsCorrectFrame)
+    TEST_F(TestFocMotorCategoryClient, SendSelectControlMode_SendsCorrectFrame)
     {
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
             {
                 auto rawId = id.Get29BitId();
                 EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
                 EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
-                EXPECT_EQ(ExtractCanMessageType(rawId), focSetTargetId);
-                ASSERT_EQ(data.size(), 4u);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focSelectControlModeId);
+                ASSERT_EQ(data.size(), 2u);
                 EXPECT_EQ(data[1], static_cast<uint8_t>(FocMotorMode::speed));
-                EXPECT_EQ(CanFrameCodec::ReadInt16(data, 2), 3000);
                 cb(true);
             });
 
-        FocSetpoint setpoint{ FocMotorMode::speed, 3000 };
-        client.SendSetTarget(1, setpoint);
+        client.SendSelectControlMode(1, FocMotorMode::speed);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendClearFault_SendsCorrectFrame)

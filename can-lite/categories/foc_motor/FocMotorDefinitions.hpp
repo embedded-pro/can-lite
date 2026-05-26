@@ -17,10 +17,13 @@ namespace services
     static constexpr uint8_t focIdentifyMechanicalId = 0x07;
     static constexpr uint8_t focRequestTelemetryId = 0x08;
     static constexpr uint8_t focSetEncoderResolutionId = 0x09;
-    static constexpr uint8_t focSetTargetId = 0x0A;
     static constexpr uint8_t focClearFaultId = 0x0B;
     static constexpr uint8_t focEmergencyStopId = 0x0C;
     static constexpr uint8_t focConfigureTelemetryRateId = 0x0D;
+    static constexpr uint8_t focSelectControlModeId = 0x0E;
+    static constexpr uint8_t focSetTorqueSetpointId = 0x0F;
+    static constexpr uint8_t focSetSpeedSetpointId = 0x10;
+    static constexpr uint8_t focSetPositionSetpointId = 0x11;
 
     // Response message type IDs (Server → Client) = 0x80 + command ID
     static constexpr uint8_t focMotorTypeResponseId = 0x80;
@@ -28,6 +31,8 @@ namespace services
     static constexpr uint8_t focMechanicalParamsResponseId = 0x87;
     static constexpr uint8_t focTelemetryElectricalResponseId = 0x88;
     static constexpr uint8_t focTelemetryStatusResponseId = 0x89;
+    static constexpr uint8_t focSelectControlModeResponseId = 0x8E;
+    static constexpr uint8_t focCommandRejectedResponseId = 0x8F;
 
     // Scale factors
     static constexpr int32_t focPidScale = 1;
@@ -45,6 +50,15 @@ namespace services
         torque = 0,
         speed = 1,
         position = 2
+    };
+
+    enum class FocRejectReason : uint8_t
+    {
+        ok = 0,
+        controlModeMismatch = 1,
+        busy = 2,
+        invalidPayload = 3,
+        nvmFailed = 4
     };
 
     enum class FocMotorState : uint8_t
@@ -70,12 +84,6 @@ namespace services
         int16_t kp;
         int16_t ki;
         int16_t kd;
-    };
-
-    struct FocSetpoint
-    {
-        FocMotorMode mode;
-        int16_t value;
     };
 
     struct FocElectricalParams
