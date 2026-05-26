@@ -50,7 +50,7 @@ namespace services
         void SendMechanicalParamsResponse(const FocMechanicalParams& params);
         void SendTelemetryElectricalResponse(const FocTelemetryElectrical& telemetry);
         void SendTelemetryStatusResponse(const FocTelemetryStatus& status);
-        void SendSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason result);
+        void SendSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason reason);
         void SendCommandRejected(uint8_t origCmdId, FocRejectReason reason);
 
     private:

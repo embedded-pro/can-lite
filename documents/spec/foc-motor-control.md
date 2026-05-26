@@ -198,27 +198,7 @@ Configure the encoder resolution (counts per mechanical revolution).
 
 Total: 3 bytes.
 
-### 6.11 Set Target (0x0A)
-
-Set the active closed-loop setpoint. The mode byte selects which
-control loop is targeted. Sent at `CanPriority::command`.
-
-| Byte | Field    | Type  | Scale         | Description                |
-|------|----------|-------|---------------|----------------------------|
-| 0    | Sequence | uint8 | —             | Sequence counter           |
-| 1    | Mode     | uint8 | —             | Control mode (Section 2)   |
-| 2–3  | Value    | int16 | mode-specific | Setpoint value (see below) |
-
-Value scale by mode:
-- Torque (0): scale 10 → 0.1 A resolution, ±3276.7 A
-- Speed (1): scale 1 → 1 RPM resolution, ±32767 RPM
-- Position (2): scale 100 → 0.01 rad resolution, ±327.67 rad
-
-Invalid mode byte (> 2) is silently rejected by the server.
-
-Total: 4 bytes.
-
-### 6.12 Clear Fault (0x0B)
+### 6.11 Clear Fault (0x0B)
 
 Clear an active fault condition and return to Idle state.
 Server ignores this command if no fault is active.
@@ -227,7 +207,7 @@ Server ignores this command if no fault is active.
 |------|----------|-------|------------------|
 | 0    | Sequence | uint8 | Sequence counter |
 
-### 6.13 Emergency Stop (0x0C)
+### 6.12 Emergency Stop (0x0C)
 
 Immediately de-energize all motor phases and set the motor to Idle.
 Sent at `CanPriority::emergency`. Override any active control loop.
@@ -236,7 +216,7 @@ Sent at `CanPriority::emergency`. Override any active control loop.
 |------|----------|-------|------------------|
 | 0    | Sequence | uint8 | Sequence counter |
 
-### 6.14 Configure Telemetry Rate (0x0D)
+### 6.13 Configure Telemetry Rate (0x0D)
 
 Set the rate at which the server emits unsolicited telemetry frames.
 A rate of 0 disables push telemetry.
@@ -248,11 +228,65 @@ A rate of 0 disables push telemetry.
 
 Total: 2 bytes.
 
+### 6.14 Select Control Mode (0x0E)
 
+Select the active closed-loop control mode. Must be sent before the
+first setpoint command of a given mode. Invalid mode bytes (> 2) are
+silently rejected.
 
-Response message type IDs use the convention `0x80 + command_id`,
-providing a clear mapping between request and response. All responses
-are sent at `CanPriority::response`.
+| Byte | Field    | Type  | Description                    |
+|------|----------|-------|--------------------------------|
+| 0    | Sequence | uint8 | Sequence counter               |
+| 1    | Mode     | uint8 | Control mode (Section 2, 0–2) |
+
+Total: 2 bytes.
+
+Server responds with a Select Control Mode Response (0x8E).
+
+### 6.15 Set Torque Setpoint (0x0F)
+
+Set the torque (quadrature current) setpoint for torque control mode.
+
+| Byte | Field    | Type  | Scale | Description              |
+|------|----------|-------|-------|--------------------------|
+| 0    | Sequence | uint8 | —     | Sequence counter         |
+| 1–2  | Value    | int16 | 10    | Torque setpoint (A)      |
+
+Resolution: 0.1 A. Range: ±3276.7 A. Total: 3 bytes.
+Payload shorter than 3 bytes is silently rejected.
+
+### 6.16 Set Speed Setpoint (0x10)
+
+Set the speed setpoint for speed control mode.
+
+| Byte | Field    | Type  | Scale | Description              |
+|------|----------|-------|-------|--------------------------|
+| 0    | Sequence | uint8 | —     | Sequence counter         |
+| 1–2  | Value    | int16 | 1     | Speed setpoint (RPM)     |
+
+Resolution: 1 RPM. Range: ±32767 RPM. Total: 3 bytes.
+Payload shorter than 3 bytes is silently rejected.
+
+### 6.17 Set Position Setpoint (0x11)
+
+Set the position setpoint for position control mode.
+
+| Byte | Field    | Type  | Scale | Description              |
+|------|----------|-------|-------|--------------------------|
+| 0    | Sequence | uint8 | —     | Sequence counter         |
+| 1–2  | Value    | int16 | 100   | Position setpoint (rad)  |
+
+Resolution: 0.01 rad. Range: ±327.67 rad. Total: 3 bytes.
+Payload shorter than 3 bytes is silently rejected.
+
+## 7. Message Types — Responses (Server → Client)
+
+Solicited responses follow the `0x80 + command_id` convention where a
+paired response is defined. `focCommandRejectedResponseId` (0xFF) is a
+special cross-cutting error frame at a fixed well-known ID outside the
+`0x80 + command_id` mapping range, allowing the server to reject any
+command with a single message type. All responses are sent at
+`CanPriority::response`.
 
 ### 7.1 Motor Type Response (0x80)
 
@@ -300,6 +334,41 @@ Total: 8 bytes.
 
 Total: 6 bytes.
 
+### 7.6 Select Control Mode Response (0x8E)
+
+Sent in reply to Select Control Mode (0x0E).
+
+| Byte | Field      | Type  | Description                            |
+|------|------------|-------|----------------------------------------|
+| 0    | ActiveMode | uint8 | Confirmed control mode (Section 2)     |
+| 1    | Reason     | uint8 | FocRejectReason (0 = ok, see below)    |
+
+Total: 2 bytes. Payload shorter than 2 bytes is silently ignored by the
+client.
+
+### 7.7 Command Rejected Response (0xFF)
+
+Sent when a command is rejected for a cross-cutting reason (e.g. wrong
+control mode for the current setpoint). This response ID is fixed at
+0xFF and does not follow the `0x80 + command_id` convention.
+
+| Byte | Field     | Type  | Description                            |
+|------|-----------|-------|----------------------------------------|
+| 0    | OrigCmdId | uint8 | Message type ID of the rejected command|
+| 1    | Reason    | uint8 | FocRejectReason (see below)            |
+
+Total: 2 bytes. Payload shorter than 2 bytes is silently ignored by the
+client.
+
+**FocRejectReason values:**
+
+| Value | Name               | Description                               |
+|-------|--------------------|-------------------------------------------|
+| 0     | ok                 | No error (used in success responses)      |
+| 1     | controlModeMismatch| Setpoint mode does not match active mode  |
+| 2     | invalidState       | Motor state does not allow the command    |
+| 3     | invalidParameter   | Parameter value out of range              |
+
 ## 8. Typical Flow
 
 ### 8.1 Startup and Run
@@ -322,18 +391,21 @@ sequenceDiagram
     C->>S: setPidSpeed (seq=3, kp, ki, kd)
     S->>C: commandAck (0x2, 0x04, success)
 
-    C->>S: setTarget (seq=4, speed, 3000)
-    S->>C: commandAck (0x2, 0x0A, success)
+    C->>S: selectControlMode (seq=4, speed)
+    S->>C: selectControlModeResponse (speed, ok)
 
-    C->>S: start (seq=5)
+    C->>S: setSpeedSetpoint (seq=5, 3000 RPM)
+    S->>C: commandAck (0x2, 0x10, success)
+
+    C->>S: start (seq=6)
     S->>C: commandAck (0x2, 0x01, success)
 
-    C->>S: requestTelemetry (seq=6)
+    C->>S: requestTelemetry (seq=7)
     S->>C: telemetryElectrical (V, Imax, Iq, Id)
     S->>C: telemetryStatus (running, none, rpm, pos)
     S->>C: commandAck (0x2, 0x08, success)
 
-    C->>S: stop (seq=7)
+    C->>S: stop (seq=8)
     S->>C: commandAck (0x2, 0x02, success)
 ```
 

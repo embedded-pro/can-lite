@@ -351,11 +351,11 @@ namespace services
             return;
 
         auto activeMode = static_cast<FocMotorMode>(data[0]);
-        auto result = static_cast<FocRejectReason>(data[1]);
+        auto reason = static_cast<FocRejectReason>(data[1]);
 
-        parent.NotifyObservers([activeMode, result](auto& observer)
+        parent.NotifyObservers([activeMode, reason](auto& observer)
             {
-                observer.OnSelectControlModeResponse(activeMode, result);
+                observer.OnSelectControlModeResponse(activeMode, reason);
             });
     }
 

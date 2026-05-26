@@ -94,12 +94,12 @@ namespace services
         transport.SendFrame(CanPriority::telemetry, focMotorCategoryId, focTelemetryStatusResponseId, data, [] {});
     }
 
-    void FocMotorCategoryServer::SendSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason result)
+    void FocMotorCategoryServer::SendSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason reason)
     {
         hal::Can::Message data;
         data.resize(2, 0);
         data[0] = static_cast<uint8_t>(activeMode);
-        data[1] = static_cast<uint8_t>(result);
+        data[1] = static_cast<uint8_t>(reason);
         transport.SendFrame(CanPriority::response, focMotorCategoryId, focSelectControlModeResponseId, data, [] {});
     }
 

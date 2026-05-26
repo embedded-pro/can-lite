@@ -24,7 +24,7 @@ namespace services
         virtual void OnMechanicalParamsResponse(const FocMechanicalParams& params) = 0;
         virtual void OnTelemetryElectricalResponse(const FocTelemetryElectrical& telemetry) = 0;
         virtual void OnTelemetryStatusResponse(const FocTelemetryStatus& status) = 0;
-        virtual void OnSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason result) = 0;
+        virtual void OnSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason reason) = 0;
         virtual void OnCommandRejected(uint8_t origCmdId, FocRejectReason reason) = 0;
     };
 

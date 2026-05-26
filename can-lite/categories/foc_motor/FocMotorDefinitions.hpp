@@ -25,14 +25,18 @@ namespace services
     static constexpr uint8_t focSetSpeedSetpointId = 0x10;
     static constexpr uint8_t focSetPositionSetpointId = 0x11;
 
-    // Response message type IDs (Server → Client) = 0x80 + command ID
+    // Response message type IDs (Server → Client):
+    //   Solicited responses follow the 0x80 + command_id convention where a paired response
+    //   is defined. focCommandRejectedResponseId (0xFF) is a generic cross-cutting error
+    //   frame at a fixed well-known ID outside the 0x80 + command_id mapping range,
+    //   allowing the server to reject any command with a single message type.
     static constexpr uint8_t focMotorTypeResponseId = 0x80;
     static constexpr uint8_t focElectricalParamsResponseId = 0x86;
     static constexpr uint8_t focMechanicalParamsResponseId = 0x87;
     static constexpr uint8_t focTelemetryElectricalResponseId = 0x88;
     static constexpr uint8_t focTelemetryStatusResponseId = 0x89;
     static constexpr uint8_t focSelectControlModeResponseId = 0x8E;
-    static constexpr uint8_t focCommandRejectedResponseId = 0x8F;
+    static constexpr uint8_t focCommandRejectedResponseId = 0xFF;
 
     // Scale factors
     static constexpr int32_t focPidScale = 1;
