@@ -26,7 +26,10 @@ namespace integration
         MOCK_METHOD(void, OnIdentifyMechanical, (), (override));
         MOCK_METHOD(void, OnRequestTelemetry, (), (override));
         MOCK_METHOD(void, OnSetEncoderResolution, (uint16_t resolution), (override));
-        MOCK_METHOD(void, OnSetTarget, (const services::FocSetpoint& setpoint), (override));
+        MOCK_METHOD(void, OnSelectControlMode, (services::FocMotorMode mode), (override));
+        MOCK_METHOD(void, OnSetTorqueSetpoint, (int16_t value), (override));
+        MOCK_METHOD(void, OnSetSpeedSetpoint, (int16_t value), (override));
+        MOCK_METHOD(void, OnSetPositionSetpoint, (int16_t value), (override));
         MOCK_METHOD(void, OnClearFault, (), (override));
         MOCK_METHOD(void, OnEmergencyStop, (), (override));
         MOCK_METHOD(void, OnConfigureTelemetryRate, (uint8_t rateHz), (override));
@@ -43,6 +46,8 @@ namespace integration
         MOCK_METHOD(void, OnMechanicalParamsResponse, (const services::FocMechanicalParams& params), (override));
         MOCK_METHOD(void, OnTelemetryElectricalResponse, (const services::FocTelemetryElectrical& telemetry), (override));
         MOCK_METHOD(void, OnTelemetryStatusResponse, (const services::FocTelemetryStatus& status), (override));
+        MOCK_METHOD(void, OnSelectControlModeResponse, (services::FocMotorMode activeMode, services::FocRejectReason reason), (override));
+        MOCK_METHOD(void, OnCommandRejected, (uint8_t origCmdId, services::FocRejectReason reason), (override));
     };
 
     class ServerObserverMock
