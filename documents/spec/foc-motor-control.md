@@ -234,9 +234,9 @@ Select the active closed-loop control mode. Must be sent before the
 first setpoint command of a given mode. Invalid mode bytes (> 2) are
 silently rejected.
 
-| Byte | Field    | Type  | Description                    |
-|------|----------|-------|--------------------------------|
-| 0    | Sequence | uint8 | Sequence counter               |
+| Byte | Field    | Type  | Description                   |
+|------|----------|-------|-------------------------------|
+| 0    | Sequence | uint8 | Sequence counter              |
 | 1    | Mode     | uint8 | Control mode (Section 2, 0–2) |
 
 Total: 2 bytes.
@@ -247,10 +247,10 @@ Server responds with a Select Control Mode Response (0x8E).
 
 Set the torque (quadrature current) setpoint for torque control mode.
 
-| Byte | Field    | Type  | Scale | Description              |
-|------|----------|-------|-------|--------------------------|
-| 0    | Sequence | uint8 | —     | Sequence counter         |
-| 1–2  | Value    | int16 | 10    | Torque setpoint (A)      |
+| Byte | Field    | Type  | Scale | Description         |
+|------|----------|-------|-------|---------------------|
+| 0    | Sequence | uint8 | —     | Sequence counter    |
+| 1–2  | Value    | int16 | 10    | Torque setpoint (A) |
 
 Resolution: 0.1 A. Range: ±3276.7 A. Total: 3 bytes.
 Payload shorter than 3 bytes is silently rejected.
@@ -259,10 +259,10 @@ Payload shorter than 3 bytes is silently rejected.
 
 Set the speed setpoint for speed control mode.
 
-| Byte | Field    | Type  | Scale | Description              |
-|------|----------|-------|-------|--------------------------|
-| 0    | Sequence | uint8 | —     | Sequence counter         |
-| 1–2  | Value    | int16 | 1     | Speed setpoint (RPM)     |
+| Byte | Field    | Type  | Scale | Description          |
+|------|----------|-------|-------|----------------------|
+| 0    | Sequence | uint8 | —     | Sequence counter     |
+| 1–2  | Value    | int16 | 1     | Speed setpoint (RPM) |
 
 Resolution: 1 RPM. Range: ±32767 RPM. Total: 3 bytes.
 Payload shorter than 3 bytes is silently rejected.
@@ -271,10 +271,10 @@ Payload shorter than 3 bytes is silently rejected.
 
 Set the position setpoint for position control mode.
 
-| Byte | Field    | Type  | Scale | Description              |
-|------|----------|-------|-------|--------------------------|
-| 0    | Sequence | uint8 | —     | Sequence counter         |
-| 1–2  | Value    | int16 | 100   | Position setpoint (rad)  |
+| Byte | Field    | Type  | Scale | Description             |
+|------|----------|-------|-------|-------------------------|
+| 0    | Sequence | uint8 | —     | Sequence counter        |
+| 1–2  | Value    | int16 | 100   | Position setpoint (rad) |
 
 Resolution: 0.01 rad. Range: ±327.67 rad. Total: 3 bytes.
 Payload shorter than 3 bytes is silently rejected.
@@ -338,10 +338,10 @@ Total: 6 bytes.
 
 Sent in reply to Select Control Mode (0x0E).
 
-| Byte | Field      | Type  | Description                            |
-|------|------------|-------|----------------------------------------|
-| 0    | ActiveMode | uint8 | Confirmed control mode (Section 2)     |
-| 1    | Reason     | uint8 | FocRejectReason (0 = ok, see below)    |
+| Byte | Field      | Type  | Description                         |
+|------|------------|-------|-------------------------------------|
+| 0    | ActiveMode | uint8 | Confirmed control mode (Section 2)  |
+| 1    | Reason     | uint8 | FocRejectReason (0 = ok, see below) |
 
 Total: 2 bytes. Payload shorter than 2 bytes is silently ignored by the
 client.
@@ -352,22 +352,22 @@ Sent when a command is rejected for a cross-cutting reason (e.g. wrong
 control mode for the current setpoint). This response ID is fixed at
 0xFF and does not follow the `0x80 + command_id` convention.
 
-| Byte | Field     | Type  | Description                            |
-|------|-----------|-------|----------------------------------------|
-| 0    | OrigCmdId | uint8 | Message type ID of the rejected command|
-| 1    | Reason    | uint8 | FocRejectReason (see below)            |
+| Byte | Field     | Type  | Description                             |
+|------|-----------|-------|-----------------------------------------|
+| 0    | OrigCmdId | uint8 | Message type ID of the rejected command |
+| 1    | Reason    | uint8 | FocRejectReason (see below)             |
 
 Total: 2 bytes. Payload shorter than 2 bytes is silently ignored by the
 client.
 
 **FocRejectReason values:**
 
-| Value | Name               | Description                               |
-|-------|--------------------|-------------------------------------------|
-| 0     | ok                 | No error (used in success responses)      |
-| 1     | controlModeMismatch| Setpoint mode does not match active mode  |
-| 2     | invalidState       | Motor state does not allow the command    |
-| 3     | invalidParameter   | Parameter value out of range              |
+| Value | Name                | Description                              |
+|-------|---------------------|------------------------------------------|
+| 0     | ok                  | No error (used in success responses)     |
+| 1     | controlModeMismatch | Setpoint mode does not match active mode |
+| 2     | invalidState        | Motor state does not allow the command   |
+| 3     | invalidParameter    | Parameter value out of range             |
 
 ## 8. Typical Flow
 
