@@ -24,8 +24,7 @@ namespace services
         virtual void OnMechanicalParamsResponse(const FocMechanicalParams& params) = 0;
         virtual void OnTelemetryElectricalResponse(const FocTelemetryElectrical& telemetry) = 0;
         virtual void OnTelemetryStatusResponse(const FocTelemetryStatus& status) = 0;
-        virtual void OnSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason reason) = 0;
-        virtual void OnCommandRejected(uint8_t origCmdId, FocRejectReason reason) = 0;
+        virtual void OnSelectControlModeResponse(FocMotorMode activeMode) = 0;
     };
 
     class FocMotorCategoryClient
@@ -130,18 +129,6 @@ namespace services
             FocMotorCategoryClient& parent;
         };
 
-        class CommandRejectedResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit CommandRejectedResponseMessageType(FocMotorCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FocMotorCategoryClient& parent;
-        };
-
         CanFrameTransport& transport;
         CanProtocolClient& client;
 
@@ -151,6 +138,5 @@ namespace services
         TelemetryElectricalResponseMessageType telemetryElectricalResponse;
         TelemetryStatusResponseMessageType telemetryStatusResponse;
         SelectControlModeResponseMessageType selectControlModeResponse;
-        CommandRejectedResponseMessageType commandRejectedResponse;
     };
 }

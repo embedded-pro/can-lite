@@ -12,6 +12,7 @@ namespace services
               })
         , systemObserver(systemCategory, *this)
     {
+        systemCategory.SetAcknowledger(*this);
         categories.push_back(systemCategory);
 
         can.ReceiveData([this](hal::Can::Id id, const hal::Can::Message& data)
@@ -55,6 +56,7 @@ namespace services
         for (auto& existing : categories)
             really_assert(existing.Id() != category.Id());
 
+        category.SetAcknowledger(*this);
         categories.push_back(category);
     }
 
@@ -105,7 +107,10 @@ namespace services
         }
 
         if (!category->HandlePduMessage(messageType, pdu))
+        {
             SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+            return;
+        }
     }
 
     void CanProtocolServer::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)
@@ -153,6 +158,7 @@ namespace services
         if (!category->HandleMessage(messageType, data))
         {
             SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+            return;
         }
     }
 

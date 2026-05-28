@@ -1,4 +1,5 @@
 #include "can-lite/core/CanCategory.hpp"
+#include "infra/util/ReallyAssert.hpp"
 
 namespace services
 {
@@ -35,6 +36,17 @@ namespace services
     bool CanCategoryServer::RequiresSequenceValidation() const
     {
         return true;
+    }
+
+    void CanCategoryServer::SetAcknowledger(CanCommandAcknowledger& ack)
+    {
+        acknowledger = &ack;
+    }
+
+    void CanCategoryServer::SendCommandAck(uint8_t messageType, CanAckStatus status)
+    {
+        really_assert(acknowledger != nullptr);
+        acknowledger->SendCommandAck(Id(), messageType, status);
     }
 
     bool CanCategoryClient::RequiresSequenceValidation() const

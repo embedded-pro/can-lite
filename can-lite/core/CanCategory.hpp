@@ -1,12 +1,25 @@
 #pragma once
 
 #include "can-lite/core/CanMessageType.hpp"
+#include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "infra/util/ByteRange.hpp"
 #include "infra/util/IntrusiveList.hpp"
 #include <cstdint>
 
 namespace services
 {
+    class CanCommandAcknowledger
+    {
+    public:
+        virtual void SendCommandAck(uint8_t category, uint8_t messageType, CanAckStatus status) = 0;
+
+    protected:
+        CanCommandAcknowledger() = default;
+        CanCommandAcknowledger(const CanCommandAcknowledger&) = delete;
+        CanCommandAcknowledger& operator=(const CanCommandAcknowledger&) = delete;
+        ~CanCommandAcknowledger() = default;
+    };
+
     class CanCategory
     {
     public:
@@ -34,9 +47,15 @@ namespace services
     public:
         bool RequiresSequenceValidation() const override;
 
+        void SetAcknowledger(CanCommandAcknowledger& acknowledger);
+        void SendCommandAck(uint8_t messageType, CanAckStatus status);
+
     protected:
         CanCategoryServer() = default;
         ~CanCategoryServer() = default;
+
+    private:
+        CanCommandAcknowledger* acknowledger = nullptr;
     };
 
     class CanCategoryClient

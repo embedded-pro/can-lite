@@ -194,22 +194,22 @@
   title: Select control mode response
   shall: >
     The server shall send a Select Control Mode Response (0x8E) at
-    CanPriority::response after processing a Select Control Mode command.
-    The payload shall contain: activeMode byte (byte 0) and reason byte
-    (byte 1, FocRejectReason). The client shall notify its observer via
-    OnSelectControlModeResponse(activeMode, reason). Payloads shorter than
-    2 bytes shall be silently ignored by the client.
+    CanPriority::response after successfully processing a Select Control
+    Mode command. The payload shall contain a single activeMode byte
+    (byte 0). The client shall notify its observer via
+    OnSelectControlModeResponse(activeMode). Payloads shorter than 1 byte
+    shall be silently ignored by the client. Failure outcomes are reported
+    solely via the universal commandAck frame (see can-protocol
+    REQ-CAN-011).
 
 - id: REQ-FOC-023
-  title: Command rejected response
+  title: Command rejection via universal ACK
   shall: >
-    The server shall send a Command Rejected Response (0xFF) at
-    CanPriority::response when a command is rejected for a cross-cutting
-    reason (e.g. control mode mismatch). The payload shall contain:
-    origCmdId byte (byte 0, the message type ID of the rejected command) and
-    reason byte (byte 1, FocRejectReason). The client shall notify its
-    observer via OnCommandRejected(origCmdId, reason). Payloads shorter than
-    2 bytes shall be silently ignored by the client.
+    Command rejections (including cross-cutting reasons such as control
+    mode mismatch, busy, persistence failure, or invalid payload) shall be
+    reported via the universal commandAck frame defined by the System
+    category, carrying the appropriate CanAckStatus value. The FOC motor
+    category shall not define a dedicated rejection frame.
 
 # --- Fault Recovery ---
 

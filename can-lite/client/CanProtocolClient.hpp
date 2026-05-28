@@ -47,6 +47,8 @@ namespace services
         void RegisterCategory(CanCategoryClient& category);
         void UnregisterCategory(CanCategoryClient& category);
 
+        CanSystemCategoryClient& SystemCategory();
+
         void DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone);
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
