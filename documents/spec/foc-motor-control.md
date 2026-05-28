@@ -342,9 +342,9 @@ Total: 6 bytes.
 Sent in reply to Select Control Mode (0x0E) only when the request was
 accepted. Failure cases are reported solely via `commandAck`.
 
-| Byte | Field      | Type  | Description                         |
-|------|------------|-------|-------------------------------------|
-| 0    | ActiveMode | uint8 | Confirmed control mode (Section 2)  |
+| Byte | Field      | Type  | Description                        |
+|------|------------|-------|------------------------------------|
+| 0    | ActiveMode | uint8 | Confirmed control mode (Section 2) |
 
 Total: 1 byte. Payload shorter than 1 byte is silently ignored by the
 client.
@@ -356,21 +356,21 @@ reason. The universal `commandAck` carries `CanAckStatus::categoryError`
 and this frame supplies the original command id and the detailed
 `FocMotorCategoryError` reason.
 
-| Byte | Field         | Type  | Description                                |
-|------|---------------|-------|--------------------------------------------|
-| 0    | OriginCommand | uint8 | Message type of the rejected command       |
-| 1    | ErrorCode     | uint8 | `FocMotorCategoryError` value (see below)  |
+| Byte | Field         | Type  | Description                               |
+|------|---------------|-------|-------------------------------------------|
+| 0    | OriginCommand | uint8 | Message type of the rejected command      |
+| 1    | ErrorCode     | uint8 | `FocMotorCategoryError` value (see below) |
 
 `FocMotorCategoryError`:
 
-| Value | Name                | Meaning                                              |
-|-------|---------------------|------------------------------------------------------|
-| 0     | busy                | State machine busy with a prior operation            |
-| 1     | persistenceFailed   | Non-volatile memory write/commit failed              |
-| 2     | modeMismatch        | Setpoint command does not match the active mode      |
-| 3     | calibrationFailed   | Calibration step failed                              |
-| 4     | abortedByFault      | Operation aborted due to a fault                     |
-| 5     | applicationError    | Generic application-level error                      |
+| Value | Name              | Meaning                                         |
+|-------|-------------------|-------------------------------------------------|
+| 0     | busy              | State machine busy with a prior operation       |
+| 1     | persistenceFailed | Non-volatile memory write/commit failed         |
+| 2     | modeMismatch      | Setpoint command does not match the active mode |
+| 3     | calibrationFailed | Calibration step failed                         |
+| 4     | abortedByFault    | Operation aborted due to a fault                |
+| 5     | applicationError  | Generic application-level error                 |
 
 Total: 2 bytes.
 

@@ -241,15 +241,15 @@ Values are saturated (clamped) to the target integer range to prevent overflow.
 
 ### 10.1 Acknowledgement Status
 
-| Value | Status          | Description                                                |
-|-------|-----------------|------------------------------------------------------------|
-| 0     | Success         | Command accepted and processed                             |
-| 1     | Unknown Command | Message type not recognized for category                   |
-| 2     | Invalid Payload | Payload too short or field out of range                    |
-| 3     | Invalid State   | Command not valid in current state                         |
-| 4     | Sequence Error  | Sequence number not (previous + 1) mod 256                 |
-| 5     | Rate Limited    | Message rate limit exceeded                                |
-| 6     | Not Implemented | Command recognized but handler not implemented             |
+| Value | Status          | Description                                                 |
+|-------|-----------------|-------------------------------------------------------------|
+| 0     | Success         | Command accepted and processed                              |
+| 1     | Unknown Command | Message type not recognized for category                    |
+| 2     | Invalid Payload | Payload too short or field out of range                     |
+| 3     | Invalid State   | Command not valid in current state                          |
+| 4     | Sequence Error  | Sequence number not (previous + 1) mod 256                  |
+| 5     | Rate Limited    | Message rate limit exceeded                                 |
+| 6     | Not Implemented | Command recognized but handler not implemented              |
 | 7     | Category Error  | Category-specific rejection; details in category 0xFE frame |
 
 ## 11. Sequence Number Protocol

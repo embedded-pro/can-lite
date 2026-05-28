@@ -49,6 +49,7 @@ namespace services
         void SendVerifyResponse(FwuError status);
         void SendActivateResponse(FwuError status);
         void SendProgressResponse(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks);
+
         class BeginUpgradeMessageType
             : public CanMessageType
         {

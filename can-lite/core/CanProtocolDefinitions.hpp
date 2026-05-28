@@ -44,14 +44,22 @@ namespace services
     {
         switch (status)
         {
-            case CanAckStatus::success:        return "success";
-            case CanAckStatus::unknownCommand: return "unknownCommand";
-            case CanAckStatus::invalidPayload: return "invalidPayload";
-            case CanAckStatus::invalidState:   return "invalidState";
-            case CanAckStatus::sequenceError:  return "sequenceError";
-            case CanAckStatus::rateLimited:    return "rateLimited";
-            case CanAckStatus::notImplemented: return "notImplemented";
-            case CanAckStatus::categoryError:  return "categoryError";
+            case CanAckStatus::success:
+                return "success";
+            case CanAckStatus::unknownCommand:
+                return "unknownCommand";
+            case CanAckStatus::invalidPayload:
+                return "invalidPayload";
+            case CanAckStatus::invalidState:
+                return "invalidState";
+            case CanAckStatus::sequenceError:
+                return "sequenceError";
+            case CanAckStatus::rateLimited:
+                return "rateLimited";
+            case CanAckStatus::notImplemented:
+                return "notImplemented";
+            case CanAckStatus::categoryError:
+                return "categoryError";
         }
         return "unknown";
     }
