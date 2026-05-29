@@ -26,17 +26,27 @@ namespace services
     static constexpr uint8_t focSetPositionSetpointId = 0x11;
 
     // Response message type IDs (Server → Client):
-    //   Solicited responses follow the 0x80 + command_id convention where a paired response
-    //   is defined. focCommandRejectedResponseId (0xFF) is a generic cross-cutting error
-    //   frame at a fixed well-known ID outside the 0x80 + command_id mapping range,
-    //   allowing the server to reject any command with a single message type.
+    //   Solicited responses follow the 0x80 + command_id convention where a paired
+    //   response is defined. Command outcomes (success/failure with reason) are
+    //   conveyed via the universal CanAckStatus ACK frame defined in
+    //   CanProtocolDefinitions.hpp; no category-specific rejection frame is used.
     static constexpr uint8_t focMotorTypeResponseId = 0x80;
     static constexpr uint8_t focElectricalParamsResponseId = 0x86;
     static constexpr uint8_t focMechanicalParamsResponseId = 0x87;
     static constexpr uint8_t focTelemetryElectricalResponseId = 0x88;
     static constexpr uint8_t focTelemetryStatusResponseId = 0x89;
     static constexpr uint8_t focSelectControlModeResponseId = 0x8E;
-    static constexpr uint8_t focCommandRejectedResponseId = 0xFF;
+    static constexpr uint8_t focCategoryErrorResponseId = 0xFE;
+
+    enum class FocMotorCategoryError : uint8_t
+    {
+        busy = 0,
+        persistenceFailed = 1,
+        modeMismatch = 2,
+        calibrationFailed = 3,
+        abortedByFault = 4,
+        applicationError = 5
+    };
 
     // Scale factors
     static constexpr int32_t focPidScale = 1;
@@ -54,15 +64,6 @@ namespace services
         torque = 0,
         speed = 1,
         position = 2
-    };
-
-    enum class FocRejectReason : uint8_t
-    {
-        ok = 0,
-        controlModeMismatch = 1,
-        busy = 2,
-        invalidPayload = 3,
-        nvmFailed = 4
     };
 
     enum class FocMotorState : uint8_t

@@ -26,8 +26,7 @@ namespace
         MOCK_METHOD(void, OnMechanicalParamsResponse, (const FocMechanicalParams& params), (override));
         MOCK_METHOD(void, OnTelemetryElectricalResponse, (const FocTelemetryElectrical& telemetry), (override));
         MOCK_METHOD(void, OnTelemetryStatusResponse, (const FocTelemetryStatus& status), (override));
-        MOCK_METHOD(void, OnSelectControlModeResponse, (FocMotorMode activeMode, FocRejectReason reason), (override));
-        MOCK_METHOD(void, OnCommandRejected, (uint8_t origCmdId, FocRejectReason reason), (override));
+        MOCK_METHOD(void, OnSelectControlModeResponse, (FocMotorMode activeMode), (override));
     };
 
     class TestFocMotorCategoryClient
@@ -529,37 +528,17 @@ namespace
 
     TEST_F(TestFocMotorCategoryClientWithObserver, SelectControlModeResponse_ParsesResponse)
     {
-        EXPECT_CALL(observer, OnSelectControlModeResponse(FocMotorMode::speed, FocRejectReason::ok));
+        EXPECT_CALL(observer, OnSelectControlModeResponse(FocMotorMode::speed));
 
         hal::Can::Message data;
-        data.resize(2, 0);
+        data.resize(1, 0);
         data[0] = static_cast<uint8_t>(FocMotorMode::speed);
-        data[1] = static_cast<uint8_t>(FocRejectReason::ok);
         client.HandleMessage(focSelectControlModeResponseId, data);
     }
 
     TEST_F(TestFocMotorCategoryClient, SelectControlModeResponse_TooShortIgnored)
     {
         hal::Can::Message data;
-        data.resize(1, 0);
         client.HandleMessage(focSelectControlModeResponseId, data);
-    }
-
-    TEST_F(TestFocMotorCategoryClientWithObserver, CommandRejectedResponse_ParsesPayload)
-    {
-        EXPECT_CALL(observer, OnCommandRejected(focSetTorqueSetpointId, FocRejectReason::controlModeMismatch));
-
-        hal::Can::Message data;
-        data.resize(2, 0);
-        data[0] = focSetTorqueSetpointId;
-        data[1] = static_cast<uint8_t>(FocRejectReason::controlModeMismatch);
-        client.HandleMessage(focCommandRejectedResponseId, data);
-    }
-
-    TEST_F(TestFocMotorCategoryClient, CommandRejectedResponse_TooShortIgnored)
-    {
-        hal::Can::Message data;
-        data.resize(1, 0);
-        client.HandleMessage(focCommandRejectedResponseId, data);
     }
 }

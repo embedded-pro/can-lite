@@ -4,6 +4,7 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanMessageType.hpp"
+#include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
 
@@ -17,23 +18,23 @@ namespace services
     public:
         using infra::SingleObserver<FocMotorCategoryServerObserver, FocMotorCategoryServer>::SingleObserver;
 
-        virtual void OnQueryMotorType() = 0;
-        virtual void OnStart() = 0;
-        virtual void OnStop() = 0;
-        virtual void OnSetPidCurrent(const FocPidGains& gains) = 0;
-        virtual void OnSetPidSpeed(const FocPidGains& gains) = 0;
-        virtual void OnSetPidPosition(const FocPidGains& gains) = 0;
-        virtual void OnIdentifyElectrical() = 0;
-        virtual void OnIdentifyMechanical() = 0;
-        virtual void OnRequestTelemetry() = 0;
-        virtual void OnSetEncoderResolution(uint16_t resolution) = 0;
-        virtual void OnSelectControlMode(FocMotorMode mode) = 0;
-        virtual void OnSetTorqueSetpoint(int16_t value) = 0;
-        virtual void OnSetSpeedSetpoint(int16_t value) = 0;
-        virtual void OnSetPositionSetpoint(int16_t value) = 0;
-        virtual void OnClearFault() = 0;
-        virtual void OnEmergencyStop() = 0;
-        virtual void OnConfigureTelemetryRate(uint8_t rateHz) = 0;
+        virtual void OnQueryMotorType(const infra::Function<void(FocMotorMode)>& onResult) = 0;
+        virtual void OnStart(const infra::Function<void()>& onDone) = 0;
+        virtual void OnStop(const infra::Function<void()>& onDone) = 0;
+        virtual void OnSetPidCurrent(const FocPidGains& gains, const infra::Function<void()>& onDone) = 0;
+        virtual void OnSetPidSpeed(const FocPidGains& gains, const infra::Function<void()>& onDone) = 0;
+        virtual void OnSetPidPosition(const FocPidGains& gains, const infra::Function<void()>& onDone) = 0;
+        virtual void OnIdentifyElectrical(const infra::Function<void(FocElectricalParams)>& onResult) = 0;
+        virtual void OnIdentifyMechanical(const infra::Function<void(FocMechanicalParams)>& onResult) = 0;
+        virtual void OnRequestTelemetry(const infra::Function<void(FocTelemetryElectrical, FocTelemetryStatus)>& onResult) = 0;
+        virtual void OnSetEncoderResolution(uint16_t resolution, const infra::Function<void()>& onDone) = 0;
+        virtual void OnSelectControlMode(FocMotorMode requestedMode, const infra::Function<void(FocMotorMode)>& onActivated) = 0;
+        virtual void OnSetTorqueSetpoint(int16_t value, const infra::Function<void()>& onDone) = 0;
+        virtual void OnSetSpeedSetpoint(int16_t value, const infra::Function<void()>& onDone) = 0;
+        virtual void OnSetPositionSetpoint(int16_t value, const infra::Function<void()>& onDone) = 0;
+        virtual void OnClearFault(const infra::Function<void()>& onDone) = 0;
+        virtual void OnEmergencyStop(const infra::Function<void()>& onDone) = 0;
+        virtual void OnConfigureTelemetryRate(uint8_t rateHz, const infra::Function<void()>& onDone) = 0;
     };
 
     class FocMotorCategoryServer
@@ -45,15 +46,16 @@ namespace services
 
         uint8_t Id() const override;
 
+        void SendCategoryError(uint8_t origCommandId, FocMotorCategoryError errorCode);
+
+    private:
         void SendMotorTypeResponse(FocMotorMode mode);
         void SendElectricalParamsResponse(const FocElectricalParams& params);
         void SendMechanicalParamsResponse(const FocMechanicalParams& params);
         void SendTelemetryElectricalResponse(const FocTelemetryElectrical& telemetry);
         void SendTelemetryStatusResponse(const FocTelemetryStatus& status);
-        void SendSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason reason);
-        void SendCommandRejected(uint8_t origCmdId, FocRejectReason reason);
+        void SendSelectControlModeResponse(FocMotorMode activeMode);
 
-    private:
         class QueryMotorTypeMessageType
             : public CanMessageType
         {

@@ -41,10 +41,12 @@ Feature: FOC Motor Category Integration
     Then the server observer shall receive an OnIdentifyMechanical event
 
   Scenario: Server sends electrical params response to client
+    When the client sends an identify electrical command
     When the server sends electrical params with resistance 1500 and inductance 300
     Then the client observer shall receive electrical params with resistance 1500 and inductance 300
 
   Scenario: Server sends mechanical params response to client
+    When the client sends an identify mechanical command
     When the server sends mechanical params with inertia 4000 and friction 2000
     Then the client observer shall receive mechanical params with inertia 4000 and friction 2000
 
@@ -55,6 +57,7 @@ Feature: FOC Motor Category Integration
     Then the client observer shall receive electrical telemetry with voltage 120, maxCurrent 50, iq 30, id 10
 
   Scenario: Server sends telemetry status response to client
+    When the client sends a request telemetry command
     When the server sends telemetry status with state "running", fault "none", speed 1500, position 3600
     Then the client observer shall receive telemetry status with state "running", fault "none", speed 1500, position 3600
 

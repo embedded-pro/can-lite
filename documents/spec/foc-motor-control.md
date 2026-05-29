@@ -282,11 +282,14 @@ Payload shorter than 3 bytes is silently rejected.
 ## 7. Message Types — Responses (Server → Client)
 
 Solicited responses follow the `0x80 + command_id` convention where a
-paired response is defined. `focCommandRejectedResponseId` (0xFF) is a
-special cross-cutting error frame at a fixed well-known ID outside the
-`0x80 + command_id` mapping range, allowing the server to reject any
-command with a single message type. All responses are sent at
+paired response is defined. All responses are sent at
 `CanPriority::response`.
+
+Command acknowledgement (success / failure with reason) is delivered via
+the universal `commandAck` frame defined by the System category — not by
+this category. Categories therefore do not need a dedicated
+"command rejected" frame; rejection reasons are reported in the
+`CanAckStatus` field of `commandAck`.
 
 ### 7.1 Motor Type Response (0x80)
 
@@ -336,38 +339,40 @@ Total: 6 bytes.
 
 ### 7.6 Select Control Mode Response (0x8E)
 
-Sent in reply to Select Control Mode (0x0E).
+Sent in reply to Select Control Mode (0x0E) only when the request was
+accepted. Failure cases are reported solely via `commandAck`.
 
-| Byte | Field      | Type  | Description                         |
-|------|------------|-------|-------------------------------------|
-| 0    | ActiveMode | uint8 | Confirmed control mode (Section 2)  |
-| 1    | Reason     | uint8 | FocRejectReason (0 = ok, see below) |
+| Byte | Field      | Type  | Description                        |
+|------|------------|-------|------------------------------------|
+| 0    | ActiveMode | uint8 | Confirmed control mode (Section 2) |
 
-Total: 2 bytes. Payload shorter than 2 bytes is silently ignored by the
+Total: 1 byte. Payload shorter than 1 byte is silently ignored by the
 client.
 
-### 7.7 Command Rejected Response (0xFF)
+### 7.7 Category Error (0xFE)
 
-Sent when a command is rejected for a cross-cutting reason (e.g. wrong
-control mode for the current setpoint). This response ID is fixed at
-0xFF and does not follow the `0x80 + command_id` convention.
+Sent by the server when a command is rejected for a category-specific
+reason. The universal `commandAck` carries `CanAckStatus::categoryError`
+and this frame supplies the original command id and the detailed
+`FocMotorCategoryError` reason.
 
-| Byte | Field     | Type  | Description                             |
-|------|-----------|-------|-----------------------------------------|
-| 0    | OrigCmdId | uint8 | Message type ID of the rejected command |
-| 1    | Reason    | uint8 | FocRejectReason (see below)             |
+| Byte | Field         | Type  | Description                               |
+|------|---------------|-------|-------------------------------------------|
+| 0    | OriginCommand | uint8 | Message type of the rejected command      |
+| 1    | ErrorCode     | uint8 | `FocMotorCategoryError` value (see below) |
 
-Total: 2 bytes. Payload shorter than 2 bytes is silently ignored by the
-client.
+`FocMotorCategoryError`:
 
-**FocRejectReason values:**
+| Value | Name              | Meaning                                         |
+|-------|-------------------|-------------------------------------------------|
+| 0     | busy              | State machine busy with a prior operation       |
+| 1     | persistenceFailed | Non-volatile memory write/commit failed         |
+| 2     | modeMismatch      | Setpoint command does not match the active mode |
+| 3     | calibrationFailed | Calibration step failed                         |
+| 4     | abortedByFault    | Operation aborted due to a fault                |
+| 5     | applicationError  | Generic application-level error                 |
 
-| Value | Name                | Description                              |
-|-------|---------------------|------------------------------------------|
-| 0     | ok                  | No error (used in success responses)     |
-| 1     | controlModeMismatch | Setpoint mode does not match active mode |
-| 2     | invalidState        | Motor state does not allow the command   |
-| 3     | invalidParameter    | Parameter value out of range             |
+Total: 2 bytes.
 
 ## 8. Typical Flow
 

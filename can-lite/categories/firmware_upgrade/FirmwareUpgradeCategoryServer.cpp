@@ -108,14 +108,22 @@ namespace services
     void FirmwareUpgradeCategoryServer::BeginUpgradeMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 4)
+        {
+            parent.SendCommandAck(fwuBeginUpgradeId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto firmwareSize = CanFrameCodec::ReadUInt32(data, 0);
         parent.ResetSessionTimer();
 
-        parent.NotifyObservers([firmwareSize](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, firmwareSize](auto& observer)
             {
-                observer.OnBeginUpgrade(firmwareSize);
+                observer.OnBeginUpgrade(firmwareSize, [&server](FwuError status, uint16_t pageSize)
+                    {
+                        server.SendBeginResponse(status, pageSize);
+                        server.SendCommandAck(fwuBeginUpgradeId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -133,7 +141,10 @@ namespace services
     void FirmwareUpgradeCategoryServer::DataBlockMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 2)
+        {
+            parent.SendCommandAck(fwuDataBlockId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto blockIndex = CanFrameCodec::ReadUInt16(data, 0);
         parent.ResetSessionTimer();
@@ -142,9 +153,14 @@ namespace services
         for (std::size_t i = 2; i < data.size(); ++i)
             payload.push_back(data[i]);
 
-        parent.NotifyObservers([blockIndex, payload](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, blockIndex, payload](auto& observer)
             {
-                observer.OnDataBlock(blockIndex, payload);
+                observer.OnDataBlock(blockIndex, payload, [&server, blockIndex](FwuError status)
+                    {
+                        server.SendDataBlockAck(status, blockIndex);
+                        server.SendCommandAck(fwuDataBlockId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -162,14 +178,22 @@ namespace services
     void FirmwareUpgradeCategoryServer::VerifyMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 4)
+        {
+            parent.SendCommandAck(fwuVerifyId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto expectedCrc32 = CanFrameCodec::ReadUInt32(data, 0);
         parent.StopSessionTimer();
 
-        parent.NotifyObservers([expectedCrc32](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, expectedCrc32](auto& observer)
             {
-                observer.OnVerify(expectedCrc32);
+                observer.OnVerify(expectedCrc32, [&server](FwuError status)
+                    {
+                        server.SendVerifyResponse(status);
+                        server.SendCommandAck(fwuVerifyId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -188,9 +212,14 @@ namespace services
     {
         parent.StopSessionTimer();
 
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnActivate();
+                observer.OnActivate([&server](FwuError status)
+                    {
+                        server.SendActivateResponse(status);
+                        server.SendCommandAck(fwuActivateId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -209,9 +238,13 @@ namespace services
     {
         parent.StopSessionTimer();
 
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnAbort();
+                observer.OnAbort([&server]()
+                    {
+                        server.SendCommandAck(fwuAbortId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -228,9 +261,14 @@ namespace services
 
     void FirmwareUpgradeCategoryServer::QueryProgressMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnQueryProgress();
+                observer.OnQueryProgress([&server](FwuState state, uint16_t blocksReceived, uint16_t totalBlocks)
+                    {
+                        server.SendProgressResponse(state, blocksReceived, totalBlocks);
+                        server.SendCommandAck(fwuQueryProgressId, CanAckStatus::success);
+                    });
             });
     }
 }

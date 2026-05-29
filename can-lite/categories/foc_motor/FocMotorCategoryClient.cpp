@@ -13,7 +13,6 @@ namespace services
         , telemetryElectricalResponse(*this)
         , telemetryStatusResponse(*this)
         , selectControlModeResponse(*this)
-        , commandRejectedResponse(*this)
     {
         AddMessageType(motorTypeResponse);
         AddMessageType(electricalParamsResponse);
@@ -21,7 +20,6 @@ namespace services
         AddMessageType(telemetryElectricalResponse);
         AddMessageType(telemetryStatusResponse);
         AddMessageType(selectControlModeResponse);
-        AddMessageType(commandRejectedResponse);
     }
 
     uint8_t FocMotorCategoryClient::Id() const
@@ -347,40 +345,14 @@ namespace services
 
     void FocMotorCategoryClient::SelectControlModeResponseMessageType::Handle(const hal::Can::Message& data)
     {
-        if (data.size() < 2)
+        if (data.size() < 1)
             return;
 
         auto activeMode = static_cast<FocMotorMode>(data[0]);
-        auto reason = static_cast<FocRejectReason>(data[1]);
 
-        parent.NotifyObservers([activeMode, reason](auto& observer)
+        parent.NotifyObservers([activeMode](auto& observer)
             {
-                observer.OnSelectControlModeResponse(activeMode, reason);
-            });
-    }
-
-    // CommandRejectedResponse
-
-    FocMotorCategoryClient::CommandRejectedResponseMessageType::CommandRejectedResponseMessageType(FocMotorCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t FocMotorCategoryClient::CommandRejectedResponseMessageType::Id() const
-    {
-        return focCommandRejectedResponseId;
-    }
-
-    void FocMotorCategoryClient::CommandRejectedResponseMessageType::Handle(const hal::Can::Message& data)
-    {
-        if (data.size() < 2)
-            return;
-
-        uint8_t origCmdId = data[0];
-        auto reason = static_cast<FocRejectReason>(data[1]);
-
-        parent.NotifyObservers([origCmdId, reason](auto& observer)
-            {
-                observer.OnCommandRejected(origCmdId, reason);
+                observer.OnSelectControlModeResponse(activeMode);
             });
     }
 }

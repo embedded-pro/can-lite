@@ -35,8 +35,34 @@ namespace services
         invalidPayload = 2,
         invalidState = 3,
         sequenceError = 4,
-        rateLimited = 5
+        rateLimited = 5,
+        notImplemented = 6,
+        categoryError = 7
     };
+
+    static constexpr const char* CanAckStatusToString(CanAckStatus status)
+    {
+        switch (status)
+        {
+            case CanAckStatus::success:
+                return "success";
+            case CanAckStatus::unknownCommand:
+                return "unknownCommand";
+            case CanAckStatus::invalidPayload:
+                return "invalidPayload";
+            case CanAckStatus::invalidState:
+                return "invalidState";
+            case CanAckStatus::sequenceError:
+                return "sequenceError";
+            case CanAckStatus::rateLimited:
+                return "rateLimited";
+            case CanAckStatus::notImplemented:
+                return "notImplemented";
+            case CanAckStatus::categoryError:
+                return "categoryError";
+        }
+        return "unknown";
+    }
 
     static constexpr uint32_t MakeCanId(CanPriority priority, uint8_t category,
         uint8_t messageType, uint16_t nodeId)

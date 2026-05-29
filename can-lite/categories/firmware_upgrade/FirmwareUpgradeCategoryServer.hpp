@@ -5,6 +5,7 @@
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanMessageType.hpp"
 #include "infra/timer/Timer.hpp"
+#include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
 
@@ -18,12 +19,12 @@ namespace services
     public:
         using infra::SingleObserver<FirmwareUpgradeCategoryServerObserver, FirmwareUpgradeCategoryServer>::SingleObserver;
 
-        virtual void OnBeginUpgrade(uint32_t firmwareSize) = 0;
-        virtual void OnDataBlock(uint16_t blockIndex, const hal::Can::Message& data) = 0;
-        virtual void OnVerify(uint32_t expectedCrc32) = 0;
-        virtual void OnActivate() = 0;
-        virtual void OnAbort() = 0;
-        virtual void OnQueryProgress() = 0;
+        virtual void OnBeginUpgrade(uint32_t firmwareSize, const infra::Function<void(FwuError, uint16_t)>& onResult) = 0;
+        virtual void OnDataBlock(uint16_t blockIndex, const hal::Can::Message& data, const infra::Function<void(FwuError)>& onResult) = 0;
+        virtual void OnVerify(uint32_t expectedCrc32, const infra::Function<void(FwuError)>& onResult) = 0;
+        virtual void OnActivate(const infra::Function<void(FwuError)>& onResult) = 0;
+        virtual void OnAbort(const infra::Function<void()>& onDone) = 0;
+        virtual void OnQueryProgress(const infra::Function<void(FwuState, uint16_t, uint16_t)>& onResult) = 0;
         virtual void OnSessionTimeout() = 0;
     };
 
@@ -42,13 +43,13 @@ namespace services
         uint8_t Id() const override;
         bool RequiresSequenceValidation() const override;
 
+    private:
         void SendBeginResponse(FwuError status, uint16_t pageSize);
         void SendDataBlockAck(FwuError status, uint16_t blockIndex);
         void SendVerifyResponse(FwuError status);
         void SendActivateResponse(FwuError status);
         void SendProgressResponse(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks);
 
-    private:
         class BeginUpgradeMessageType
             : public CanMessageType
         {

@@ -27,6 +27,7 @@ namespace services
 
     class CanProtocolServer
         : public infra::Subject<CanProtocolServerObserver>
+        , public CanCommandAcknowledger
     {
     public:
         struct Config
@@ -45,6 +46,9 @@ namespace services
 
         CanFrameTransport& Transport();
 
+        // CanCommandAcknowledger
+        void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status) override;
+
     private:
         class SystemObserver
             : public CanSystemCategoryServerObserver
@@ -61,7 +65,6 @@ namespace services
         };
 
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
-        void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status);
         void SendHeartbeat();
         void SendCategoryList();
         bool CheckAndIncrementRate();

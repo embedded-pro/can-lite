@@ -48,6 +48,11 @@ namespace services
         categories.erase(category);
     }
 
+    CanSystemCategoryClient& CanProtocolClient::SystemCategory()
+    {
+        return systemCategory;
+    }
+
     void CanProtocolClient::AttachIsoTpTransport(IsoTpTransport& isoTp)
     {
         isoTpTransport = &isoTp;

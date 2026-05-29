@@ -94,22 +94,21 @@ namespace services
         transport.SendFrame(CanPriority::telemetry, focMotorCategoryId, focTelemetryStatusResponseId, data, [] {});
     }
 
-    void FocMotorCategoryServer::SendSelectControlModeResponse(FocMotorMode activeMode, FocRejectReason reason)
+    void FocMotorCategoryServer::SendSelectControlModeResponse(FocMotorMode activeMode)
     {
         hal::Can::Message data;
-        data.resize(2, 0);
+        data.resize(1, 0);
         data[0] = static_cast<uint8_t>(activeMode);
-        data[1] = static_cast<uint8_t>(reason);
         transport.SendFrame(CanPriority::response, focMotorCategoryId, focSelectControlModeResponseId, data, [] {});
     }
 
-    void FocMotorCategoryServer::SendCommandRejected(uint8_t origCmdId, FocRejectReason reason)
+    void FocMotorCategoryServer::SendCategoryError(uint8_t origCommandId, FocMotorCategoryError errorCode)
     {
         hal::Can::Message data;
-        data.resize(2, 0);
-        data[0] = origCmdId;
-        data[1] = static_cast<uint8_t>(reason);
-        transport.SendFrame(CanPriority::response, focMotorCategoryId, focCommandRejectedResponseId, data, [] {});
+        data.push_back(origCommandId);
+        data.push_back(static_cast<uint8_t>(errorCode));
+        transport.SendFrame(CanPriority::response, focMotorCategoryId, focCategoryErrorResponseId, data, [] {});
+        SendCommandAck(origCommandId, CanAckStatus::categoryError);
     }
 
     // QueryMotorType
@@ -125,9 +124,14 @@ namespace services
 
     void FocMotorCategoryServer::QueryMotorTypeMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnQueryMotorType();
+                observer.OnQueryMotorType([&server](FocMotorMode mode)
+                    {
+                        server.SendMotorTypeResponse(mode);
+                        server.SendCommandAck(focQueryMotorTypeId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -144,9 +148,13 @@ namespace services
 
     void FocMotorCategoryServer::StartMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnStart();
+                observer.OnStart([&server]()
+                    {
+                        server.SendCommandAck(focStartId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -163,9 +171,13 @@ namespace services
 
     void FocMotorCategoryServer::StopMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnStop();
+                observer.OnStop([&server]()
+                    {
+                        server.SendCommandAck(focStopId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -183,7 +195,10 @@ namespace services
     void FocMotorCategoryServer::SetPidCurrentMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 7)
+        {
+            parent.SendCommandAck(focSetPidCurrentId, CanAckStatus::invalidPayload);
             return;
+        }
 
         FocPidGains gains{
             CanFrameCodec::ReadInt16(data, 1),
@@ -191,9 +206,13 @@ namespace services
             CanFrameCodec::ReadInt16(data, 5)
         };
 
-        parent.NotifyObservers([&gains](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, &gains](auto& observer)
             {
-                observer.OnSetPidCurrent(gains);
+                observer.OnSetPidCurrent(gains, [&server]()
+                    {
+                        server.SendCommandAck(focSetPidCurrentId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -211,7 +230,10 @@ namespace services
     void FocMotorCategoryServer::SetPidSpeedMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 7)
+        {
+            parent.SendCommandAck(focSetPidSpeedId, CanAckStatus::invalidPayload);
             return;
+        }
 
         FocPidGains gains{
             CanFrameCodec::ReadInt16(data, 1),
@@ -219,9 +241,13 @@ namespace services
             CanFrameCodec::ReadInt16(data, 5)
         };
 
-        parent.NotifyObservers([&gains](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, &gains](auto& observer)
             {
-                observer.OnSetPidSpeed(gains);
+                observer.OnSetPidSpeed(gains, [&server]()
+                    {
+                        server.SendCommandAck(focSetPidSpeedId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -239,7 +265,10 @@ namespace services
     void FocMotorCategoryServer::SetPidPositionMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 7)
+        {
+            parent.SendCommandAck(focSetPidPositionId, CanAckStatus::invalidPayload);
             return;
+        }
 
         FocPidGains gains{
             CanFrameCodec::ReadInt16(data, 1),
@@ -247,9 +276,13 @@ namespace services
             CanFrameCodec::ReadInt16(data, 5)
         };
 
-        parent.NotifyObservers([&gains](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, &gains](auto& observer)
             {
-                observer.OnSetPidPosition(gains);
+                observer.OnSetPidPosition(gains, [&server]()
+                    {
+                        server.SendCommandAck(focSetPidPositionId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -266,9 +299,14 @@ namespace services
 
     void FocMotorCategoryServer::IdentifyElectricalMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnIdentifyElectrical();
+                observer.OnIdentifyElectrical([&server](FocElectricalParams params)
+                    {
+                        server.SendElectricalParamsResponse(params);
+                        server.SendCommandAck(focIdentifyElectricalId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -285,9 +323,14 @@ namespace services
 
     void FocMotorCategoryServer::IdentifyMechanicalMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnIdentifyMechanical();
+                observer.OnIdentifyMechanical([&server](FocMechanicalParams params)
+                    {
+                        server.SendMechanicalParamsResponse(params);
+                        server.SendCommandAck(focIdentifyMechanicalId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -304,9 +347,15 @@ namespace services
 
     void FocMotorCategoryServer::RequestTelemetryMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnRequestTelemetry();
+                observer.OnRequestTelemetry([&server](FocTelemetryElectrical electrical, FocTelemetryStatus status)
+                    {
+                        server.SendTelemetryElectricalResponse(electrical);
+                        server.SendTelemetryStatusResponse(status);
+                        server.SendCommandAck(focRequestTelemetryId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -324,13 +373,20 @@ namespace services
     void FocMotorCategoryServer::SetEncoderResolutionMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 3)
+        {
+            parent.SendCommandAck(focSetEncoderResolutionId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto resolution = static_cast<uint16_t>(CanFrameCodec::ReadInt16(data, 1));
 
-        parent.NotifyObservers([resolution](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, resolution](auto& observer)
             {
-                observer.OnSetEncoderResolution(resolution);
+                observer.OnSetEncoderResolution(resolution, [&server]()
+                    {
+                        server.SendCommandAck(focSetEncoderResolutionId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -348,15 +404,26 @@ namespace services
     void FocMotorCategoryServer::SelectControlModeMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 2)
+        {
+            parent.SendCommandAck(focSelectControlModeId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto mode = static_cast<FocMotorMode>(data[1]);
         if (mode != FocMotorMode::torque && mode != FocMotorMode::speed && mode != FocMotorMode::position)
+        {
+            parent.SendCommandAck(focSelectControlModeId, CanAckStatus::invalidPayload);
             return;
+        }
 
-        parent.NotifyObservers([mode](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, mode](auto& observer)
             {
-                observer.OnSelectControlMode(mode);
+                observer.OnSelectControlMode(mode, [&server](FocMotorMode activatedMode)
+                    {
+                        server.SendSelectControlModeResponse(activatedMode);
+                        server.SendCommandAck(focSelectControlModeId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -374,13 +441,20 @@ namespace services
     void FocMotorCategoryServer::SetTorqueSetpointMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 3)
+        {
+            parent.SendCommandAck(focSetTorqueSetpointId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto value = CanFrameCodec::ReadInt16(data, 1);
 
-        parent.NotifyObservers([value](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, value](auto& observer)
             {
-                observer.OnSetTorqueSetpoint(value);
+                observer.OnSetTorqueSetpoint(value, [&server]()
+                    {
+                        server.SendCommandAck(focSetTorqueSetpointId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -398,13 +472,20 @@ namespace services
     void FocMotorCategoryServer::SetSpeedSetpointMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 3)
+        {
+            parent.SendCommandAck(focSetSpeedSetpointId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto value = CanFrameCodec::ReadInt16(data, 1);
 
-        parent.NotifyObservers([value](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, value](auto& observer)
             {
-                observer.OnSetSpeedSetpoint(value);
+                observer.OnSetSpeedSetpoint(value, [&server]()
+                    {
+                        server.SendCommandAck(focSetSpeedSetpointId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -422,13 +503,20 @@ namespace services
     void FocMotorCategoryServer::SetPositionSetpointMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 3)
+        {
+            parent.SendCommandAck(focSetPositionSetpointId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto value = CanFrameCodec::ReadInt16(data, 1);
 
-        parent.NotifyObservers([value](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, value](auto& observer)
             {
-                observer.OnSetPositionSetpoint(value);
+                observer.OnSetPositionSetpoint(value, [&server]()
+                    {
+                        server.SendCommandAck(focSetPositionSetpointId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -445,9 +533,13 @@ namespace services
 
     void FocMotorCategoryServer::ClearFaultMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnClearFault();
+                observer.OnClearFault([&server]()
+                    {
+                        server.SendCommandAck(focClearFaultId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -464,9 +556,13 @@ namespace services
 
     void FocMotorCategoryServer::EmergencyStopMessageType::Handle(const hal::Can::Message& data)
     {
-        parent.NotifyObservers([](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server](auto& observer)
             {
-                observer.OnEmergencyStop();
+                observer.OnEmergencyStop([&server]()
+                    {
+                        server.SendCommandAck(focEmergencyStopId, CanAckStatus::success);
+                    });
             });
     }
 
@@ -484,13 +580,20 @@ namespace services
     void FocMotorCategoryServer::ConfigureTelemetryRateMessageType::Handle(const hal::Can::Message& data)
     {
         if (data.size() < 2)
+        {
+            parent.SendCommandAck(focConfigureTelemetryRateId, CanAckStatus::invalidPayload);
             return;
+        }
 
         auto rateHz = data[1];
 
-        parent.NotifyObservers([rateHz](auto& observer)
+        auto& server = parent;
+        parent.NotifyObservers([&server, rateHz](auto& observer)
             {
-                observer.OnConfigureTelemetryRate(rateHz);
+                observer.OnConfigureTelemetryRate(rateHz, [&server]()
+                    {
+                        server.SendCommandAck(focConfigureTelemetryRateId, CanAckStatus::success);
+                    });
             });
     }
 }
