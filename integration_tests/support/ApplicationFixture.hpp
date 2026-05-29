@@ -11,10 +11,9 @@
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "support/Mocks.hpp"
 #include "support/TestCategories.hpp"
+#include "infra/util/BoundedVector.hpp"
 #include "support/VirtualCan.hpp"
-#include <memory>
 #include <optional>
-#include <vector>
 
 namespace integration
 {
@@ -49,14 +48,19 @@ namespace integration
         std::optional<services::FocMotorCategoryClient> motorClient;
         std::optional<testing::StrictMock<FocMotorClientObserverMock>> motorClientObserver;
 
+        infra::Function<void(services::FocMotorMode)> capturedQueryMotorTypeResult;
+        infra::Function<void(services::FocElectricalParams)> capturedIdentifyElectricalResult;
+        infra::Function<void(services::FocMechanicalParams)> capturedIdentifyMechanicalResult;
+        infra::Function<void(services::FocTelemetryElectrical, services::FocTelemetryStatus)> capturedRequestTelemetryResult;
+
         std::optional<services::FirmwareUpgradeCategoryServer> fwuServer;
         std::optional<testing::StrictMock<FirmwareUpgradeServerObserverMock>> fwuServerObserver;
         std::optional<services::CanFrameTransport> fwuClientTransport;
         std::optional<services::FirmwareUpgradeCategoryClient> fwuClient;
         std::optional<testing::StrictMock<FirmwareUpgradeClientObserverMock>> fwuClientObserver;
 
-        std::vector<std::unique_ptr<SequencedTestCategory>> sequencedCategories;
-        std::vector<std::unique_ptr<SimpleTestCategory>> simpleCategories;
+        infra::BoundedVector<SequencedTestCategory>::WithMaxSize<4> sequencedCategories;
+        infra::BoundedVector<SimpleTestCategory>::WithMaxSize<4> simpleCategories;
 
         int processedCount = 0;
     };

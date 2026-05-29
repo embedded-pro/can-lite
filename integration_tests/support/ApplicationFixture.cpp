@@ -28,9 +28,9 @@ namespace integration
             server.UnregisterCategory(*fwuServer);
 
         for (auto& cat : sequencedCategories)
-            server.UnregisterCategory(*cat);
+            server.UnregisterCategory(cat);
         for (auto& cat : simpleCategories)
-            server.UnregisterCategory(*cat);
+            server.UnregisterCategory(cat);
     }
 
     void ApplicationFixture::RegisterFocMotor()
@@ -67,16 +67,16 @@ namespace integration
 
     SequencedTestCategory& ApplicationFixture::RegisterSequencedCategory(uint8_t id)
     {
-        sequencedCategories.push_back(std::make_unique<SequencedTestCategory>(id));
-        auto& cat = *sequencedCategories.back();
+        sequencedCategories.emplace_back(id);
+        auto& cat = sequencedCategories.back();
         server.RegisterCategory(cat);
         return cat;
     }
 
     SimpleTestCategory& ApplicationFixture::RegisterSimpleCategory(uint8_t id)
     {
-        simpleCategories.push_back(std::make_unique<SimpleTestCategory>(id));
-        auto& cat = *simpleCategories.back();
+        simpleCategories.emplace_back(id);
+        auto& cat = simpleCategories.back();
         server.RegisterCategory(cat);
         return cat;
     }
@@ -84,8 +84,8 @@ namespace integration
     SequencedTestCategory* ApplicationFixture::FindSequencedCategory(uint8_t id)
     {
         for (auto& cat : sequencedCategories)
-            if (cat->Id() == id)
-                return cat.get();
+            if (cat.Id() == id)
+                return &cat;
         return nullptr;
     }
 }

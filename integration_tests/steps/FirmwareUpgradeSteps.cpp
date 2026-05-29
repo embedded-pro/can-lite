@@ -21,7 +21,7 @@ GIVEN(R"(the firmware upgrade category is registered on both client and server)"
 WHEN(R"(the client sends a begin upgrade command with firmware size {int})", (std::int32_t firmwareSize))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    EXPECT_CALL(*fixture.fwuServerObserver, OnBeginUpgrade(static_cast<uint32_t>(firmwareSize)));
+    EXPECT_CALL(*fixture.fwuServerObserver, OnBeginUpgrade(static_cast<uint32_t>(firmwareSize), _));
     fixture.fwuClient->SendBeginUpgrade(fixture.config.nodeId, static_cast<uint32_t>(firmwareSize));
 }
 
@@ -33,7 +33,7 @@ THEN(R"(the firmware upgrade server observer shall have received a begin upgrade
 WHEN(R"(the client sends data block {int})", (std::int32_t blockIndex))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    EXPECT_CALL(*fixture.fwuServerObserver, OnDataBlock(static_cast<uint16_t>(blockIndex), _));
+    EXPECT_CALL(*fixture.fwuServerObserver, OnDataBlock(static_cast<uint16_t>(blockIndex), _, _));
     hal::Can::Message blockData;
     blockData.push_back(0xAA);
     fixture.fwuClient->SendDataBlock(fixture.config.nodeId, static_cast<uint16_t>(blockIndex), blockData);
@@ -42,21 +42,22 @@ WHEN(R"(the client sends data block {int})", (std::int32_t blockIndex))
 WHEN(R"(the client sends an abort command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    EXPECT_CALL(*fixture.fwuServerObserver, OnAbort());
+    EXPECT_CALL(*fixture.fwuServerObserver, OnAbort(_))
+        .WillOnce(Invoke([](const infra::Function<void()>& onDone) { onDone(); }));
     fixture.fwuClient->SendAbort(fixture.config.nodeId);
 }
 
 WHEN(R"(the client sends a verify command with CRC32 {int})", (std::int32_t crc32))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    EXPECT_CALL(*fixture.fwuServerObserver, OnVerify(static_cast<uint32_t>(crc32)));
+    EXPECT_CALL(*fixture.fwuServerObserver, OnVerify(static_cast<uint32_t>(crc32), _));
     fixture.fwuClient->SendVerify(fixture.config.nodeId, static_cast<uint32_t>(crc32));
 }
 
 WHEN(R"(the client sends a query progress command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    EXPECT_CALL(*fixture.fwuServerObserver, OnQueryProgress());
+    EXPECT_CALL(*fixture.fwuServerObserver, OnQueryProgress(_));
     fixture.fwuClient->SendQueryProgress(fixture.config.nodeId);
 }
 

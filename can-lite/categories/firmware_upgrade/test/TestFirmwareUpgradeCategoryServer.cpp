@@ -395,6 +395,7 @@ namespace
         FirmwareUpgradeCategoryServer::Config shortConfig{ std::chrono::seconds(10) };
         CanFrameTransport transport2{ canMock, 2 };
         FirmwareUpgradeCategoryServer shortServer{ transport2, shortConfig };
+        shortServer.SetAcknowledger(acknowledger);
         StrictMock<FirmwareUpgradeCategoryServerObserverMock> obs{ shortServer };
 
         EXPECT_CALL(obs, OnBeginUpgrade(_, _)).WillOnce(Invoke([](uint32_t, const infra::Function<void(FwuError, uint16_t)>& cb)
