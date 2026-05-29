@@ -43,7 +43,10 @@ WHEN(R"(the client sends an abort command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.fwuServerObserver, OnAbort(_))
-        .WillOnce(Invoke([](const infra::Function<void()>& onDone) { onDone(); }));
+        .WillOnce(Invoke([](const infra::Function<void()>& onDone)
+            {
+                onDone();
+            }));
     fixture.fwuClient->SendAbort(fixture.config.nodeId);
 }
 

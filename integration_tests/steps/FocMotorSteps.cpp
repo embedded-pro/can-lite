@@ -17,9 +17,10 @@ WHEN(R"(the client sends a query motor type command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnQueryMotorType(_))
-        .WillOnce(Invoke([&fixture](const infra::Function<void(FocMotorMode)>& onResult) {
-            fixture.capturedQueryMotorTypeResult = onResult;
-        }));
+        .WillOnce(Invoke([&fixture](const infra::Function<void(FocMotorMode)>& onResult)
+            {
+                fixture.capturedQueryMotorTypeResult = onResult;
+            }));
     fixture.motorClient->SendQueryMotorType(fixture.config.nodeId);
 }
 
@@ -32,7 +33,10 @@ WHEN(R"(the client sends a start command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnStart(_))
-        .WillOnce(Invoke([](const infra::Function<void()>& onDone) { onDone(); }));
+        .WillOnce(Invoke([](const infra::Function<void()>& onDone)
+            {
+                onDone();
+            }));
     fixture.motorClient->SendStart(fixture.config.nodeId);
 }
 
@@ -45,7 +49,10 @@ WHEN(R"(the client sends a stop command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnStop(_))
-        .WillOnce(Invoke([](const infra::Function<void()>& onDone) { onDone(); }));
+        .WillOnce(Invoke([](const infra::Function<void()>& onDone)
+            {
+                onDone();
+            }));
     fixture.motorClient->SendStop(fixture.config.nodeId);
 }
 
@@ -124,9 +131,10 @@ WHEN(R"(the client sends an identify electrical command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnIdentifyElectrical(_))
-        .WillOnce(Invoke([&fixture](const infra::Function<void(FocElectricalParams)>& onResult) {
-            fixture.capturedIdentifyElectricalResult = onResult;
-        }));
+        .WillOnce(Invoke([&fixture](const infra::Function<void(FocElectricalParams)>& onResult)
+            {
+                fixture.capturedIdentifyElectricalResult = onResult;
+            }));
     fixture.motorClient->SendIdentifyElectrical(fixture.config.nodeId);
 }
 
@@ -139,9 +147,10 @@ WHEN(R"(the client sends an identify mechanical command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnIdentifyMechanical(_))
-        .WillOnce(Invoke([&fixture](const infra::Function<void(FocMechanicalParams)>& onResult) {
-            fixture.capturedIdentifyMechanicalResult = onResult;
-        }));
+        .WillOnce(Invoke([&fixture](const infra::Function<void(FocMechanicalParams)>& onResult)
+            {
+                fixture.capturedIdentifyMechanicalResult = onResult;
+            }));
     fixture.motorClient->SendIdentifyMechanical(fixture.config.nodeId);
 }
 
@@ -154,9 +163,10 @@ WHEN(R"(the client sends a request telemetry command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnRequestTelemetry(_))
-        .WillOnce(Invoke([&fixture](const infra::Function<void(FocTelemetryElectrical, FocTelemetryStatus)>& onResult) {
-            fixture.capturedRequestTelemetryResult = onResult;
-        }));
+        .WillOnce(Invoke([&fixture](const infra::Function<void(FocTelemetryElectrical, FocTelemetryStatus)>& onResult)
+            {
+                fixture.capturedRequestTelemetryResult = onResult;
+            }));
     fixture.motorClient->SendRequestTelemetry(fixture.config.nodeId);
 }
 
@@ -169,7 +179,10 @@ WHEN(R"(the client sends a set encoder resolution command with resolution {int})
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnSetEncoderResolution(static_cast<uint16_t>(resolution), _))
-        .WillOnce(Invoke([](uint16_t, const infra::Function<void()>& onDone) { onDone(); }));
+        .WillOnce(Invoke([](uint16_t, const infra::Function<void()>& onDone)
+            {
+                onDone();
+            }));
     fixture.motorClient->SendSetEncoderResolution(fixture.config.nodeId, static_cast<uint16_t>(resolution));
 }
 
@@ -291,8 +304,8 @@ WHEN(R"(the server sends electrical telemetry with voltage {int}, maxCurrent {in
         {
             EXPECT_EQ(s.state, FocMotorState::idle);
             EXPECT_EQ(s.fault, FocFaultCode::none);
-            EXPECT_EQ(s.speed, int16_t{0});
-            EXPECT_EQ(s.position, int16_t{0});
+            EXPECT_EQ(s.speed, int16_t{ 0 });
+            EXPECT_EQ(s.position, int16_t{ 0 });
         });
     fixture.capturedRequestTelemetryResult(telemetry, FocTelemetryStatus{});
 }
@@ -323,10 +336,10 @@ WHEN(R"(the server sends telemetry status with state {string}, fault {string}, s
         });
     EXPECT_CALL(*fixture.motorClientObserver, OnTelemetryElectricalResponse(_)).WillOnce([](const FocTelemetryElectrical& t)
         {
-            EXPECT_EQ(t.voltage, int16_t{0});
-            EXPECT_EQ(t.maxCurrent, int16_t{0});
-            EXPECT_EQ(t.iq, int16_t{0});
-            EXPECT_EQ(t.id, int16_t{0});
+            EXPECT_EQ(t.voltage, int16_t{ 0 });
+            EXPECT_EQ(t.maxCurrent, int16_t{ 0 });
+            EXPECT_EQ(t.iq, int16_t{ 0 });
+            EXPECT_EQ(t.id, int16_t{ 0 });
         });
     fixture.capturedRequestTelemetryResult(FocTelemetryElectrical{}, status);
 }
@@ -348,21 +361,30 @@ WHEN(R"(the client sends a set target command with mode {string} and value {int}
     if (expectedMode == FocMotorMode::torque)
     {
         EXPECT_CALL(*fixture.motorServerObserver, OnSetTorqueSetpoint(expectedValue, _))
-            .WillOnce(Invoke([](int16_t, const infra::Function<void()>& onDone) { onDone(); }));
+            .WillOnce(Invoke([](int16_t, const infra::Function<void()>& onDone)
+                {
+                    onDone();
+                }));
         fixture.motorClient->SendSelectControlMode(fixture.config.nodeId, expectedMode);
         fixture.motorClient->SendSetTorqueSetpoint(fixture.config.nodeId, expectedValue);
     }
     else if (expectedMode == FocMotorMode::speed)
     {
         EXPECT_CALL(*fixture.motorServerObserver, OnSetSpeedSetpoint(expectedValue, _))
-            .WillOnce(Invoke([](int16_t, const infra::Function<void()>& onDone) { onDone(); }));
+            .WillOnce(Invoke([](int16_t, const infra::Function<void()>& onDone)
+                {
+                    onDone();
+                }));
         fixture.motorClient->SendSelectControlMode(fixture.config.nodeId, expectedMode);
         fixture.motorClient->SendSetSpeedSetpoint(fixture.config.nodeId, expectedValue);
     }
     else
     {
         EXPECT_CALL(*fixture.motorServerObserver, OnSetPositionSetpoint(expectedValue, _))
-            .WillOnce(Invoke([](int16_t, const infra::Function<void()>& onDone) { onDone(); }));
+            .WillOnce(Invoke([](int16_t, const infra::Function<void()>& onDone)
+                {
+                    onDone();
+                }));
         fixture.motorClient->SendSelectControlMode(fixture.config.nodeId, expectedMode);
         fixture.motorClient->SendSetPositionSetpoint(fixture.config.nodeId, expectedValue);
     }
@@ -377,7 +399,10 @@ WHEN(R"(the client sends a clear fault command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnClearFault(_))
-        .WillOnce(Invoke([](const infra::Function<void()>& onDone) { onDone(); }));
+        .WillOnce(Invoke([](const infra::Function<void()>& onDone)
+            {
+                onDone();
+            }));
     fixture.motorClient->SendClearFault(fixture.config.nodeId);
 }
 
@@ -390,7 +415,10 @@ WHEN(R"(the client sends an emergency stop command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnEmergencyStop(_))
-        .WillOnce(Invoke([](const infra::Function<void()>& onDone) { onDone(); }));
+        .WillOnce(Invoke([](const infra::Function<void()>& onDone)
+            {
+                onDone();
+            }));
     fixture.motorClient->SendEmergencyStop(fixture.config.nodeId);
 }
 
@@ -403,7 +431,10 @@ WHEN(R"(the client sends a configure telemetry rate command with rate {int} Hz)"
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_CALL(*fixture.motorServerObserver, OnConfigureTelemetryRate(static_cast<uint8_t>(rateHz), _))
-        .WillOnce(Invoke([](uint8_t, const infra::Function<void()>& onDone) { onDone(); }));
+        .WillOnce(Invoke([](uint8_t, const infra::Function<void()>& onDone)
+            {
+                onDone();
+            }));
     fixture.motorClient->SendConfigureTelemetryRate(fixture.config.nodeId, static_cast<uint8_t>(rateHz));
 }
 

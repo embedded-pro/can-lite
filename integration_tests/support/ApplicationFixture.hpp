@@ -9,9 +9,9 @@
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "can-lite/server/CanProtocolServer.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
+#include "infra/util/BoundedVector.hpp"
 #include "support/Mocks.hpp"
 #include "support/TestCategories.hpp"
-#include "infra/util/BoundedVector.hpp"
 #include "support/VirtualCan.hpp"
 #include <optional>
 
