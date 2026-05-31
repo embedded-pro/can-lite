@@ -47,6 +47,7 @@ namespace services
         uint8_t Id() const override;
 
         void SendCategoryError(uint8_t origCommandId, FocMotorCategoryError errorCode);
+        void BroadcastFaultStatus(FocFaultCode fault);
 
     private:
         void SendMotorTypeResponse(FocMotorMode mode);
