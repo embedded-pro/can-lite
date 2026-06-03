@@ -22,7 +22,7 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
   - `cmake --preset host`
   - `cmake --build --preset host-Debug`
 - Run unit tests (GoogleTest):
-  - `ctest --preset host-Debug`
+  - `ctest --preset host`
 - Coverage/analysis presets are defined in `CMakePresets.json` — use `coverage` preset for coverage builds.
 
 3) Project-specific constraints and conventions (must follow these)
@@ -63,7 +63,7 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
 
 7) When making changes, be explicit
 - Update `documents/spec/can-protocol.md` and `documents/requirements/can-protocol.yaml` when changing protocol behavior.
-- Keep the System category (0x0) as the only built-in category; application-specific categories belong in consumer projects.
+- This library ships three built-in categories: System (0x0), FirmwareUpgrade (0x1), and FocMotor (0x2). New application-specific categories should be added to consumer projects, not to this library, unless they are genuinely reusable protocol extensions.
 
 8) Document consistency (must check before finishing any change)
 - The following documents must stay aligned with each other and with the code:

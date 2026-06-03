@@ -12,7 +12,8 @@
     "vscode": {
       "extensions": [
         "JacquesLucke.gcov-viewer@0.5.0",
-        "matepek.vscode-catch2-test-adapter@4.12.2"
+        "matepek.vscode-catch2-test-adapter@4.12.2",
+        "anthropics.claude-code"
       ],
       "settings": {
         "editor.formatOnSave": true,
