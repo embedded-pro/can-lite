@@ -27,12 +27,12 @@ You are the executor agent for the can-lite project — a lightweight, extensibl
 - `std::vector`, `std::string`, `std::deque`, `std::list`, `std::map`, `std::set`
 
 **REQUIRED replacements:**
-- `infra::BoundedVector<T>::WithMaxSize<N>` → `std::vector<T>`
-- `infra::BoundedString::WithStorage<N>` → `std::string`
-- `infra::BoundedDeque<T>::WithMaxSize<N>` → `std::deque<T>`
-- `infra::IntrusiveList<T>` → linked lists
-- `std::optional<T>` → absent values
-- `std::array<T, N>` → fixed-size arrays
+- `std::vector<T>` → `infra::BoundedVector<T>::WithMaxSize<N>`
+- `std::string` → `infra::BoundedString::WithStorage<N>`
+- `std::deque<T>` → `infra::BoundedDeque<T>::WithMaxSize<N>`
+- `std::list<T>` → `infra::IntrusiveList<T>`
+- `std::optional<T>` for values that may be absent
+- `std::array<T, N>` for fixed-size arrays
 
 ### Execution Model — NON-BLOCKING
 - Never block, sleep, or busy-wait.

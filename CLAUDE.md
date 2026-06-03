@@ -19,6 +19,7 @@ cmake --preset host-single-Debug && cmake --build --preset host-single-Debug
 ctest --preset host-single-Debug
 
 # Coverage build
+cmake --preset coverage
 cmake --build --preset coverage
 ctest --preset coverage
 
@@ -124,12 +125,12 @@ Observer callbacks must not allocate or block.
 **No heap allocation** — forbidden: `new`, `delete`, `malloc`, `free`, `std::make_unique`, `std::make_shared`, `std::vector`, `std::string`, `std::deque`, `std::list`, `std::map`, `std::set`.
 
 **Required replacements:**
-- `infra::BoundedVector<T>::WithMaxSize<N>` → `std::vector`
-- `infra::BoundedString::WithStorage<N>` → `std::string`
-- `infra::BoundedDeque<T>::WithMaxSize<N>` → `std::deque`
-- `infra::IntrusiveList<T>` → linked list
-- `std::optional<T>` → absent values
-- `std::array<T, N>` → fixed-size arrays
+- `std::vector<T>` → `infra::BoundedVector<T>::WithMaxSize<N>`
+- `std::string` → `infra::BoundedString::WithStorage<N>`
+- `std::deque<T>` → `infra::BoundedDeque<T>::WithMaxSize<N>`
+- `std::list<T>` → `infra::IntrusiveList<T>`
+- `std::optional<T>` for values that may be absent
+- `std::array<T, N>` for fixed-size arrays
 
 **Execution model:** no blocking, no sleep, no busy-wait. Schedule async completions with `infra::EventDispatcher::Instance().Schedule()`. Use `infra::Function<void()>` for callbacks.
 
