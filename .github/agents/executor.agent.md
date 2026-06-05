@@ -45,13 +45,13 @@ Follow these rules for EVERY change. Violations are unacceptable in this codebas
 - **Methods**: `PascalCase` — `HandleMessage()`, `SendCommand()`
 - **Member variables**: `camelCase` — `nodeId`, `sequenceNumber`
 - **Enum values**: `camelCase` — `heartbeat`, `commandAck`, `success`
-- **Namespaces**: lowercase — `can_lite`
-- **Header guards**: `MODULE_FOLDER_FILENAME_HPP`
+- **Namespaces**: lowercase — `services` (the codebase uses `services`, not `can_lite`)
+- **Header guards**: `#pragma once` (preferred) or `MODULE_FOLDER_FILENAME_HPP`
 
 ### Brace Style — Allman, 4-Space Indent
 
 ```cpp
-namespace can_lite
+namespace services
 {
     class MyCategory
         : public CanCategoryServer

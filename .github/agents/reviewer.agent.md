@@ -1,7 +1,7 @@
 ---
 description: "Use when reviewing code changes in can-lite. Performs structured code review against all embedded C++ standards: memory safety (no heap), naming conventions, Allman style, SOLID principles, CAN 2.0B wire format correctness, category pattern compliance, observer interfaces, and CAN protocol standards (UDS, J1939, ISO-TP, CANopen)."
 tools: [read, search]
-model: "GPT-5.4"
+model: "claude-sonnet-4-6"
 handoffs:
   - label: "Fix Issues"
     agent: executor

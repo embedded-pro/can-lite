@@ -381,7 +381,7 @@ integration_tests/
 ├── hooks/                         # Scenario lifecycle hooks
 ├── steps/                         # Step definitions (GIVEN/WHEN/THEN)
 └── support/
-    └── TestContext.hpp             # VirtualCan, ApplicationFixture, mocks
+    └── ApplicationFixture.hpp      # VirtualCan, ApplicationFixture, mocks
 ```
 
 ### VirtualCan
