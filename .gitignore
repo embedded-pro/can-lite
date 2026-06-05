@@ -7,7 +7,3 @@ megalinter-reports/
 install/
 .venv/
 output/
-
-.claude/settings.local.json
-.claude/skills/
-.agents/
