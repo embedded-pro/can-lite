@@ -13,7 +13,7 @@
       "extensions": [
         "JacquesLucke.gcov-viewer@0.5.0",
         "matepek.vscode-catch2-test-adapter@4.12.2",
-        "anthropics.claude-code"
+        "anthropics.claude-code@2.1.162"
       ],
       "settings": {
         "editor.formatOnSave": true,
@@ -23,6 +23,12 @@
         ],
         "gcovViewer.highlightMissedLines": true
       }
+    },
+    "postCreateCommand": {
+      "submodule.update": "git submodule update --init --recursive",
+      "config.core.autocrlf": "git config --replace-all core.autocrlf false",
+      "config.core.eol": "git config --replace-all core.eol lf",
+      "config.core.editor": "git config --global core.editor 'code --wait'"
     }
   }
 }
