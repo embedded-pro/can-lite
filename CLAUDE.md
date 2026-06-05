@@ -164,12 +164,12 @@ Observer callbacks must not allocate or block.
 
 After any protocol, structural, or behavioral change, keep these aligned:
 
-| Document | Covers |
-|----------|--------|
-| `documents/spec/can-protocol.md` | Wire-format specification |
-| `documents/requirements/can-protocol.yaml` | Formal protocol requirements |
-| `documents/design/architecture.md` | Architecture decisions and patterns |
-| `README.md` | Project overview, features |
+| Document                                   | Covers                              |
+|--------------------------------------------|-------------------------------------|
+| `documents/spec/can-protocol.md`           | Wire-format specification           |
+| `documents/requirements/can-protocol.yaml` | Formal protocol requirements        |
+| `documents/design/architecture.md`         | Architecture decisions and patterns |
+| `README.md`                                | Project overview, features          |
 
 Category-specific specs and requirements live alongside the main ones: `documents/spec/foc-motor-control.md`, `documents/spec/firmware-upgrade.md`, `documents/requirements/foc-motor-control.yaml`, `documents/requirements/firmware-upgrade.yaml`.
 
