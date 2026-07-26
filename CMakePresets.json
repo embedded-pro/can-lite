@@ -13,7 +13,9 @@
             "installDir": "${sourceDir}/install",
             "cacheVariables": {
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "On",
-                "CMAKE_COMPILE_WARNING_AS_ERROR": "On"
+                "CMAKE_COMPILE_WARNING_AS_ERROR": "On",
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
             }
         },
         {
@@ -36,15 +38,26 @@
             }
         },
         {
-            "name": "windows",
-            "displayName": "Windows cross compilation",
+            "name": "windows-bootstrap",
+            "displayName": "Fetch embedded-infra-lib (prerequisite for the 'windows' cross-compile preset)",
             "inherits": "defaults",
-            "toolchainFile": "${sourceDir}/embedded-infra-lib/cmake/toolchain-clang-x86_64-pc-windows-msvc.cmake",
+            "cacheVariables": {
+                "CAN_LITE_BUILD_TESTS": false
+            }
+        },
+        {
+            "name": "windows",
+            "displayName": "Cross-compilation Linux → Windows (clang-cl + xwin)",
+            "inherits": "defaults",
+            "toolchainFile": "${sourceDir}/build/windows-bootstrap/_deps/emil-src/cmake/toolchain-clang-x86_64-pc-windows-msvc.cmake",
+            "environment": {
+                "CCACHE_DEPEND": "true",
+                "CCACHE_COMPILERTYPE": "clang-cl"
+            },
             "cacheVariables": {
                 "CMAKE_COMPILE_WARNING_AS_ERROR": "Off",
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo;MinSizeRel",
-                "CMAKE_PREFIX_PATH": "/opt/qt6-windows/6.4.2/msvc2019_64",
-                "CMAKE_CXX_FLAGS": "/EHsc -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH",
+                "WINDOWS_SDK_ROOT": "/winsdk",
                 "CAN_LITE_BUILD_TESTS": true
             },
             "generator": "Ninja Multi-Config"

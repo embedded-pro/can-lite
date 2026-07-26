@@ -7,3 +7,4 @@ megalinter-reports/
 install/
 .venv/
 output/
+.megalinter_github_conf/
