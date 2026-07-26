@@ -41,7 +41,7 @@ if (CAN_LITE_STANDALONE)
         FetchContent_Declare(
             cucumber_cpp
             GIT_REPOSITORY https://github.com/philips-software/amp-cucumber-cpp-runner.git
-            GIT_TAG        v4.0.0
+            GIT_TAG        v4.1.0
         )
         FetchContent_MakeAvailable(cucumber_cpp)
     endif()

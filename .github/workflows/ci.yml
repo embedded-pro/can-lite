@@ -103,35 +103,35 @@ jobs:
         with:
           name: test-logs
           path: build/host/Testing/Temporary/
-  host_build_test:
-    name: Host Build & Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
+  host_cross_windows:
+    name: Host Cross-Compile (Linux → Windows)
+    runs-on: ubuntu-latest
+    container: gabrielfrasantos/embedded-devcontainer-cpp:v7.2.0@sha256:e8a23c738637da0009ab5f9d73488c5e27e6309d4f577082368dacfab49d0cf5
     steps:
       - name: Configure Git
         run: |
-          git config --global url."https://${{ secrets.PRIVATE_REPO_TOKEN  }}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global --add safe.directory '*'
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           submodules: recursive
-      - uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
+      - name: Cache ccache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: ${{ github.job }}-${{ matrix.os }}
-          max-size: 2G
-          save: ${{ github.ref == 'refs/heads/main' }}
-      - uses: lukka/run-cmake@5d55ea7949e25f69f0ecb516d8d572297e03a956 # v10.9
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ github.job }}-windows-cross-${{ github.sha }}
+          restore-keys: ${{ github.job }}-windows-cross-
+      - name: Fetch embedded-infra-lib (toolchain bootstrap)
+        run: cmake --preset windows-bootstrap
+      - name: Cross-compile for Windows
+        run: cmake --preset windows && cmake --build --preset windows-RelWithDebInfo
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          configurePreset: "host-single-Debug"
-          buildPreset: "host-single-Debug"
-          testPreset: "host-single-Debug"
-          configurePresetAdditionalArgs: "['-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
-      - name: Upload test logs
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: test-logs
-          path: build/host/Testing/Temporary/
+          name: can_lite-windows
+          path: build/windows/**/*.exe
+          if-no-files-found: warn
 
