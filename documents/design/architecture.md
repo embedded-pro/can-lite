@@ -101,22 +101,22 @@ classDiagram
         <<abstract>>
         +Id() uint8_t*
         +RequiresSequenceValidation() bool*
-        +AddMessageType(CanMessageType&)
-        +HandleMessage(messageType, data) bool
+        +AddMessageType(messageType, CanMessageHandler)
+        +HandleMessage(messageType, payload) CanDispatchResult
+        #Outbound() CanCategoryOutbound&
     }
 
     class CanCategoryServer {
-        +RequiresSequenceValidation() bool
+        +SendCommandAck(messageType, status)
         IntrusiveList~CanCategoryServer~::NodeType
     }
 
     class CanCategoryClient {
-        +RequiresSequenceValidation() bool
         IntrusiveList~CanCategoryClient~::NodeType
     }
 
-    CanCategory <|-- CanCategoryServer : defaults true
-    CanCategory <|-- CanCategoryClient : defaults false
+    CanCategory <|-- CanCategoryServer
+    CanCategory <|-- CanCategoryClient
 ```
 
 **`CanCategory`** holds the shared logic: a bounded array of message-type bindings, message dispatch via `HandleMessage()`, the outbound handle, and the pure virtual `Id()` and `RequiresSequenceValidation()`.

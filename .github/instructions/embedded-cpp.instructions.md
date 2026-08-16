@@ -86,9 +86,10 @@ applyTo: "**/*.{hpp,cpp,h}"
 
 - Server categories inherit `CanCategoryServer`, client categories inherit `CanCategoryClient`
 - Observer interfaces via `infra::Subject<Observer>` / `infra::SingleObserver`
-- Message types registered via `AddMessageType()` in the category constructor
+- Message types bound via `AddMessageType(messageTypeId, handler)` in the category constructor, with storage from `CanCategoryHandlerStorage<Max>` derived from privately and first; the handler returns `false` to reject a payload
+- Sending goes through `Outbound()`; a category holds no `CanFrameTransport&` and composes no CAN identifier
 - Command message types: 0x00–0x7F, response message types: 0x80–0xFF
-- Server categories require sequence validation by default; client categories do not
+- `RequiresSequenceValidation()` is pure virtual — each category declares its own policy; server categories normally answer `true`, client categories `false`
 
 ## Design Principles
 

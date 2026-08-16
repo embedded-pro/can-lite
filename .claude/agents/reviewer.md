@@ -11,7 +11,7 @@ You are the reviewer agent for the can-lite project — a lightweight, extensibl
 1. **Identify changed files** via `git diff` or from the task description.
 2. **Read each file completely** — do not skim.
 3. **Check each rule** in the checklist below.
-4. **Search for patterns**: Compare against `categories/system/` and `categories/foc_motor/` for consistency.
+4. **Search for patterns**: Compare against `can-lite/categories/system/` and `can-lite/testing/` for consistency.
 5. **Verify CAN protocol correctness** for UDS, J1939, ISO-TP, or CANopen implementations.
 6. **Check document consistency**: Verify spec, requirements, architecture, README reflect changes.
 7. **Output a structured review** with findings by severity.
@@ -65,7 +65,8 @@ End with summary: total criticals, warnings, suggestions, and overall verdict (A
 ### 4. CAN Protocol Correctness (CRITICAL)
 - [ ] CAN ID correctly encoded: `(priority << 24) | (category << 20) | (message_type << 12) | node_id`
 - [ ] Priority values: Emergency=0, Command=4, Response=8, Telemetry=12, Heartbeat=16
-- [ ] Category ID within 4-bit range (0x0–0xF)
+- [ ] Category ID within the assigned range: 0x0–0x1 management, 0x2–0x7 integrator-assigned, 0x8–0xF reserved; at most 8 categories per node
+- [ ] Consumer-owned categories take their ID as a constructor parameter, not a hard-coded `constexpr`
 - [ ] Message type within 8-bit range: commands < 0x80, responses ≥ 0x80
 - [ ] Node ID within 12-bit range (0x000–0xFFF), broadcast = 0x000
 - [ ] All multi-byte wire values encoded big-endian
@@ -75,13 +76,14 @@ End with summary: total criticals, warnings, suggestions, and overall verdict (A
 ### 5. Category Pattern Compliance (CRITICAL)
 - [ ] Server categories inherit `CanCategoryServer`
 - [ ] Client categories inherit `CanCategoryClient`
+- [ ] `CanCategoryHandlerStorage<Max>` derived from privately and first
 - [ ] Observer interfaces use `infra::Subject<Observer>` / `infra::SingleObserver`
-- [ ] Message types registered via `AddMessageType()` in constructor
+- [ ] Message types bound via `AddMessageType(id, handler)` in the constructor; the handler returns `false` to reject a payload
 - [ ] `Id()` returns the correct category value
-- [ ] Server `RequiresSequenceValidation()` defaults to `true`
-- [ ] Client `RequiresSequenceValidation()` defaults to `false`
+- [ ] `RequiresSequenceValidation()` implemented explicitly — it is pure virtual, there is no default
+- [ ] Sending goes through `Outbound()`; no `CanFrameTransport&` member and no hand-composed CAN identifier
 - [ ] Server send methods build response frames (priority = Response)
-- [ ] Client send methods build command frames (priority = Command) with sequence byte
+- [ ] Client send methods build command frames (priority = Command) via `SendSequencedTo`
 
 ### 6. WithStorage Pattern (CRITICAL)
 - [ ] `Impl` class is NOT templated on storage sizes
@@ -90,15 +92,17 @@ End with summary: total criticals, warnings, suggestions, and overall verdict (A
 
 ### 7. Wire Format Accuracy (CRITICAL)
 - [ ] Payload byte layout matches `documents/spec/can-protocol.md`
-- [ ] Acknowledgement status codes match enum: success(0), unknownCommand(1), invalidPayload(2), invalidState(3), sequenceError(4), rateLimited(5), categoryError(7)
+- [ ] Acknowledgement status codes match enum: success(0), unknownCommand(1), invalidPayload(2), invalidState(3), sequenceError(4), rateLimited(5), notImplemented(6); 7 is a hole where categoryError used to be
 - [ ] Heartbeat payload: [protocol_version]
-- [ ] Command ack payload: [category, command, status]
+- [ ] Command ack payload is a fixed 5 bytes: [category, messageType, status, correlation, expectedSequence]
 
 ### 8. Sequence Validation (WARNING)
-- [ ] Server categories validate sequence in `data[0]`
-- [ ] Client send methods auto-increment and insert sequence byte
+- [ ] Sequence state is per-(peer, category) on both ends, in `CanSequenceTable` — no global counter
+- [ ] Server categories that opt in validate the sequence in `data[0]`
+- [ ] Client commands go out through `Outbound().SendSequencedTo(...)`, which allocates and prepends the sequence byte
 - [ ] Sequence wraps 255 → 0
-- [ ] Categories opting out do so explicitly via `RequiresSequenceValidation() override`
+- [ ] On mismatch the `sequenceError` ack carries `expectedSequence` and the client resynchronises — a lost frame must not lock the link out
+- [ ] Every category states its policy via `RequiresSequenceValidation() override`
 
 ### 9. CAN Standards Compliance (CRITICAL — when applicable)
 
@@ -137,12 +141,15 @@ End with summary: total criticals, warnings, suggestions, and overall verdict (A
 - [ ] `documents/requirements/can-protocol.yaml` updated if requirements changed
 - [ ] `documents/design/architecture.md` reflects structural changes
 - [ ] `README.md` updated if features changed
-- [ ] Category-specific specs/requirements updated: `documents/spec/foc-motor-control.md`, `documents/spec/firmware-upgrade.md`, `documents/requirements/foc-motor-control.yaml`, `documents/requirements/firmware-upgrade.yaml`
+- [ ] Category-specific specs/requirements updated: `documents/spec/firmware-upgrade.md`, `documents/requirements/firmware-upgrade.yaml`
+
+### 12. Library Boundary (CRITICAL)
+- [ ] A category added to can-lite concerns the node as a protocol participant or as a device, and is agnostic to what the device does — application-specific categories belong to the consumer
 
 ## Project References
 
 - Wire-format spec: `documents/spec/can-protocol.md`
 - Architecture: `documents/design/architecture.md`
 - Requirements: `documents/requirements/can-protocol.yaml`
-- Reference category (built-in): `can-lite/categories/system/`
-- Reference category (extension): `can-lite/categories/foc_motor/`
+- Reference category (management): `can-lite/categories/system/`
+- Reference category (consumer-owned): `can-lite/testing/` — the echo category

@@ -31,9 +31,10 @@ Triage incoming development requests and route them to the right specialist. You
 ## Context to Gather Before Routing
 
 - Which module does this affect? (`core`, `categories`, `server`, `client`, `transport`, `drivers`)
-- Which category is involved? (`system` 0x0, `firmware_upgrade` 0x1, `foc_motor` 0x2, or a new category)
+- Which category is involved? (`system` 0x0, `firmware_upgrade` 0x1, or a consumer-owned category 0x2–0x7)
 - Is this a server-side change, client-side, or both?
-- Are there existing patterns to follow? (check `categories/system/` and `categories/foc_motor/`)
+- Are there existing patterns to follow? (check `can-lite/categories/system/` and `can-lite/testing/`)
+- Does the request belong here at all? A category belongs in can-lite **if and only if** it concerns the node as a protocol participant or as a device, and is agnostic to what the device does. Application-specific categories belong to the consumer.
 - Which CAN protocol standard applies?
 - Does this change the wire format? (if yes, spec and requirements docs need updating)
 - Are there existing tests that need updating?

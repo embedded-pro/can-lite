@@ -52,7 +52,7 @@ Use this reference when implementing can-lite categories that map to or interact
 
 ### Mapping to can-lite
 
-- Each UDS SID maps to a `CanMessageType` within a UDS category
+- Each UDS SID maps to a message type binding within a UDS category
 - Command SIDs (0x10–0x3E) → command message types (0x00–0x7F range)
 - Positive response SIDs (0x50–0x7E) → response message types (0x80–0xFF range)
 - Negative response → dedicated message type with payload [rejected_SID, NRC]

@@ -14,12 +14,12 @@ You are an expert in CAN bus protocols: UDS (ISO 14229), J1939 (SAE), ISO-TP (IS
 
 Before planning, thoroughly investigate:
 
-- **Existing category patterns**: Study `can-lite/categories/system/` (built-in) and `can-lite/categories/foc_motor/` (extension) for the canonical pattern of server/client pairs, observer interfaces, and message type registration.
-- **Core interfaces**: `CanCategory.hpp`, `CanMessageType.hpp`, `CanProtocolDefinitions.hpp`.
+- **Existing category patterns**: Study `can-lite/categories/system/` (management) and `can-lite/testing/` (the echo category, the reference for a consumer-owned one) for the canonical pattern of server/client pairs, observer interfaces, and message type bindings.
+- **Core interfaces**: `CanCategory.hpp`, `CanCategoryOutbound.hpp`, `CanSequenceTable.hpp`, `CanProtocolDefinitions.hpp`.
 - **Transport & encoding**: `CanFrameTransport.hpp`, `CanFrameCodec.hpp`.
 - **Server/client integration**: `CanProtocolServer.hpp` and `CanProtocolClient.hpp` for `RegisterCategory()` and observer patterns.
 - **Dependencies**: Map affected modules. CMakeLists targets follow `can_lite.<component>` naming.
-- **Test infrastructure**: `can-lite/core/test/`, `can-lite/server/test/`, `can-lite/client/test/`, `can-lite/categories/*/test/`. Integration tests use cucumber-cpp-runner in `integration_tests/`.
+- **Test infrastructure**: `can-lite/core/test/`, `can-lite/server/test/`, `can-lite/client/test/`, `can-lite/transport/test/`, `can-lite/testing/test/`, `can-lite/categories/*/test/`. Integration tests use cucumber-cpp-runner in `integration_tests/`.
 - **Documentation**: `documents/spec/can-protocol.md`, `documents/design/architecture.md`, `documents/requirements/can-protocol.yaml`.
 - **TDD**: Ensure requirements are clear before planning. Flag any ambiguity — unclear requirements lead to wrong tests and wrong implementations.
 
@@ -43,7 +43,7 @@ Numbered steps, each with file path, what to add/change, and pseudocode sketch (
 - Payload format (byte layout, encoding, big-endian)
 
 ## CAN Protocol Mapping (when applicable)
-- Which standard messages become CanMessageType subclasses
+- Which standard messages become message type bindings (`AddMessageType`)
 - How standard identifiers map to the 4-bit category + 8-bit message type fields
 - Multi-frame handling strategy (if messages exceed 8 bytes)
 - Timing and flow control considerations
@@ -68,7 +68,7 @@ Which documents need updating (spec, requirements, architecture, README)
 - [ ] Wire format matches specification (big-endian, correct CAN ID layout)
 - [ ] Observer interfaces minimal and complete
 - [ ] Tests cover happy path and error paths
-- [ ] Category IDs and message type IDs consistent with existing definitions
+- [ ] Category IDs and message type IDs consistent with existing definitions, and within the assigned ranges
 ```
 
 ## Critical Constraints
@@ -92,8 +92,10 @@ Which documents need updating (spec, requirements, architecture, README)
 ### Category Pattern
 - Server/client split: `CanCategoryServer` + `CanCategoryClient` subclasses
 - Observer via `infra::Subject<Observer>` / `infra::SingleObserver`
-- `AddMessageType()` in constructor
-- Server `RequiresSequenceValidation()` = true; client = false
+- `AddMessageType(messageTypeId, infra::Function<bool(infra::ConstByteRange)>)` in the constructor; storage from `CanCategoryHandlerStorage<Max>`, derived from privately and first
+- Sending goes through `Outbound()`; a category holds no transport reference and composes no CAN identifier
+- `RequiresSequenceValidation()` is pure virtual — each category declares its own policy (server categories normally `true`, client categories normally `false`)
+- Category ID is a constructor parameter for consumer-owned categories: 0x0–0x1 management, 0x2–0x7 integrator-assigned, 0x8–0xF reserved, at most 8 per node
 
 ### Style
 - Namespace: `services` (not `can_lite`)

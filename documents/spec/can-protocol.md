@@ -207,8 +207,8 @@ Sent by the server at CanPriority::response.
 
 | Byte | Field             | Type  | Description                                  |
 |------|-------------------|-------|----------------------------------------------|
-| 0    | Category          | uint8 | CanCategory of the acknowledged command      |
-| 1    | Command           | uint8 | CanMessageType of the acknowledged command   |
+| 0    | Category          | uint8 | Category ID of the acknowledged command      |
+| 1    | Command           | uint8 | Message type of the acknowledged command     |
 | 2    | Status            | uint8 | See acknowledgement status table             |
 | 3    | Correlation       | uint8 | Sequence number of the acknowledged command  |
 | 4    | Expected Sequence | uint8 | Sequence the server expects next             |
