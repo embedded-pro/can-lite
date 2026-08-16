@@ -47,6 +47,10 @@ namespace services
     {
         ++requestCount;
 
+        // The reply is deliberately capped at one CAN frame: a request that
+        // arrived segmented over ISO-TP is echoed back truncated rather than
+        // re-segmented, which keeps this reference category free of transport
+        // concerns.
         hal::Can::Message reply;
         for (auto byte : infra::Head(payload, reply.max_size()))
             reply.push_back(byte);

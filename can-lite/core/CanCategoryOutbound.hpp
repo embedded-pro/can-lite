@@ -73,10 +73,10 @@ namespace services
         : public CanCategoryOutbound
     {
     public:
-        void Bind(CanFrameTransport& transport, uint8_t category);
+        void Bind(CanFrameTransport& transport, uint8_t categoryId);
         void Unbind();
         bool IsBound() const;
-        bool IsBoundTo(uint8_t category) const;
+        bool IsBoundTo(uint8_t categoryId) const;
 
         // Records which request the category is serving, so that any
         // acknowledgement it produces correlates to that request.
@@ -105,7 +105,7 @@ namespace services
 
     private:
         CanFrameTransport* transport = nullptr;
-        uint8_t category = 0;
+        uint8_t categoryId = 0;
         uint16_t peerNodeId = 0;
         uint8_t correlation = 0;
         CanSequenceTable sequences;

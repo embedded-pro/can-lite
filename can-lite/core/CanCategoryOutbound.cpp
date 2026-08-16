@@ -46,10 +46,10 @@ namespace services
     void CanCategoryOutboundNull::SendAck(uint8_t, CanAckStatus)
     {}
 
-    void CanCategoryOutboundImpl::Bind(CanFrameTransport& newTransport, uint8_t newCategory)
+    void CanCategoryOutboundImpl::Bind(CanFrameTransport& newTransport, uint8_t newCategoryId)
     {
         transport = &newTransport;
-        category = newCategory;
+        categoryId = newCategoryId;
         peerNodeId = 0;
         correlation = 0;
         sequences.Forget();
@@ -58,7 +58,7 @@ namespace services
     void CanCategoryOutboundImpl::Unbind()
     {
         transport = nullptr;
-        category = 0;
+        categoryId = 0;
         peerNodeId = 0;
         correlation = 0;
         sequences.Forget();
@@ -69,9 +69,9 @@ namespace services
         return transport != nullptr;
     }
 
-    bool CanCategoryOutboundImpl::IsBoundTo(uint8_t queriedCategory) const
+    bool CanCategoryOutboundImpl::IsBoundTo(uint8_t queriedCategoryId) const
     {
-        return transport != nullptr && category == queriedCategory;
+        return transport != nullptr && categoryId == queriedCategoryId;
     }
 
     void CanCategoryOutboundImpl::BeginRequest(uint16_t requestPeerNodeId, uint8_t requestCorrelation)
@@ -97,7 +97,7 @@ namespace services
             return;
 
         hal::Can::Message msg;
-        msg.push_back(category);
+        msg.push_back(categoryId);
         msg.push_back(messageType);
         msg.push_back(static_cast<uint8_t>(status));
         msg.push_back(ackCorrelation);
@@ -109,7 +109,7 @@ namespace services
 
     uint8_t CanCategoryOutboundImpl::Category() const
     {
-        return category;
+        return categoryId;
     }
 
     uint16_t CanCategoryOutboundImpl::NodeId() const
@@ -132,7 +132,7 @@ namespace services
         if (transport == nullptr)
             return false;
 
-        return transport->SendFrame(priority, category, messageType, payload, [] {});
+        return transport->SendFrame(priority, categoryId, messageType, payload, [] {});
     }
 
     bool CanCategoryOutboundImpl::SendTo(uint16_t targetNodeId, CanPriority priority, uint8_t messageType,
@@ -141,7 +141,7 @@ namespace services
         if (transport == nullptr)
             return false;
 
-        return transport->SendFrame(targetNodeId, priority, category, messageType, payload, [] {});
+        return transport->SendFrame(targetNodeId, priority, categoryId, messageType, payload, [] {});
     }
 
     bool CanCategoryOutboundImpl::SendSequencedTo(uint16_t targetNodeId, CanPriority priority, uint8_t messageType,
@@ -158,7 +158,7 @@ namespace services
         for (auto byte : payload)
             sequenced.push_back(byte);
 
-        return transport->SendFrame(targetNodeId, priority, category, messageType, sequenced, [] {});
+        return transport->SendFrame(targetNodeId, priority, categoryId, messageType, sequenced, [] {});
     }
 
     void CanCategoryOutboundImpl::SendAck(uint8_t messageType, CanAckStatus status)
