@@ -36,7 +36,7 @@ namespace integration
         server.RegisterCategory(*fwuServer);
 
         fwuClientTransport.emplace(clientCan, config.nodeId);
-        fwuClient.emplace(*fwuClientTransport, client);
+        fwuClient.emplace(*fwuClientTransport);
         fwuClientObserver.emplace(*fwuClient);
         client.RegisterCategory(*fwuClient);
     }

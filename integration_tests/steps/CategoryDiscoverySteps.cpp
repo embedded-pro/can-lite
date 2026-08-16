@@ -18,9 +18,9 @@ WHEN(R"(the client sends a category discovery request to node {int})", (std::int
     auto& fixture = context.Get<ApplicationFixture>();
     auto result = context.Emplace<CategoryDiscoveryResult>();
 
-    fixture.client.DiscoverCategories(static_cast<uint16_t>(nodeId), [result](const hal::Can::Message& msg)
+    fixture.client.DiscoverCategories(static_cast<uint16_t>(nodeId), [result](infra::ConstByteRange categoryIds)
         {
-            result->categories = msg;
+            result->categories.assign(categoryIds.begin(), categoryIds.end());
             result->received = true;
         });
 }

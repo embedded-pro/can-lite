@@ -1,28 +1,14 @@
 #pragma once
 
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanMessageType.hpp"
 #include <cstddef>
+#include <cstdint>
 
 namespace integration
 {
-    class TestMessageType : public services::CanMessageType
-    {
-    public:
-        TestMessageType(uint8_t id, std::size_t minimumPayloadSize);
-
-        uint8_t Id() const override;
-        void Handle(const hal::Can::Message&) override;
-
-        int handleCount = 0;
-        int rejectedCount = 0;
-
-    private:
-        uint8_t msgId;
-        std::size_t minimumPayloadSize;
-    };
-
-    class SequencedTestCategory : public services::CanCategoryServer
+    class SequencedTestCategory
+        : private services::CanCategoryHandlerStorage<2>
+        , public services::CanCategoryServer
     {
     public:
         explicit SequencedTestCategory(uint8_t id);
@@ -30,14 +16,22 @@ namespace integration
         uint8_t Id() const override;
         bool RequiresSequenceValidation() const override;
 
-        TestMessageType msg;
-        TestMessageType validatedMsg;
+        int handleCount = 0;
+        int rejectedCount = 0;
+        int validatedHandleCount = 0;
+        int validatedRejectedCount = 0;
+
+        static constexpr uint8_t messageTypeId = 0x01;
+        static constexpr uint8_t validatedMessageTypeId = 0x02;
+        static constexpr std::size_t validatedMinimumPayloadSize = 4;
 
     private:
         uint8_t catId;
     };
 
-    class SimpleTestCategory : public services::CanCategoryServer
+    class SimpleTestCategory
+        : private services::CanCategoryHandlerStorage<1>
+        , public services::CanCategoryServer
     {
     public:
         explicit SimpleTestCategory(uint8_t id);

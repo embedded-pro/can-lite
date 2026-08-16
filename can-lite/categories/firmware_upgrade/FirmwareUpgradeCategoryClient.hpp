@@ -3,14 +3,12 @@
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeDefinitions.hpp"
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
-#include "can-lite/core/CanMessageType.hpp"
+#include "infra/util/ByteRange.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
 
 namespace services
 {
-    class CanProtocolClient;
-
     class FirmwareUpgradeCategoryClient;
 
     class FirmwareUpgradeCategoryClientObserver
@@ -27,13 +25,15 @@ namespace services
     };
 
     class FirmwareUpgradeCategoryClient
-        : public CanCategoryClient
+        : private CanCategoryHandlerStorage<5>
+        , public CanCategoryClient
         , public infra::Subject<FirmwareUpgradeCategoryClientObserver>
     {
     public:
-        FirmwareUpgradeCategoryClient(CanFrameTransport& transport, CanProtocolClient& client);
+        explicit FirmwareUpgradeCategoryClient(CanFrameTransport& transport);
 
         uint8_t Id() const override;
+        bool RequiresSequenceValidation() const override;
 
         bool SendBeginUpgrade(uint16_t targetNodeId, uint32_t firmwareSize);
         bool SendDataBlock(uint16_t targetNodeId, uint16_t blockIndex, const hal::Can::Message& blockData);
@@ -43,73 +43,12 @@ namespace services
         bool SendQueryProgress(uint16_t targetNodeId);
 
     private:
-        class BeginResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit BeginResponseMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        class DataBlockAckMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit DataBlockAckMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        class VerifyResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit VerifyResponseMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        class ActivateResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit ActivateResponseMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        class ProgressResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit ProgressResponseMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
+        bool HandleBeginResponse(infra::ConstByteRange payload);
+        bool HandleDataBlockAck(infra::ConstByteRange payload);
+        bool HandleVerifyResponse(infra::ConstByteRange payload);
+        bool HandleActivateResponse(infra::ConstByteRange payload);
+        bool HandleProgressResponse(infra::ConstByteRange payload);
 
         CanFrameTransport& transport;
-        CanProtocolClient& client;
-
-        BeginResponseMessageType beginResponse;
-        DataBlockAckMessageType dataBlockAck;
-        VerifyResponseMessageType verifyResponse;
-        ActivateResponseMessageType activateResponse;
-        ProgressResponseMessageType progressResponse;
     };
 }

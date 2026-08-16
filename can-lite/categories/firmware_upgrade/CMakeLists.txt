@@ -7,7 +7,6 @@ target_include_directories(can_lite.categories.firmware_upgrade PUBLIC
 
 target_link_libraries(can_lite.categories.firmware_upgrade PUBLIC
     can_lite.core
-    can_lite.client
     infra.timer
 )
 

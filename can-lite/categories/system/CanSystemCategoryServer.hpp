@@ -1,7 +1,6 @@
 #pragma once
 
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanMessageType.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
@@ -22,7 +21,8 @@ namespace services
     };
 
     class CanSystemCategoryServer
-        : public CanCategoryServer
+        : private CanCategoryHandlerStorage<3>
+        , public CanCategoryServer
         , public infra::Subject<CanSystemCategoryServerObserver>
     {
     public:
@@ -32,44 +32,8 @@ namespace services
         bool RequiresSequenceValidation() const override;
 
     private:
-        class HeartbeatMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit HeartbeatMessageType(CanSystemCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            CanSystemCategoryServer& parent;
-        };
-
-        class StatusRequestMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit StatusRequestMessageType(CanSystemCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            CanSystemCategoryServer& parent;
-        };
-
-        class CategoryListRequestMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit CategoryListRequestMessageType(CanSystemCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            CanSystemCategoryServer& parent;
-        };
-
-        HeartbeatMessageType heartbeat;
-        StatusRequestMessageType statusRequest;
-        CategoryListRequestMessageType categoryListRequest;
+        bool HandleHeartbeat(infra::ConstByteRange payload);
+        bool HandleStatusRequest(infra::ConstByteRange payload);
+        bool HandleCategoryListRequest(infra::ConstByteRange payload);
     };
 }

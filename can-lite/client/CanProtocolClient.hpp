@@ -49,7 +49,7 @@ namespace services
 
         CanSystemCategoryClient& SystemCategory();
 
-        void DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone);
+        void DiscoverCategories(uint16_t nodeId, const infra::Function<void(infra::ConstByteRange categoryIds)>& onDone);
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
 
@@ -63,14 +63,14 @@ namespace services
         public:
             SystemObserver(CanSystemCategoryClient& subject, CanProtocolClient& client);
 
-            void OnCategoryListResponse(const hal::Can::Message& categoryIds) override;
+            void OnCategoryListResponse(infra::ConstByteRange categoryIds) override;
 
         private:
             CanProtocolClient& client;
         };
 
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
-        void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
+        void Dispatch(uint32_t rawId, infra::ConstByteRange payload);
         void MarkServerAlive(uint16_t nodeId);
         void HandleServerTimeout(uint16_t nodeId);
 
@@ -96,7 +96,7 @@ namespace services
         CanSystemCategoryClient systemCategory;
         SystemObserver systemObserver;
         infra::IntrusiveList<CanCategoryClient> categories;
-        infra::Function<void(const hal::Can::Message&)> pendingDiscoveryCallback;
+        infra::Function<void(infra::ConstByteRange categoryIds)> pendingDiscoveryCallback;
         std::array<PerServerState, maxServers> serverStates;
         std::array<ServerLiveness, maxServers> serverLiveness;
         IsoTpTransport* isoTpTransport = nullptr;

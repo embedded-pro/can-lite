@@ -70,47 +70,8 @@ namespace services
         isoTpTransport = &isoTp;
         isoTp.SetOnPduReceived([this](uint32_t rawId, infra::ConstByteRange pdu)
             {
-                DispatchPdu(rawId, pdu);
+                Dispatch(rawId, pdu);
             });
-    }
-
-    void CanProtocolServer::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
-    {
-        auto nodeId = ExtractCanNodeId(rawId);
-        if (nodeId != config.nodeId && nodeId != canBroadcastNodeId)
-            return;
-
-        if (!CheckAndIncrementRate())
-            return;
-
-        auto categoryId = ExtractCanCategory(rawId);
-        auto messageType = ExtractCanMessageType(rawId);
-
-        CanCategoryServer* category = FindCategory(categoryId);
-        if (category == nullptr)
-            return;
-
-        if (category->RequiresSequenceValidation())
-        {
-            if (pdu.empty())
-            {
-                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
-                return;
-            }
-
-            uint8_t sequenceNumber = pdu[0];
-            if (!ValidateSequence(sequenceNumber))
-            {
-                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError);
-                return;
-            }
-        }
-
-        if (!category->HandlePduMessage(messageType, pdu))
-        {
-            SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
-            return;
-        }
     }
 
     void CanProtocolServer::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)
@@ -124,6 +85,11 @@ namespace services
             isoTpTransport->ProcessFrame(rawId, data))
             return;
 
+        Dispatch(rawId, infra::MakeRange(data));
+    }
+
+    void CanProtocolServer::Dispatch(uint32_t rawId, infra::ConstByteRange payload)
+    {
         uint16_t targetNodeId = ExtractCanNodeId(rawId);
 
         if (targetNodeId != config.nodeId && targetNodeId != canBroadcastNodeId)
@@ -141,24 +107,29 @@ namespace services
 
         if (category->RequiresSequenceValidation())
         {
-            if (data.empty())
+            if (payload.empty())
             {
                 SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
                 return;
             }
 
-            uint8_t sequenceNumber = data[0];
-            if (!ValidateSequence(sequenceNumber))
+            if (!ValidateSequence(payload.front()))
             {
                 SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError);
                 return;
             }
         }
 
-        if (!category->HandleMessage(messageType, data))
+        switch (category->HandleMessage(messageType, payload))
         {
-            SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
-            return;
+            case CanDispatchResult::unknownMessageType:
+                SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+                break;
+            case CanDispatchResult::rejected:
+                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                break;
+            case CanDispatchResult::handled:
+                break;
         }
     }
 

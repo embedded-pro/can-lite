@@ -13,7 +13,6 @@ target_link_libraries(can_lite.core PUBLIC
 target_sources(can_lite.core PRIVATE
     CanCategory.cpp
     CanCategory.hpp
-    CanMessageType.hpp
     CanProtocolDefinitions.hpp
     CanFrameCodec.cpp
     CanFrameCodec.hpp

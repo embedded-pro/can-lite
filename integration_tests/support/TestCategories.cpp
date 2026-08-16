@@ -2,34 +2,27 @@
 
 namespace integration
 {
-    TestMessageType::TestMessageType(uint8_t id, std::size_t minimumPayloadSize)
-        : msgId(id)
-        , minimumPayloadSize(minimumPayloadSize)
-    {}
-
-    uint8_t TestMessageType::Id() const
-    {
-        return msgId;
-    }
-
-    void TestMessageType::Handle(const hal::Can::Message& data)
-    {
-        if (data.size() < minimumPayloadSize)
-        {
-            rejectedCount++;
-            return;
-        }
-
-        handleCount++;
-    }
-
     SequencedTestCategory::SequencedTestCategory(uint8_t id)
-        : msg(0x01, 0)
-        , validatedMsg(0x02, 4)
+        : services::CanCategoryServer(messageTypeStorage)
         , catId(id)
     {
-        AddMessageType(msg);
-        AddMessageType(validatedMsg);
+        AddMessageType(messageTypeId, [this](infra::ConstByteRange)
+            {
+                handleCount++;
+                return true;
+            });
+
+        AddMessageType(validatedMessageTypeId, [this](infra::ConstByteRange payload)
+            {
+                if (payload.size() < validatedMinimumPayloadSize)
+                {
+                    validatedRejectedCount++;
+                    return false;
+                }
+
+                validatedHandleCount++;
+                return true;
+            });
     }
 
     uint8_t SequencedTestCategory::Id() const
@@ -43,7 +36,8 @@ namespace integration
     }
 
     SimpleTestCategory::SimpleTestCategory(uint8_t id)
-        : catId(id)
+        : services::CanCategoryServer(messageTypeStorage)
+        , catId(id)
     {}
 
     uint8_t SimpleTestCategory::Id() const

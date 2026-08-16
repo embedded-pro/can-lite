@@ -147,8 +147,8 @@ THEN(R"(the server category handler shall not have accepted the command)")
     auto& fixture = context.Get<ApplicationFixture>();
     auto* category = fixture.FindSequencedCategory(3);
     ASSERT_NE(category, nullptr);
-    EXPECT_EQ(category->validatedMsg.handleCount, 0);
-    EXPECT_EQ(category->validatedMsg.rejectedCount, 1);
+    EXPECT_EQ(category->validatedHandleCount, 0);
+    EXPECT_EQ(category->validatedRejectedCount, 1);
 }
 
 WHEN(R"(the client receives a response for unregistered category {int})", (std::int32_t category))

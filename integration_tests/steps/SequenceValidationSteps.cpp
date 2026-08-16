@@ -29,7 +29,7 @@ THEN(R"(the server category handler shall have received {int} command)", (std::i
     auto& fixture = context.Get<ApplicationFixture>();
     auto* category = fixture.FindSequencedCategory(3);
     ASSERT_NE(category, nullptr);
-    EXPECT_EQ(category->msg.handleCount, count);
+    EXPECT_EQ(category->handleCount, count);
 }
 
 THEN(R"(the server category handler shall have received {int} commands)", (std::int32_t count))
@@ -37,7 +37,7 @@ THEN(R"(the server category handler shall have received {int} commands)", (std::
     auto& fixture = context.Get<ApplicationFixture>();
     auto* category = fixture.FindSequencedCategory(3);
     ASSERT_NE(category, nullptr);
-    EXPECT_EQ(category->msg.handleCount, count);
+    EXPECT_EQ(category->handleCount, count);
 }
 
 WHEN(R"(the client sends a status request to the server with empty payload)")

@@ -22,7 +22,7 @@ namespace
         using FirmwareUpgradeCategoryServerObserver::FirmwareUpgradeCategoryServerObserver;
 
         MOCK_METHOD(void, OnBeginUpgrade, (uint32_t firmwareSize, const infra::Function<void(FwuError, uint16_t)>& onResult), (override));
-        MOCK_METHOD(void, OnDataBlock, (uint16_t blockIndex, const hal::Can::Message& data, const infra::Function<void(FwuError)>& onResult), (override));
+        MOCK_METHOD(void, OnDataBlock, (uint16_t blockIndex, infra::ConstByteRange data, const infra::Function<void(FwuError)>& onResult), (override));
         MOCK_METHOD(void, OnVerify, (uint32_t expectedCrc32, const infra::Function<void(FwuError)>& onResult), (override));
         MOCK_METHOD(void, OnActivate, (const infra::Function<void(FwuError)>& onResult), (override));
         MOCK_METHOD(void, OnAbort, (const infra::Function<void()>& onDone), (override));
@@ -100,7 +100,7 @@ namespace
         hal::Can::Message data;
         data.resize(4, 0);
         CanFrameCodec::WriteInt32(data, 0, 12288);
-        server.HandleMessage(fwuBeginUpgradeId, data);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(data));
 
         ASSERT_EQ(lastSentData.size(), 3u);
         EXPECT_EQ(lastSentData[0], static_cast<uint8_t>(FwuError::ok));
@@ -112,8 +112,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(3, 0);
-        server.HandleMessage(fwuBeginUpgradeId, data);
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(data)), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, DataBlock_CallbackSendsAck)
@@ -122,7 +121,7 @@ namespace
             {
                 cb(FwuError::ok, 4096);
             }));
-        EXPECT_CALL(observer, OnDataBlock(42, _, _)).WillOnce(Invoke([](uint16_t blockIndex, const hal::Can::Message& data, const infra::Function<void(FwuError)>& cb)
+        EXPECT_CALL(observer, OnDataBlock(42, _, _)).WillOnce(Invoke([](uint16_t blockIndex, infra::ConstByteRange data, const infra::Function<void(FwuError)>& cb)
             {
                 EXPECT_EQ(blockIndex, 42);
                 EXPECT_EQ(data.size(), 6u);
@@ -132,14 +131,14 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         hal::Can::Message block;
         block.resize(8, 0);
         CanFrameCodec::WriteInt16(block, 0, 42);
         block[2] = 0xAA;
         block[3] = 0xBB;
-        server.HandleMessage(fwuDataBlockId, block);
+        server.HandleMessage(fwuDataBlockId, infra::MakeRange(block));
 
         EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
     }
@@ -148,8 +147,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(1, 0);
-        server.HandleMessage(fwuDataBlockId, data);
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(fwuDataBlockId, infra::MakeRange(data)), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, Verify_CallbackSendsAck)
@@ -166,12 +164,12 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         hal::Can::Message data;
         data.resize(4, 0);
         CanFrameCodec::WriteInt32(data, 0, static_cast<int32_t>(0xABCD1234u));
-        server.HandleMessage(fwuVerifyId, data);
+        server.HandleMessage(fwuVerifyId, infra::MakeRange(data));
 
         EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
     }
@@ -180,8 +178,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(3, 0);
-        server.HandleMessage(fwuVerifyId, data);
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(fwuVerifyId, infra::MakeRange(data)), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, Activate_CallbackSendsAck)
@@ -198,10 +195,10 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         hal::Can::Message data;
-        server.HandleMessage(fwuActivateId, data);
+        server.HandleMessage(fwuActivateId, infra::MakeRange(data));
 
         EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
     }
@@ -220,10 +217,10 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         hal::Can::Message data;
-        server.HandleMessage(fwuAbortId, data);
+        server.HandleMessage(fwuAbortId, infra::MakeRange(data));
 
         EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
     }
@@ -236,7 +233,7 @@ namespace
             }));
 
         hal::Can::Message data;
-        server.HandleMessage(fwuQueryProgressId, data);
+        server.HandleMessage(fwuQueryProgressId, infra::MakeRange(data));
 
         ASSERT_EQ(lastSentData.size(), 5u);
         EXPECT_EQ(lastSentData[0], static_cast<uint8_t>(FwuState::receiving));
@@ -248,7 +245,7 @@ namespace
     TEST_F(TestFirmwareUpgradeCategoryServer, QueryProgress_NoObserverDoesNotCrash)
     {
         hal::Can::Message data;
-        server.HandleMessage(fwuQueryProgressId, data);
+        server.HandleMessage(fwuQueryProgressId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, SessionTimeout_FiredAfterInactivity)
@@ -262,7 +259,7 @@ namespace
         hal::Can::Message data;
         data.resize(4, 0);
         CanFrameCodec::WriteInt32(data, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, data);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(data));
 
         ForwardTime(std::chrono::seconds(30));
     }
@@ -273,7 +270,7 @@ namespace
             {
                 cb(FwuError::ok, 4096);
             }));
-        EXPECT_CALL(observer, OnDataBlock(0, _, _)).WillOnce(Invoke([](uint16_t, const hal::Can::Message&, const infra::Function<void(FwuError)>& cb)
+        EXPECT_CALL(observer, OnDataBlock(0, _, _)).WillOnce(Invoke([](uint16_t, infra::ConstByteRange, const infra::Function<void(FwuError)>& cb)
             {
                 cb(FwuError::ok);
             }));
@@ -282,14 +279,14 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         ForwardTime(std::chrono::seconds(20));
 
         hal::Can::Message block;
         block.resize(8, 0);
         CanFrameCodec::WriteInt16(block, 0, 0);
-        server.HandleMessage(fwuDataBlockId, block);
+        server.HandleMessage(fwuDataBlockId, infra::MakeRange(block));
 
         ForwardTime(std::chrono::seconds(20));
         ForwardTime(std::chrono::seconds(10));
@@ -309,12 +306,12 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         hal::Can::Message verifyMsg;
         verifyMsg.resize(4, 0);
         CanFrameCodec::WriteInt32(verifyMsg, 0, static_cast<int32_t>(0xDEADBEEFu));
-        server.HandleMessage(fwuVerifyId, verifyMsg);
+        server.HandleMessage(fwuVerifyId, infra::MakeRange(verifyMsg));
 
         ForwardTime(std::chrono::seconds(60));
     }
@@ -333,10 +330,10 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         hal::Can::Message data;
-        server.HandleMessage(fwuAbortId, data);
+        server.HandleMessage(fwuAbortId, infra::MakeRange(data));
 
         ForwardTime(std::chrono::seconds(60));
     }
@@ -355,10 +352,10 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         hal::Can::Message data;
-        server.HandleMessage(fwuActivateId, data);
+        server.HandleMessage(fwuActivateId, infra::MakeRange(data));
 
         ForwardTime(std::chrono::seconds(60));
     }
@@ -378,14 +375,14 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        server.HandleMessage(fwuBeginUpgradeId, begin);
+        server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         ForwardTime(std::chrono::seconds(20));
         hal::Can::Message query;
-        server.HandleMessage(fwuQueryProgressId, query);
+        server.HandleMessage(fwuQueryProgressId, infra::MakeRange(query));
 
         ForwardTime(std::chrono::seconds(9));
-        server.HandleMessage(fwuQueryProgressId, query);
+        server.HandleMessage(fwuQueryProgressId, infra::MakeRange(query));
 
         ForwardTime(std::chrono::seconds(2));
     }
@@ -407,7 +404,7 @@ namespace
         hal::Can::Message begin;
         begin.resize(4, 0);
         CanFrameCodec::WriteInt32(begin, 0, 6);
-        shortServer.HandleMessage(fwuBeginUpgradeId, begin);
+        shortServer.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(begin));
 
         ForwardTime(std::chrono::seconds(10));
     }

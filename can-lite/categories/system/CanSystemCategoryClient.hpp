@@ -1,7 +1,6 @@
 #pragma once
 
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanMessageType.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
@@ -17,46 +16,24 @@ namespace services
     public:
         using infra::SingleObserver<CanSystemCategoryClientObserver, CanSystemCategoryClient>::SingleObserver;
 
-        virtual void OnCategoryListResponse(const hal::Can::Message& categoryIds) = 0;
+        virtual void OnCategoryListResponse(infra::ConstByteRange categoryIds) = 0;
     };
 
     class CanSystemCategoryClient
-        : public CanCategoryClient
+        : private CanCategoryHandlerStorage<2>
+        , public CanCategoryClient
         , public infra::Subject<CanSystemCategoryClientObserver>
     {
     public:
         CanSystemCategoryClient();
 
         uint8_t Id() const override;
+        bool RequiresSequenceValidation() const override;
 
         infra::Function<void(uint8_t category, uint8_t command, CanAckStatus status)> onCommandAck;
 
     private:
-        class CommandAckMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit CommandAckMessageType(CanSystemCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            CanSystemCategoryClient& parent;
-        };
-
-        class CategoryListResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit CategoryListResponseMessageType(CanSystemCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            CanSystemCategoryClient& parent;
-        };
-
-        CommandAckMessageType commandAck;
-        CategoryListResponseMessageType categoryListResponse;
+        bool HandleCommandAck(infra::ConstByteRange payload);
+        bool HandleCategoryListResponse(infra::ConstByteRange payload);
     };
 }

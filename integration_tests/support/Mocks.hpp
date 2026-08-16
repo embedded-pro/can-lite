@@ -35,7 +35,7 @@ namespace integration
         using services::FirmwareUpgradeCategoryServerObserver::FirmwareUpgradeCategoryServerObserver;
 
         MOCK_METHOD(void, OnBeginUpgrade, (uint32_t firmwareSize, const infra::Function<void(services::FwuError, uint16_t)>& onResult), (override));
-        MOCK_METHOD(void, OnDataBlock, (uint16_t blockIndex, const hal::Can::Message& data, const infra::Function<void(services::FwuError)>& onResult), (override));
+        MOCK_METHOD(void, OnDataBlock, (uint16_t blockIndex, infra::ConstByteRange data, const infra::Function<void(services::FwuError)>& onResult), (override));
         MOCK_METHOD(void, OnVerify, (uint32_t expectedCrc32, const infra::Function<void(services::FwuError)>& onResult), (override));
         MOCK_METHOD(void, OnActivate, (const infra::Function<void(services::FwuError)>& onResult), (override));
         MOCK_METHOD(void, OnAbort, (const infra::Function<void()>& onDone), (override));

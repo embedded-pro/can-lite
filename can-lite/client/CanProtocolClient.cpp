@@ -25,7 +25,7 @@ namespace services
         , client(client)
     {}
 
-    void CanProtocolClient::SystemObserver::OnCategoryListResponse(const hal::Can::Message& categoryIds)
+    void CanProtocolClient::SystemObserver::OnCategoryListResponse(infra::ConstByteRange categoryIds)
     {
         if (client.pendingDiscoveryCallback)
         {
@@ -58,30 +58,11 @@ namespace services
         isoTpTransport = &isoTp;
         isoTp.SetOnPduReceived([this](uint32_t rawId, infra::ConstByteRange pdu)
             {
-                DispatchPdu(rawId, pdu);
+                Dispatch(rawId, pdu);
             });
     }
 
-    void CanProtocolClient::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
-    {
-        auto sourceNodeId = ExtractCanNodeId(rawId);
-        if (sourceNodeId != 0)
-            MarkServerAlive(sourceNodeId);
-
-        auto categoryId = ExtractCanCategory(rawId);
-        auto messageType = ExtractCanMessageType(rawId);
-
-        for (auto& category : categories)
-        {
-            if (category.Id() == categoryId)
-            {
-                category.HandlePduMessage(messageType, pdu);
-                return;
-            }
-        }
-    }
-
-    void CanProtocolClient::DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone)
+    void CanProtocolClient::DiscoverCategories(uint16_t nodeId, const infra::Function<void(infra::ConstByteRange categoryIds)>& onDone)
     {
         pendingDiscoveryCallback = onDone;
 
@@ -137,6 +118,11 @@ namespace services
             isoTpTransport->ProcessFrame(rawId, data))
             return;
 
+        Dispatch(rawId, infra::MakeRange(data));
+    }
+
+    void CanProtocolClient::Dispatch(uint32_t rawId, infra::ConstByteRange payload)
+    {
         auto sourceNodeId = ExtractCanNodeId(rawId);
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
@@ -148,7 +134,7 @@ namespace services
         {
             if (category.Id() == categoryId)
             {
-                category.HandleMessage(messageType, data);
+                category.HandleMessage(messageType, payload);
                 return;
             }
         }

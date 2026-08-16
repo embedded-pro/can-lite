@@ -1,5 +1,4 @@
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
-#include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/core/CanFrameCodec.hpp"
 #include "can-lite/core/test/CanMock.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
@@ -38,7 +37,6 @@ namespace
         {
             explicit FixtureInit(StrictMock<hal::CanMock>& canMock)
             {
-                EXPECT_CALL(canMock, ReceiveData(_));
                 EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                     {
                         cb(true);
@@ -46,9 +44,8 @@ namespace
             }
         } fixtureInit{ canMock };
 
-        CanProtocolClient protocolClient{ canMock };
         CanFrameTransport transport{ canMock, 1 };
-        FirmwareUpgradeCategoryClient client{ transport, protocolClient };
+        FirmwareUpgradeCategoryClient client{ transport };
     };
 
     class TestFirmwareUpgradeCategoryClientWithObserver : public TestFirmwareUpgradeCategoryClient
@@ -175,14 +172,14 @@ namespace
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(FwuError::ok);
         CanFrameCodec::WriteUInt16(data, 1, 4096);
-        client.HandleMessage(fwuBeginResponseId, data);
+        client.HandleMessage(fwuBeginResponseId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClient, BeginResponse_TooShortIgnored)
     {
         hal::Can::Message data;
         data.resize(2, 0);
-        client.HandleMessage(fwuBeginResponseId, data);
+        client.HandleMessage(fwuBeginResponseId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, DataBlockAck_ParsesStatusAndIndex)
@@ -193,7 +190,7 @@ namespace
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(FwuError::writeError);
         CanFrameCodec::WriteUInt16(data, 1, 5);
-        client.HandleMessage(fwuDataBlockAckId, data);
+        client.HandleMessage(fwuDataBlockAckId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, VerifyResponse_ParsesStatus)
@@ -202,13 +199,13 @@ namespace
 
         hal::Can::Message data;
         data.push_back(static_cast<uint8_t>(FwuError::crcMismatch));
-        client.HandleMessage(fwuVerifyResponseId, data);
+        client.HandleMessage(fwuVerifyResponseId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClient, VerifyResponse_EmptyIgnored)
     {
         hal::Can::Message data;
-        client.HandleMessage(fwuVerifyResponseId, data);
+        client.HandleMessage(fwuVerifyResponseId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ActivateResponse_ParsesStatus)
@@ -217,7 +214,7 @@ namespace
 
         hal::Can::Message data;
         data.push_back(static_cast<uint8_t>(FwuError::notReady));
-        client.HandleMessage(fwuActivateResponseId, data);
+        client.HandleMessage(fwuActivateResponseId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ProgressResponse_ParsesAllFields)
@@ -229,14 +226,14 @@ namespace
         data[0] = static_cast<uint8_t>(FwuState::receiving);
         CanFrameCodec::WriteUInt16(data, 1, 100);
         CanFrameCodec::WriteUInt16(data, 3, 2048);
-        client.HandleMessage(fwuProgressResponseId, data);
+        client.HandleMessage(fwuProgressResponseId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClient, ProgressResponse_TooShortIgnored)
     {
         hal::Can::Message data;
         data.resize(4, 0);
-        client.HandleMessage(fwuProgressResponseId, data);
+        client.HandleMessage(fwuProgressResponseId, infra::MakeRange(data));
     }
 
     // --- Boundary values (high-bit fields) ---
@@ -280,7 +277,7 @@ namespace
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(FwuError::ok);
         CanFrameCodec::WriteUInt16(data, 1, 0xC000u);
-        client.HandleMessage(fwuBeginResponseId, data);
+        client.HandleMessage(fwuBeginResponseId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, DataBlockAck_ParsesHighBlockIndex)
@@ -291,7 +288,7 @@ namespace
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(FwuError::ok);
         CanFrameCodec::WriteUInt16(data, 1, 0xFFFFu);
-        client.HandleMessage(fwuDataBlockAckId, data);
+        client.HandleMessage(fwuDataBlockAckId, infra::MakeRange(data));
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ProgressResponse_ParsesHighBlockCounts)
@@ -303,6 +300,6 @@ namespace
         data[0] = static_cast<uint8_t>(FwuState::receiving);
         CanFrameCodec::WriteUInt16(data, 1, 0x8001u);
         CanFrameCodec::WriteUInt16(data, 3, 0xFFFFu);
-        client.HandleMessage(fwuProgressResponseId, data);
+        client.HandleMessage(fwuProgressResponseId, infra::MakeRange(data));
     }
 }

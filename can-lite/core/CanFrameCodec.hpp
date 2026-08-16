@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hal/interfaces/Can.hpp"
+#include "infra/util/ByteRange.hpp"
 #include <cstdint>
 
 namespace services
@@ -14,13 +15,18 @@ namespace services
         static float Fixed32ToFloat(int32_t value, int32_t scale);
 
         static void WriteInt16(hal::Can::Message& msg, std::size_t offset, int16_t value);
-        static int16_t ReadInt16(const hal::Can::Message& msg, std::size_t offset);
         static void WriteInt32(hal::Can::Message& msg, std::size_t offset, int32_t value);
-        static int32_t ReadInt32(const hal::Can::Message& msg, std::size_t offset);
-
         static void WriteUInt16(hal::Can::Message& msg, std::size_t offset, uint16_t value);
-        static uint16_t ReadUInt16(const hal::Can::Message& msg, std::size_t offset);
         static void WriteUInt32(hal::Can::Message& msg, std::size_t offset, uint32_t value);
+
+        static int16_t ReadInt16(infra::ConstByteRange payload, std::size_t offset);
+        static int32_t ReadInt32(infra::ConstByteRange payload, std::size_t offset);
+        static uint16_t ReadUInt16(infra::ConstByteRange payload, std::size_t offset);
+        static uint32_t ReadUInt32(infra::ConstByteRange payload, std::size_t offset);
+
+        static int16_t ReadInt16(const hal::Can::Message& msg, std::size_t offset);
+        static int32_t ReadInt32(const hal::Can::Message& msg, std::size_t offset);
+        static uint16_t ReadUInt16(const hal::Can::Message& msg, std::size_t offset);
         static uint32_t ReadUInt32(const hal::Can::Message& msg, std::size_t offset);
     };
 }

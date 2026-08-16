@@ -65,6 +65,7 @@ namespace services
         };
 
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
+        void Dispatch(uint32_t rawId, infra::ConstByteRange payload);
         void SendHeartbeat();
         void SendCategoryList();
         bool CheckAndIncrementRate();
@@ -72,7 +73,6 @@ namespace services
         bool ValidateSequence(uint8_t sequenceNumber);
         CanCategoryServer* FindCategory(uint8_t categoryId);
         void ResetHeartbeatTimer();
-        void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
 
         Config config;
         CanFrameTransport transport;

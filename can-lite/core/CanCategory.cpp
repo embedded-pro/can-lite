@@ -3,39 +3,26 @@
 
 namespace services
 {
-    void CanCategory::AddMessageType(CanMessageType& messageType)
+    CanCategory::CanCategory(infra::BoundedVector<CanMessageTypeBinding>& messageTypes)
+        : messageTypes(messageTypes)
+    {}
+
+    void CanCategory::AddMessageType(uint8_t messageType, const CanMessageHandler& handler)
     {
-        messageTypes.push_back(messageType);
+        for (const auto& binding : messageTypes)
+            really_assert(binding.messageType != messageType);
+
+        really_assert(!messageTypes.full());
+        messageTypes.push_back(CanMessageTypeBinding{ messageType, handler });
     }
 
-    bool CanCategory::HandleMessage(uint8_t messageType, const hal::Can::Message& data)
+    CanDispatchResult CanCategory::HandleMessage(uint8_t messageType, infra::ConstByteRange payload) const
     {
-        for (auto& handler : messageTypes)
-        {
-            if (handler.Id() == messageType)
-            {
-                handler.Handle(data);
-                return true;
-            }
-        }
+        for (const auto& binding : messageTypes)
+            if (binding.messageType == messageType)
+                return binding.handler(payload) ? CanDispatchResult::handled : CanDispatchResult::rejected;
 
-        return false;
-    }
-
-    bool CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
-    {
-        for (auto& handler : messageTypes)
-        {
-            if (handler.Id() == messageType)
-                return handler.HandlePdu(pdu);
-        }
-
-        return false;
-    }
-
-    bool CanCategoryServer::RequiresSequenceValidation() const
-    {
-        return true;
+        return CanDispatchResult::unknownMessageType;
     }
 
     void CanCategoryServer::SetAcknowledger(CanCommandAcknowledger& ack)
@@ -47,10 +34,5 @@ namespace services
     {
         really_assert(acknowledger != nullptr);
         acknowledger->SendCommandAck(Id(), messageType, status);
-    }
-
-    bool CanCategoryClient::RequiresSequenceValidation() const
-    {
-        return false;
     }
 }
