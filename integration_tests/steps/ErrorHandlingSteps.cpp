@@ -127,29 +127,28 @@ WHEN(R"(a frame is received with system category and unknown message type {int})
     fixture.serverCan.InjectFrame(id, msg);
 }
 
-GIVEN(R"(the FOC motor category is registered on the server)")
-{
-    auto& fixture = context.Get<ApplicationFixture>();
-    fixture.RegisterFocMotorServerOnly();
-}
-
-WHEN(R"(the client sends a set PID current command with only {int} bytes)", (std::int32_t byteCount))
+WHEN(R"(the client sends a command to category {int} with a payload shorter than the handler requires)", (std::int32_t category))
 {
     auto& fixture = context.Get<ApplicationFixture>();
 
-    uint32_t rawId = MakeCanId(CanPriority::command, focMotorCategoryId,
-        focSetPidCurrentId, fixture.config.nodeId);
+    uint32_t rawId = MakeCanId(CanPriority::command, static_cast<uint8_t>(category),
+        0x02, fixture.config.nodeId);
     auto id = hal::Can::Id::Create29BitId(rawId);
     hal::Can::Message msg;
-    for (std::int32_t i = 0; i < byteCount; ++i)
-        msg.push_back(static_cast<uint8_t>(i));
+    msg.push_back(0x00);
+    msg.push_back(0x11);
+    msg.push_back(0x22);
 
     fixture.serverCan.InjectFrame(id, msg);
 }
 
-THEN(R"(the motor server observer shall not have received a PID current command)")
+THEN(R"(the server category handler shall not have accepted the command)")
 {
-    SUCCEED();
+    auto& fixture = context.Get<ApplicationFixture>();
+    auto* category = fixture.FindSequencedCategory(3);
+    ASSERT_NE(category, nullptr);
+    EXPECT_EQ(category->validatedMsg.handleCount, 0);
+    EXPECT_EQ(category->validatedMsg.rejectedCount, 1);
 }
 
 WHEN(R"(the client receives a response for unregistered category {int})", (std::int32_t category))

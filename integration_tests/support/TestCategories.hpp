@@ -2,21 +2,24 @@
 
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanMessageType.hpp"
+#include <cstddef>
 
 namespace integration
 {
     class TestMessageType : public services::CanMessageType
     {
     public:
-        explicit TestMessageType(uint8_t id);
+        TestMessageType(uint8_t id, std::size_t minimumPayloadSize);
 
         uint8_t Id() const override;
         void Handle(const hal::Can::Message&) override;
 
         int handleCount = 0;
+        int rejectedCount = 0;
 
     private:
         uint8_t msgId;
+        std::size_t minimumPayloadSize;
     };
 
     class SequencedTestCategory : public services::CanCategoryServer
@@ -28,6 +31,7 @@ namespace integration
         bool RequiresSequenceValidation() const override;
 
         TestMessageType msg;
+        TestMessageType validatedMsg;
 
     private:
         uint8_t catId;

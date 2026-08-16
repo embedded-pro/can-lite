@@ -17,11 +17,6 @@ namespace integration
 
     ApplicationFixture::~ApplicationFixture()
     {
-        if (motorClient)
-            client.UnregisterCategory(*motorClient);
-        if (motorServer)
-            server.UnregisterCategory(*motorServer);
-
         if (fwuClient)
             client.UnregisterCategory(*fwuClient);
         if (fwuServer)
@@ -31,25 +26,6 @@ namespace integration
             server.UnregisterCategory(cat);
         for (auto& cat : simpleCategories)
             server.UnregisterCategory(cat);
-    }
-
-    void ApplicationFixture::RegisterFocMotor()
-    {
-        motorServer.emplace(server.Transport());
-        motorServerObserver.emplace(*motorServer);
-        server.RegisterCategory(*motorServer);
-
-        clientTransport.emplace(clientCan, config.nodeId);
-        motorClient.emplace(*clientTransport, client);
-        motorClientObserver.emplace(*motorClient);
-        client.RegisterCategory(*motorClient);
-    }
-
-    void ApplicationFixture::RegisterFocMotorServerOnly()
-    {
-        motorServer.emplace(server.Transport());
-        motorServerObserver.emplace(*motorServer);
-        server.RegisterCategory(*motorServer);
     }
 
     void ApplicationFixture::RegisterFirmwareUpgrade()

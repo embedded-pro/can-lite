@@ -27,11 +27,10 @@ Feature: Error Handling
     Then the server shall send an acknowledgement with status "unknownCommand"
 
   @REQ-CAN-016
-  Scenario: Short payload on PID command is silently ignored by handler
-    Given the FOC motor category is registered on the server
-    And a sequenced test category with ID 3 is registered on the server
-    When the client sends a set PID current command with only 3 bytes
-    Then the motor server observer shall not have received a PID current command
+  Scenario: A payload shorter than the message type requires is rejected
+    Given a sequenced test category with ID 3 is registered on the server
+    When the client sends a command to category 3 with a payload shorter than the handler requires
+    Then the server category handler shall not have accepted the command
 
   Scenario: Client silently ignores messages from unregistered categories
     When the client receives a response for unregistered category 14

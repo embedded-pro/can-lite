@@ -2,8 +2,6 @@
 
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryServer.hpp"
-#include "can-lite/categories/foc_motor/FocMotorCategoryClient.hpp"
-#include "can-lite/categories/foc_motor/FocMotorCategoryServer.hpp"
 #include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
@@ -27,8 +25,6 @@ namespace integration
         ApplicationFixture(uint16_t nodeId, uint16_t rateLimit);
         ~ApplicationFixture();
 
-        void RegisterFocMotor();
-        void RegisterFocMotorServerOnly();
         void RegisterFirmwareUpgrade();
         SequencedTestCategory& RegisterSequencedCategory(uint8_t id);
         SimpleTestCategory& RegisterSimpleCategory(uint8_t id);
@@ -41,17 +37,6 @@ namespace integration
         services::CanProtocolServer server;
         testing::StrictMock<ServerObserverMock> serverObserver;
         services::CanProtocolClient client;
-
-        std::optional<services::FocMotorCategoryServer> motorServer;
-        std::optional<testing::StrictMock<FocMotorServerObserverMock>> motorServerObserver;
-        std::optional<services::CanFrameTransport> clientTransport;
-        std::optional<services::FocMotorCategoryClient> motorClient;
-        std::optional<testing::StrictMock<FocMotorClientObserverMock>> motorClientObserver;
-
-        infra::Function<void(services::FocMotorMode)> capturedQueryMotorTypeResult;
-        infra::Function<void(services::FocElectricalParams)> capturedIdentifyElectricalResult;
-        infra::Function<void(services::FocMechanicalParams)> capturedIdentifyMechanicalResult;
-        infra::Function<void(services::FocTelemetryElectrical, services::FocTelemetryStatus)> capturedRequestTelemetryResult;
 
         std::optional<services::FirmwareUpgradeCategoryServer> fwuServer;
         std::optional<testing::StrictMock<FirmwareUpgradeServerObserverMock>> fwuServerObserver;
