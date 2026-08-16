@@ -3,7 +3,8 @@
 # Architecture: Client-Server over CAN 2.0B (29-bit extended identifiers)
 #   - Server: listens for commands from clients, has its own node ID
 #   - Client: initiates all requests, can address multiple servers
-#   - Default category: System (heartbeat, acknowledgement, status request)
+#   - Management categories: System (heartbeat, acknowledgement, status
+#     request, discovery) and Firmware Upgrade
 #   - Additional categories are defined by the application layer
 
 # --- Transport & Framing ---
@@ -56,7 +57,7 @@
     The client shall support communication with multiple servers on
     the same CAN bus by addressing frames to different server node
     addresses. The client shall maintain independent sequence counters
-    per server.
+    per server node and per category.
 
 - id: REQ-CAN-007
   title: Broadcast message support
@@ -110,10 +111,14 @@
   title: Command acknowledgement
   shall: >
     The server shall transmit an acknowledgement frame for every
-    processed command, containing the original command's category,
-    message type, and a status code indicating success or the
-    specific error condition (unknown command, invalid payload,
-    invalid state, sequence error, or rate limited).
+    processed command. The payload shall always be exactly 5 bytes:
+    the original command's category, its message type, a status code
+    (success, unknown command, invalid payload, invalid state,
+    sequence error, rate limited or not implemented), a correlation
+    byte echoing the sequence number of the acknowledged command,
+    and the sequence number the server expects next. The field
+    meanings shall not vary with the status. The expected-sequence
+    byte shall be meaningful only when the status is sequence error.
 
 - id: REQ-CAN-012
   title: Status request
@@ -138,10 +143,32 @@
   title: Application-defined categories
   shall: >
     The protocol shall allow applications to define additional
-    message categories beyond the built-in System category by
-    registering custom category handlers on the server. The
+    message categories beyond the management categories by
+    registering their own category handlers on the server. A category
+    handler shall take its category ID as a constructor parameter so
+    that the integrator, not the library, owns the assignment. The
     maximum number of registered category handlers shall be
     bounded at compile time.
+
+- id: REQ-CAN-014.1
+  title: Category identifier ranges
+  shall: >
+    Category identifiers 0x0 to 0x1 shall be reserved for management
+    categories defined by this specification, 0x2 to 0x7 shall be
+    assigned by the integrator to application categories, and 0x8 to
+    0xF shall be reserved. The category field on the wire shall remain
+    4 bits wide; the narrower range shall be enforced as a protocol
+    invariant when a category is registered. A node shall therefore
+    support at most 8 registered categories.
+
+- id: REQ-CAN-014.2
+  title: Category registration validation
+  shall: >
+    Registering a category whose identifier lies outside 0x0 to 0x7,
+    whose identifier duplicates an already registered category, or
+    which would exceed the maximum category count shall be treated as
+    a programming error and shall be rejected at registration on both
+    the server and the client.
 
 # --- Data Encoding ---
 
@@ -171,7 +198,28 @@
     commands shall be accepted only if their sequence number equals
     the previous sequence number plus one, modulo 256.
     Out-of-sequence commands shall be rejected with a sequence
-    error response.
+    error response that carries the sequence number the server
+    expects next, so that the sender can resynchronise. Sequence
+    state shall be tracked per (peer node, category) pair on both
+    ends, so that loss of synchronisation on one category does not
+    affect any other.
+
+- id: REQ-CAN-017.1
+  title: Sequence resynchronisation
+  shall: >
+    On receiving an acknowledgement with sequence error status, the
+    client shall adopt the expected sequence number reported in that
+    acknowledgement for the affected peer and category, so that a
+    single lost frame does not permanently prevent further
+    communication.
+
+- id: REQ-CAN-017.2
+  title: Bounded peer sequence state
+  shall: >
+    Sequence state shall be held in fixed-size storage. When the
+    number of peers exceeds the available storage, the implementation
+    shall reuse the oldest entry rather than abort; the displaced peer
+    shall renegotiate its sequence on its next message.
 
 - id: REQ-CAN-018
   title: Sequence number wrap-around
@@ -182,10 +230,9 @@
 - id: REQ-CAN-019
   title: Sequence bypass per category
   shall: >
-    Individual category handlers shall be able to declare whether
-    they require sequence number validation. Categories or specific
-    message types that do not require sequencing shall bypass
-    validation entirely.
+    Each category handler shall declare for itself whether it requires
+    sequence number validation. Categories that do not require
+    sequencing shall bypass validation entirely.
 
 # --- Error Handling ---
 
@@ -239,7 +286,8 @@
     to a server. Upon receiving this message, the server shall respond
     with a category list response containing the IDs of all registered
     category handlers. The response payload shall list one category ID
-    per byte, limited to the maximum CAN frame payload size (8 bytes).
+    per byte. The list shall never be truncated: the maximum category
+    count (REQ-CAN-014.1) guarantees that it fits in one frame.
 
 # --- Multi-Server Client ---
 
@@ -247,11 +295,11 @@
   title: Per-server sequence counter on client
   shall: >
     The client shall maintain independent 8-bit sequence counters for
-    each server node it communicates with. The sequence counter for a
-    node shall start at 0 on the first command and increment by 1 for
-    each subsequent command to that same node. Counters for different
-    nodes shall be independent. Up to 8 server nodes may be tracked
-    simultaneously.
+    each (server node, category) pair it communicates with. A counter
+    shall start at 0 on the first command and increment by 1 for
+    each subsequent command on that pair. Counters for different nodes
+    and for different categories shall be independent. Up to 8 server
+    nodes may be tracked simultaneously per category.
 
 - id: REQ-CAN-027
   title: Server liveness detection

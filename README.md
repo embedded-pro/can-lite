@@ -14,7 +14,9 @@ can-lite provides a minimal CAN protocol framework with a clear client-server ar
 - **Server** — Listens for commands from clients, processes them via category-based dispatch, and sends acknowledgement responses. Each server has a unique 12-bit node ID.
 - **Client** — Initiates all requests and queries. A single client can communicate with multiple servers on the same CAN bus.
 
-The protocol ships with a built-in **System** category (heartbeat, command acknowledgement, status request). Applications extend it by registering custom category handlers for domain-specific messages.
+The protocol ships with two management categories: **System** (heartbeat, command acknowledgement, status request, category discovery) and **Firmware Upgrade**. Applications extend it by registering their own category handlers for domain-specific messages.
+
+A category belongs in can-lite if and only if it concerns the node as a protocol participant or as a device, and is agnostic to what the device does. A category that ascribes meaning to the payload in application terms belongs to the consumer, which assigns it an ID from the integrator range and registers it from its own composition root.
 
 ## Features
 
@@ -22,8 +24,9 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **Client-Server Architecture**: Clear separation of roles — client initiates, server responds
 - **Multi-Server Support**: One client can address multiple servers via node IDs
 - **Category-Based Dispatch**: Extensible message routing via pluggable category handlers (server/client pairs)
+- **Category ID Policy**: 0x0-0x1 management (can-lite), 0x2-0x7 integrator-assigned, 0x8-0xF reserved; at most 8 categories per node
 - **Built-in System Category**: Heartbeat, command acknowledgement, status request, and category discovery out of the box
-- **Sequence Validation**: 8-bit sequence counter with per-category opt-in
+- **Sequence Validation**: 8-bit sequence counter per (peer, category), with per-category opt-in and automatic resynchronisation after a lost frame
 - **Rate Limiting**: Configurable message rate enforcement on the server
 - **Fixed-Point Codec**: Saturation-clamped encoding for float-to-integer conversion
 - **ISO-TP (ISO 15765-2)**: Optional multi-frame segmentation and reassembly for payloads > 8 bytes
@@ -83,13 +86,13 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 │   │   ├── CanProtocolDefinitions.hpp  # Enums, constants, CAN ID layout
 │   │   ├── CanFrameCodec.hpp           # Fixed-point encoding/decoding
 │   │   ├── CanFrameTransport.hpp       # Async frame queue and send
-│   │   ├── CanCategory.hpp             # Base category hierarchy (Server/Client)
-│   │   ├── CanMessageType.hpp          # Message handler interface
+│   │   ├── CanCategory.hpp             # Base category hierarchy (Server/Client) and handler binding
+│   │   ├── CanCategoryOutbound.hpp     # Per-category outbound handle (sending, sequencing, ack)
+│   │   ├── CanSequenceTable.hpp        # Per-peer sequence state
 │   │   └── test/                       # Core unit tests
-│   ├── categories/             # Category implementations (server/client pairs)
-│   │   ├── system/             # Built-in System category (heartbeat, ack, discovery)
-│   │   ├── firmware_upgrade/   # Firmware Upgrade category (extension example)
-│   │   └── foc_motor/          # FOC Motor Control category (extension example)
+│   ├── categories/             # Management category implementations (server/client pairs)
+│   │   ├── system/             # System category 0x0 (heartbeat, ack, discovery)
+│   │   └── firmware_upgrade/   # Firmware Upgrade category 0x1
 │   ├── server/                 # Server implementation
 │   │   ├── CanProtocolServer.hpp       # Server with dispatch & observer
 │   │   └── test/                       # Server unit tests
@@ -101,6 +104,11 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 │   │   ├── IsoTpTransportImpl.hpp/cpp  # Concrete impl (WithStorage, zero-heap)
 │   │   ├── iso-tp/                     # ISO 15765-2 internals (all non-template with WithStorage)
 │   │   └── test/                       # Transport unit tests
+│   ├── testing/                # can_lite.testing: echo category + virtual CAN bus
+│   │   ├── EchoCategoryServer.hpp/cpp  # Reference example for a consumer category
+│   │   ├── EchoCategoryClient.hpp/cpp
+│   │   ├── VirtualCan.hpp/cpp          # Two-node in-memory bus for host tests
+│   │   └── test/                       # Echo category unit tests
 │   └── drivers/                # Hardware driver adapters
 ├── documents/
 │   ├── design/                 # Architecture & design decisions
@@ -121,21 +129,30 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 - **Observer Pattern**: Decouples protocol events from application logic using `infra::Subject` / `infra::SingleObserver`
 - **Interface-Driven Design**: Pure virtual interfaces (`CanProtocolServer`, `CanProtocolClient`) enable mocking and testing
 - **Type-Safe Categories**: Compile-time separation via `CanCategoryServer` / `CanCategoryClient` prevents cross-registration
-- **Category Extensibility**: Register custom category implementations (server/client pairs) for application-specific messages
+- **Category Extensibility**: Register your own category implementations (server/client pairs) for application-specific messages; `can_lite.testing`'s echo category is the reference example
+- **Explicit Composition**: Categories are registered by explicit `RegisterCategory` calls in a composition root — there is no plugin registry or self-registration
 
 ### Safety
 - **Deterministic Execution**: No dynamic allocation or unbounded loops in message paths
 - **Input Validation**: All payloads length-checked before parsing
 - **Rate Limiting**: Configurable per-server message rate enforcement
-- **Sequence Validation**: Per-category opt-in replay protection
+- **Sequence Validation**: Per-category opt-in replay protection, tracked per (peer, category)
+
+## Adding Your Own Category
+
+1. Pick a category ID in the integrator range (0x2-0x7) and pass it to your category's constructor — do not hard-code it as a `constexpr`.
+2. Implement a `CanCategoryServer` and a `CanCategoryClient` pair, binding one handler per message type. Commands use message types 0x00-0x7F, responses 0x80-0xFF.
+3. Register both from your composition root with `CanProtocolServer::RegisterCategory` and `CanProtocolClient::RegisterCategory`.
+
+`can-lite/testing/EchoCategoryServer.hpp` and `EchoCategoryClient.hpp` are the reference example: a deliberately meaningless category that exercises registration, dispatch, sequencing, rate limiting, discovery, ISO-TP and acknowledgement. Link `can_lite.testing` to reuse it, and `VirtualCan` with it, in your own host tests.
 
 ## Documentation
 
 - [Architecture & Design](documents/design/architecture.md) — Architecture decisions and design patterns
 - [Protocol Specification](documents/spec/can-protocol.md) — Full wire-format specification
-- [FOC Motor Control Specification](documents/spec/foc-motor-control.md) — FOC Motor Control category specification
 - [Firmware Upgrade Specification](documents/spec/firmware-upgrade.md) — Firmware Upgrade category specification
 - [Protocol Requirements](documents/requirements/can-protocol.yaml) — Formal requirements
+- [Migration Guide](MIGRATION.md) — Upgrading from 0.x to 1.0.0
 - [Copilot Instructions](.github/copilot-instructions.md) — Development guidelines
 
 ## Contributing
