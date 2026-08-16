@@ -2,7 +2,6 @@
 
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
-#include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
 
@@ -16,6 +15,7 @@ namespace services
     public:
         using infra::SingleObserver<CanSystemCategoryClientObserver, CanSystemCategoryClient>::SingleObserver;
 
+        virtual void OnCommandAck(const CanCommandAck& ack) = 0;
         virtual void OnCategoryListResponse(infra::ConstByteRange categoryIds) = 0;
     };
 
@@ -29,8 +29,6 @@ namespace services
 
         uint8_t Id() const override;
         bool RequiresSequenceValidation() const override;
-
-        infra::Function<void(uint8_t category, uint8_t command, CanAckStatus status)> onCommandAck;
 
     private:
         bool HandleCommandAck(infra::ConstByteRange payload);

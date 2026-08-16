@@ -12,8 +12,7 @@ namespace services
               })
         , systemObserver(systemCategory, *this)
     {
-        systemCategory.SetAcknowledger(*this);
-        categories.push_back(systemCategory);
+        RegisterCategory(systemCategory);
 
         can.ReceiveData([this](hal::Can::Id id, const hal::Can::Message& data)
             {
@@ -53,16 +52,26 @@ namespace services
 
     void CanProtocolServer::RegisterCategory(CanCategoryServer& category)
     {
+        really_assert(category.Id() <= canMaxCategoryId);
+        really_assert(categoryCount < canMaxCategories);
+
         for (auto& existing : categories)
             really_assert(existing.Id() != category.Id());
 
-        category.SetAcknowledger(*this);
+        category.AttachOutbound(AllocateOutbound(category.Id()));
         categories.push_back(category);
+        ++categoryCount;
     }
 
     void CanProtocolServer::UnregisterCategory(CanCategoryServer& category)
     {
+        auto outbound = FindOutbound(category.Id());
+        if (outbound != nullptr)
+            outbound->Unbind();
+
+        category.DetachOutbound();
         categories.erase(category);
+        --categoryCount;
     }
 
     void CanProtocolServer::AttachIsoTpTransport(IsoTpTransport& isoTp)
@@ -105,28 +114,43 @@ namespace services
         if (category == nullptr)
             return;
 
+        auto outbound = FindOutbound(categoryId);
+        if (outbound == nullptr)
+            return;
+
+        uint8_t correlation = 0;
+
         if (category->RequiresSequenceValidation())
         {
             if (payload.empty())
             {
-                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                outbound->SendAckWith(config.nodeId, messageType, CanAckStatus::invalidPayload, 0, 0);
                 return;
             }
 
-            if (!ValidateSequence(payload.front()))
+            correlation = payload.front();
+
+            auto validation = outbound->ValidateSequence(targetNodeId, correlation);
+            if (!validation.accepted)
             {
-                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError);
+                // The acknowledgement carries the sequence the server expects,
+                // so a peer that lost a frame can resynchronise instead of
+                // being locked out for good.
+                outbound->SendAckWith(config.nodeId, messageType, CanAckStatus::sequenceError,
+                    correlation, validation.expected);
                 return;
             }
         }
 
+        outbound->BeginRequest(targetNodeId, correlation);
+
         switch (category->HandleMessage(messageType, payload))
         {
             case CanDispatchResult::unknownMessageType:
-                SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+                outbound->SendAckWith(config.nodeId, messageType, CanAckStatus::unknownCommand, correlation, 0);
                 break;
             case CanDispatchResult::rejected:
-                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                outbound->SendAckWith(config.nodeId, messageType, CanAckStatus::invalidPayload, correlation, 0);
                 break;
             case CanDispatchResult::handled:
                 break;
@@ -144,14 +168,27 @@ namespace services
         return nullptr;
     }
 
-    void CanProtocolServer::SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status)
+    CanCategoryOutboundImpl* CanProtocolServer::FindOutbound(uint8_t categoryId)
     {
-        hal::Can::Message msg;
-        msg.push_back(category);
-        msg.push_back(commandType);
-        msg.push_back(static_cast<uint8_t>(status));
+        for (auto& outbound : outbounds)
+            if (outbound.IsBoundTo(categoryId))
+                return &outbound;
 
-        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCommandAckMessageTypeId, msg, [] {});
+        return nullptr;
+    }
+
+    CanCategoryOutboundImpl& CanProtocolServer::AllocateOutbound(uint8_t categoryId)
+    {
+        for (auto& outbound : outbounds)
+            if (!outbound.IsBound())
+            {
+                outbound.Bind(transport, categoryId);
+                return outbound;
+            }
+
+        // Unreachable: registration already limits the number of categories.
+        really_assert(false);
+        return outbounds.front();
     }
 
     void CanProtocolServer::SendHeartbeat()
@@ -174,9 +211,10 @@ namespace services
     {
         hal::Can::Message msg;
 
+        // Registration guarantees at most canMaxCategories categories, so the
+        // list always fits in one frame and never needs truncating.
         for (auto& category : categories)
-            if (!msg.full())
-                msg.push_back(category.Id());
+            msg.push_back(category.Id());
 
         transport.SendFrame(CanPriority::response, canSystemCategoryId, canCategoryListResponseMessageTypeId, msg, [] {});
     }
@@ -192,23 +230,6 @@ namespace services
             return false;
 
         ++messageCountThisPeriod;
-        return true;
-    }
-
-    bool CanProtocolServer::ValidateSequence(uint8_t sequenceNumber)
-    {
-        if (!sequenceInitialized)
-        {
-            sequenceInitialized = true;
-            lastSequenceNumber = sequenceNumber;
-            return true;
-        }
-
-        auto expected = static_cast<uint8_t>(lastSequenceNumber + 1);
-        if (sequenceNumber != expected)
-            return false;
-
-        lastSequenceNumber = sequenceNumber;
         return true;
     }
 

@@ -2,6 +2,7 @@
 
 #include "can-lite/categories/system/CanSystemCategoryClient.hpp"
 #include "can-lite/core/CanCategory.hpp"
+#include "can-lite/core/CanCategoryOutbound.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "can-lite/transport/IsoTpTransport.hpp"
@@ -53,9 +54,6 @@ namespace services
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
 
-        uint8_t PeekSequence(uint16_t nodeId);
-        void CommitSequence(uint16_t nodeId);
-
     private:
         class SystemObserver
             : public CanSystemCategoryClientObserver
@@ -63,6 +61,7 @@ namespace services
         public:
             SystemObserver(CanSystemCategoryClient& subject, CanProtocolClient& client);
 
+            void OnCommandAck(const CanCommandAck& ack) override;
             void OnCategoryListResponse(infra::ConstByteRange categoryIds) override;
 
         private:
@@ -73,13 +72,8 @@ namespace services
         void Dispatch(uint32_t rawId, infra::ConstByteRange payload);
         void MarkServerAlive(uint16_t nodeId);
         void HandleServerTimeout(uint16_t nodeId);
-
-        struct PerServerState
-        {
-            uint16_t nodeId = 0;
-            uint8_t sequenceCounter = 0;
-            bool occupied = false;
-        };
+        CanCategoryOutboundImpl* FindOutbound(uint8_t categoryId);
+        CanCategoryOutboundImpl& AllocateOutbound(uint8_t categoryId);
 
         struct ServerLiveness
         {
@@ -96,9 +90,11 @@ namespace services
         CanSystemCategoryClient systemCategory;
         SystemObserver systemObserver;
         infra::IntrusiveList<CanCategoryClient> categories;
+        uint8_t categoryCount = 0;
+        std::array<CanCategoryOutboundImpl, canMaxCategories> outbounds;
         infra::Function<void(infra::ConstByteRange categoryIds)> pendingDiscoveryCallback;
-        std::array<PerServerState, maxServers> serverStates;
         std::array<ServerLiveness, maxServers> serverLiveness;
+        uint16_t currentSourceNodeId = 0;
         IsoTpTransport* isoTpTransport = nullptr;
     };
 }

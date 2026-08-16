@@ -40,7 +40,6 @@ namespace integration
 
         std::optional<services::FirmwareUpgradeCategoryServer> fwuServer;
         std::optional<testing::StrictMock<FirmwareUpgradeServerObserverMock>> fwuServerObserver;
-        std::optional<services::CanFrameTransport> fwuClientTransport;
         std::optional<services::FirmwareUpgradeCategoryClient> fwuClient;
         std::optional<testing::StrictMock<FirmwareUpgradeClientObserverMock>> fwuClientObserver;
 

@@ -27,11 +27,15 @@ namespace services
 
     bool CanSystemCategoryClient::HandleCommandAck(infra::ConstByteRange payload)
     {
-        if (payload.size() < 3)
+        if (payload.size() < canCommandAckSize)
             return false;
 
-        if (onCommandAck)
-            onCommandAck(payload[0], payload[1], static_cast<CanAckStatus>(payload[2]));
+        CanCommandAck ack{ payload[0], payload[1], static_cast<CanAckStatus>(payload[2]), payload[3], payload[4] };
+
+        NotifyObservers([&ack](auto& observer)
+            {
+                observer.OnCommandAck(ack);
+            });
 
         return true;
     }

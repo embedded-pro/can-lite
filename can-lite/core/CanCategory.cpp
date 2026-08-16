@@ -25,14 +25,23 @@ namespace services
         return CanDispatchResult::unknownMessageType;
     }
 
-    void CanCategoryServer::SetAcknowledger(CanCommandAcknowledger& ack)
+    void CanCategory::AttachOutbound(CanCategoryOutbound& newOutbound)
     {
-        acknowledger = &ack;
+        outbound = &newOutbound;
+    }
+
+    void CanCategory::DetachOutbound()
+    {
+        outbound = &CanCategoryOutboundNull::Instance();
+    }
+
+    CanCategoryOutbound& CanCategory::Outbound() const
+    {
+        return *outbound;
     }
 
     void CanCategoryServer::SendCommandAck(uint8_t messageType, CanAckStatus status)
     {
-        really_assert(acknowledger != nullptr);
-        acknowledger->SendCommandAck(Id(), messageType, status);
+        Outbound().SendAck(messageType, status);
     }
 }

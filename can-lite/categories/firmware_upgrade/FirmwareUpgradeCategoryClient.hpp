@@ -2,7 +2,7 @@
 
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeDefinitions.hpp"
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanFrameTransport.hpp"
+#include "hal/interfaces/Can.hpp"
 #include "infra/util/ByteRange.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
@@ -30,7 +30,7 @@ namespace services
         , public infra::Subject<FirmwareUpgradeCategoryClientObserver>
     {
     public:
-        explicit FirmwareUpgradeCategoryClient(CanFrameTransport& transport);
+        FirmwareUpgradeCategoryClient();
 
         uint8_t Id() const override;
         bool RequiresSequenceValidation() const override;
@@ -48,7 +48,5 @@ namespace services
         bool HandleVerifyResponse(infra::ConstByteRange payload);
         bool HandleActivateResponse(infra::ConstByteRange payload);
         bool HandleProgressResponse(infra::ConstByteRange payload);
-
-        CanFrameTransport& transport;
     };
 }

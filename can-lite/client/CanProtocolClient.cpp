@@ -12,7 +12,7 @@ namespace services
         , transport(can, 0)
         , systemObserver(systemCategory, *this)
     {
-        categories.push_back(systemCategory);
+        RegisterCategory(systemCategory);
 
         can.ReceiveData([this](hal::Can::Id id, const hal::Can::Message& data)
             {
@@ -24,6 +24,19 @@ namespace services
         : CanSystemCategoryClientObserver(subject)
         , client(client)
     {}
+
+    void CanProtocolClient::SystemObserver::OnCommandAck(const CanCommandAck& ack)
+    {
+        if (ack.status != CanAckStatus::sequenceError)
+            return;
+
+        // The server rejected a command because its sequence did not match.
+        // Without this the two ends drift apart for good, since the server does
+        // not advance its counter on a mismatch while the client already has.
+        auto outbound = client.FindOutbound(ack.category);
+        if (outbound != nullptr)
+            outbound->ResyncSequence(client.currentSourceNodeId, ack.expectedSequence);
+    }
 
     void CanProtocolClient::SystemObserver::OnCategoryListResponse(infra::ConstByteRange categoryIds)
     {
@@ -37,15 +50,49 @@ namespace services
 
     void CanProtocolClient::RegisterCategory(CanCategoryClient& category)
     {
+        really_assert(category.Id() <= canMaxCategoryId);
+        really_assert(categoryCount < canMaxCategories);
+
         for (auto& existing : categories)
             really_assert(existing.Id() != category.Id());
 
+        category.AttachOutbound(AllocateOutbound(category.Id()));
         categories.push_back(category);
+        ++categoryCount;
     }
 
     void CanProtocolClient::UnregisterCategory(CanCategoryClient& category)
     {
+        auto outbound = FindOutbound(category.Id());
+        if (outbound != nullptr)
+            outbound->Unbind();
+
+        category.DetachOutbound();
         categories.erase(category);
+        --categoryCount;
+    }
+
+    CanCategoryOutboundImpl* CanProtocolClient::FindOutbound(uint8_t categoryId)
+    {
+        for (auto& outbound : outbounds)
+            if (outbound.IsBoundTo(categoryId))
+                return &outbound;
+
+        return nullptr;
+    }
+
+    CanCategoryOutboundImpl& CanProtocolClient::AllocateOutbound(uint8_t categoryId)
+    {
+        for (auto& outbound : outbounds)
+            if (!outbound.IsBound())
+            {
+                outbound.Bind(transport, categoryId);
+                return outbound;
+            }
+
+        // Unreachable: registration already limits the number of categories.
+        really_assert(false);
+        return outbounds.front();
     }
 
     CanSystemCategoryClient& CanProtocolClient::SystemCategory()
@@ -70,43 +117,6 @@ namespace services
         transport.SendFrame(nodeId, CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, emptyPayload, [] {});
     }
 
-    uint8_t CanProtocolClient::PeekSequence(uint16_t nodeId)
-    {
-        for (auto& state : serverStates)
-        {
-            if (state.occupied && state.nodeId == nodeId)
-                return state.sequenceCounter;
-        }
-
-        for (auto& state : serverStates)
-        {
-            if (!state.occupied)
-            {
-                state.occupied = true;
-                state.nodeId = nodeId;
-                state.sequenceCounter = 0;
-                return 0;
-            }
-        }
-
-        really_assert(false);
-        return 0;
-    }
-
-    void CanProtocolClient::CommitSequence(uint16_t nodeId)
-    {
-        for (auto& state : serverStates)
-        {
-            if (state.occupied && state.nodeId == nodeId)
-            {
-                ++state.sequenceCounter;
-                return;
-            }
-        }
-
-        really_assert(false);
-    }
-
     void CanProtocolClient::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)
     {
         if (!id.Is29BitId())
@@ -129,6 +139,8 @@ namespace services
 
         if (sourceNodeId != 0)
             MarkServerAlive(sourceNodeId);
+
+        currentSourceNodeId = sourceNodeId;
 
         for (auto& category : categories)
         {

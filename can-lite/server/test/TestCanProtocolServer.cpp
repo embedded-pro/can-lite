@@ -345,6 +345,131 @@ namespace
         server.UnregisterCategory(testCategory);
     }
 
+    TEST_F(CanProtocolServerTest, SequenceValidation_IsIndependentPerCategory)
+    {
+        TestCategoryServer categoryA(0x02, true);
+        TestCategoryServer categoryB(0x03, true);
+        categoryA.AcceptMessageType(0x01);
+        categoryB.AcceptMessageType(0x01);
+        server.RegisterCategory(categoryA);
+        server.RegisterCategory(categoryB);
+
+        SimulateRx(MakeCommandId(0x02, 0x01), MakeMessage({ 0 }));
+        SimulateRx(MakeCommandId(0x03, 0x01), MakeMessage({ 0 }));
+        SimulateRx(MakeCommandId(0x02, 0x01), MakeMessage({ 1 }));
+        SimulateRx(MakeCommandId(0x03, 0x01), MakeMessage({ 1 }));
+
+        EXPECT_EQ(categoryA.handleCount, 2);
+        EXPECT_EQ(categoryB.handleCount, 2);
+
+        server.UnregisterCategory(categoryB);
+        server.UnregisterCategory(categoryA);
+    }
+
+    TEST_F(CanProtocolServerTest, SequenceError_AckCarriesExpectedSequenceAndClientCanResync)
+    {
+        TestCategoryServer testCategory(0x02, true);
+        testCategory.AcceptMessageType(0x07);
+        server.RegisterCategory(testCategory);
+
+        auto id = MakeCommandId(0x02, 0x07);
+        SimulateRx(id, MakeMessage({ 10 }));
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([&ack](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+            {
+                ack = data;
+                cb(true);
+            });
+
+        SimulateRx(id, MakeMessage({ 40 }));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[0], 0x02);
+        EXPECT_EQ(ack[1], 0x07);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::sequenceError));
+        EXPECT_EQ(ack[3], 40);
+        EXPECT_EQ(ack[4], 11);
+
+        // The peer resynchronises onto the reported expectation and the link recovers.
+        SimulateRx(id, MakeMessage({ ack[4] }));
+        EXPECT_EQ(testCategory.handleCount, 2);
+
+        server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, CommandAck_IsFiveBytesAndEchoesCorrelation)
+    {
+        TestCategoryServer testCategory(0x02, true);
+        server.RegisterCategory(testCategory);
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([&ack](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+            {
+                ack = data;
+                cb(true);
+            });
+
+        SimulateRx(MakeCommandId(0x02, 0x33), MakeMessage({ 0, 0xAA }));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[0], 0x02);
+        EXPECT_EQ(ack[1], 0x33);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::unknownCommand));
+        EXPECT_EQ(ack[3], 0);
+        EXPECT_EQ(ack[4], 0);
+
+        server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, RejectedHandler_AcksInvalidPayload)
+    {
+        TestCategoryServer testCategory(0x02, false);
+        testCategory.RejectMessageType(0x21);
+        server.RegisterCategory(testCategory);
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([&ack](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+            {
+                ack = data;
+                cb(true);
+            });
+
+        SimulateRx(MakeCommandId(0x02, 0x21), MakeMessage({ 0x01 }));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[1], 0x21);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::invalidPayload));
+
+        server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, RegisterCategory_IdBeyondPolicyRangeAsserts)
+    {
+        TestCategoryServer outOfRange(canMaxCategoryId + 1, false);
+        EXPECT_DEATH(server.RegisterCategory(outOfRange), "");
+    }
+
+    TEST_F(CanProtocolServerTest, RegisterCategory_BeyondCapacityAsserts)
+    {
+        // The system category already occupies one of the slots.
+        infra::BoundedVector<TestCategoryServer>::WithMaxSize<canMaxCategories> categories;
+        for (uint8_t id = 1; id != canMaxCategories; ++id)
+        {
+            categories.emplace_back(id, false);
+            server.RegisterCategory(categories.back());
+        }
+
+        TestCategoryServer overflow(canMaxCategoryId, false);
+        EXPECT_DEATH(server.RegisterCategory(overflow), "");
+
+        while (!categories.empty())
+        {
+            server.UnregisterCategory(categories.back());
+            categories.pop_back();
+        }
+    }
+
     TEST_F(CanProtocolServerTest, SystemCategoryDoesNotRequireSequenceValidation)
     {
         auto id = MakeSystemId(canStatusRequestMessageTypeId);

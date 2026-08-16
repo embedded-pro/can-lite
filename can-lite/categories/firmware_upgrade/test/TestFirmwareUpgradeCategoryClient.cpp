@@ -1,4 +1,5 @@
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
+#include "can-lite/core/CanCategoryOutbound.hpp"
 #include "can-lite/core/CanFrameCodec.hpp"
 #include "can-lite/core/test/CanMock.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
@@ -44,8 +45,15 @@ namespace
             }
         } fixtureInit{ canMock };
 
+        TestFirmwareUpgradeCategoryClient()
+        {
+            outbound.Bind(transport, firmwareUpgradeCategoryId);
+            client.AttachOutbound(outbound);
+        }
+
         CanFrameTransport transport{ canMock, 1 };
-        FirmwareUpgradeCategoryClient client{ transport };
+        CanCategoryOutboundImpl outbound;
+        FirmwareUpgradeCategoryClient client;
     };
 
     class TestFirmwareUpgradeCategoryClientWithObserver : public TestFirmwareUpgradeCategoryClient

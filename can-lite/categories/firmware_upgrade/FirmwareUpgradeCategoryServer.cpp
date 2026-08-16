@@ -3,9 +3,8 @@
 
 namespace services
 {
-    FirmwareUpgradeCategoryServer::FirmwareUpgradeCategoryServer(CanFrameTransport& transport, const Config& config)
+    FirmwareUpgradeCategoryServer::FirmwareUpgradeCategoryServer(const Config& config)
         : CanCategoryServer(messageTypeStorage)
-        , transport(transport)
         , config(config)
     {
         AddMessageType(fwuBeginUpgradeId, [this](infra::ConstByteRange payload)
@@ -157,7 +156,7 @@ namespace services
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(status);
         CanFrameCodec::WriteUInt16(data, 1, pageSize);
-        transport.SendFrame(CanPriority::response, firmwareUpgradeCategoryId, fwuBeginResponseId, data, [] {});
+        Outbound().Send(CanPriority::response, fwuBeginResponseId, data);
     }
 
     void FirmwareUpgradeCategoryServer::SendDataBlockAck(FwuError status, uint16_t blockIndex)
@@ -166,21 +165,21 @@ namespace services
         data.resize(3, 0);
         data[0] = static_cast<uint8_t>(status);
         CanFrameCodec::WriteUInt16(data, 1, blockIndex);
-        transport.SendFrame(CanPriority::response, firmwareUpgradeCategoryId, fwuDataBlockAckId, data, [] {});
+        Outbound().Send(CanPriority::response, fwuDataBlockAckId, data);
     }
 
     void FirmwareUpgradeCategoryServer::SendVerifyResponse(FwuError status)
     {
         hal::Can::Message data;
         data.push_back(static_cast<uint8_t>(status));
-        transport.SendFrame(CanPriority::response, firmwareUpgradeCategoryId, fwuVerifyResponseId, data, [] {});
+        Outbound().Send(CanPriority::response, fwuVerifyResponseId, data);
     }
 
     void FirmwareUpgradeCategoryServer::SendActivateResponse(FwuError status)
     {
         hal::Can::Message data;
         data.push_back(static_cast<uint8_t>(status));
-        transport.SendFrame(CanPriority::response, firmwareUpgradeCategoryId, fwuActivateResponseId, data, [] {});
+        Outbound().Send(CanPriority::response, fwuActivateResponseId, data);
     }
 
     void FirmwareUpgradeCategoryServer::SendProgressResponse(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks)
@@ -190,7 +189,7 @@ namespace services
         data[0] = static_cast<uint8_t>(state);
         CanFrameCodec::WriteUInt16(data, 1, blocksReceived);
         CanFrameCodec::WriteUInt16(data, 3, totalBlocks);
-        transport.SendFrame(CanPriority::response, firmwareUpgradeCategoryId, fwuProgressResponseId, data, [] {});
+        Outbound().Send(CanPriority::response, fwuProgressResponseId, data);
     }
 
     void FirmwareUpgradeCategoryServer::ResetSessionTimer()

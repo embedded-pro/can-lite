@@ -3,9 +3,8 @@
 
 namespace services
 {
-    FirmwareUpgradeCategoryClient::FirmwareUpgradeCategoryClient(CanFrameTransport& transport)
+    FirmwareUpgradeCategoryClient::FirmwareUpgradeCategoryClient()
         : CanCategoryClient(messageTypeStorage)
-        , transport(transport)
     {
         AddMessageType(fwuBeginResponseId, [this](infra::ConstByteRange payload)
             {
@@ -44,7 +43,7 @@ namespace services
         hal::Can::Message data;
         data.resize(4, 0);
         CanFrameCodec::WriteUInt32(data, 0, firmwareSize);
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuBeginUpgradeId, data, [] {});
+        return Outbound().SendTo(targetNodeId, CanPriority::command, fwuBeginUpgradeId, data);
     }
 
     bool FirmwareUpgradeCategoryClient::SendDataBlock(uint16_t targetNodeId, uint16_t blockIndex, const hal::Can::Message& blockData)
@@ -57,7 +56,7 @@ namespace services
         CanFrameCodec::WriteUInt16(data, 0, blockIndex);
         for (auto byte : blockData)
             data.push_back(byte);
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuDataBlockId, data, [] {});
+        return Outbound().SendTo(targetNodeId, CanPriority::command, fwuDataBlockId, data);
     }
 
     bool FirmwareUpgradeCategoryClient::SendVerify(uint16_t targetNodeId, uint32_t expectedCrc32)
@@ -65,25 +64,25 @@ namespace services
         hal::Can::Message data;
         data.resize(4, 0);
         CanFrameCodec::WriteUInt32(data, 0, expectedCrc32);
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuVerifyId, data, [] {});
+        return Outbound().SendTo(targetNodeId, CanPriority::command, fwuVerifyId, data);
     }
 
     bool FirmwareUpgradeCategoryClient::SendActivate(uint16_t targetNodeId)
     {
         hal::Can::Message data;
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuActivateId, data, [] {});
+        return Outbound().SendTo(targetNodeId, CanPriority::command, fwuActivateId, data);
     }
 
     bool FirmwareUpgradeCategoryClient::SendAbort(uint16_t targetNodeId)
     {
         hal::Can::Message data;
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuAbortId, data, [] {});
+        return Outbound().SendTo(targetNodeId, CanPriority::command, fwuAbortId, data);
     }
 
     bool FirmwareUpgradeCategoryClient::SendQueryProgress(uint16_t targetNodeId)
     {
         hal::Can::Message data;
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuQueryProgressId, data, [] {});
+        return Outbound().SendTo(targetNodeId, CanPriority::command, fwuQueryProgressId, data);
     }
 
     bool FirmwareUpgradeCategoryClient::HandleBeginResponse(infra::ConstByteRange payload)

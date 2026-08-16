@@ -1,5 +1,6 @@
 #pragma once
 
+#include "can-lite/core/CanCategoryOutbound.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "infra/util/BoundedVector.hpp"
 #include "infra/util/ByteRange.hpp"
@@ -10,18 +11,6 @@
 
 namespace services
 {
-    class CanCommandAcknowledger
-    {
-    public:
-        virtual void SendCommandAck(uint8_t category, uint8_t messageType, CanAckStatus status) = 0;
-
-    protected:
-        CanCommandAcknowledger() = default;
-        CanCommandAcknowledger(const CanCommandAcknowledger&) = delete;
-        CanCommandAcknowledger& operator=(const CanCommandAcknowledger&) = delete;
-        ~CanCommandAcknowledger() = default;
-    };
-
     enum class CanDispatchResult : uint8_t
     {
         unknownMessageType,
@@ -64,14 +53,22 @@ namespace services
         void AddMessageType(uint8_t messageType, const CanMessageHandler& handler);
         CanDispatchResult HandleMessage(uint8_t messageType, infra::ConstByteRange payload) const;
 
+        // Called by the protocol host as part of registration and
+        // unregistration; a category is never left holding a dangling handle.
+        void AttachOutbound(CanCategoryOutbound& outbound);
+        void DetachOutbound();
+
     protected:
         explicit CanCategory(infra::BoundedVector<CanMessageTypeBinding>& messageTypes);
         CanCategory(const CanCategory&) = delete;
         CanCategory& operator=(const CanCategory&) = delete;
         ~CanCategory() = default;
 
+        CanCategoryOutbound& Outbound() const;
+
     private:
         infra::BoundedVector<CanMessageTypeBinding>& messageTypes;
+        CanCategoryOutbound* outbound = &CanCategoryOutboundNull::Instance();
     };
 
     class CanCategoryServer
@@ -79,15 +76,11 @@ namespace services
         , public infra::IntrusiveList<CanCategoryServer>::NodeType
     {
     public:
-        void SetAcknowledger(CanCommandAcknowledger& acknowledger);
         void SendCommandAck(uint8_t messageType, CanAckStatus status);
 
     protected:
         using CanCategory::CanCategory;
         ~CanCategoryServer() = default;
-
-    private:
-        CanCommandAcknowledger* acknowledger = nullptr;
     };
 
     class CanCategoryClient

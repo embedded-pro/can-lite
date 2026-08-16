@@ -30,19 +30,58 @@ namespace
         MOCK_METHOD(void, OnSessionTimeout, (), (override));
     };
 
-    class AcknowledgerSpy
-        : public CanCommandAcknowledger
+    class OutboundSpy
+        : public CanCategoryOutbound
     {
     public:
-        void SendCommandAck(uint8_t categoryId, uint8_t commandType, CanAckStatus status) override
+        uint8_t Category() const override
         {
-            lastCategoryId = categoryId;
-            lastCommandType = commandType;
+            return firmwareUpgradeCategoryId;
+        }
+
+        uint16_t NodeId() const override
+        {
+            return 1;
+        }
+
+        uint16_t PeerNodeId() const override
+        {
+            return 1;
+        }
+
+        uint8_t Correlation() const override
+        {
+            return 0;
+        }
+
+        bool Send(CanPriority, uint8_t messageType, const hal::Can::Message& payload) override
+        {
+            lastSentMessageType = messageType;
+            lastSentData = payload;
+            sendCount++;
+            return true;
+        }
+
+        bool SendTo(uint16_t, CanPriority, uint8_t messageType, const hal::Can::Message& payload) override
+        {
+            return Send(CanPriority::response, messageType, payload);
+        }
+
+        bool SendSequencedTo(uint16_t, CanPriority, uint8_t messageType, const hal::Can::Message& payload) override
+        {
+            return Send(CanPriority::response, messageType, payload);
+        }
+
+        void SendAck(uint8_t messageType, CanAckStatus status) override
+        {
+            lastCommandType = messageType;
             lastStatus = status;
             ackCount++;
         }
 
-        uint8_t lastCategoryId{ 0 };
+        uint8_t lastSentMessageType{ 0 };
+        hal::Can::Message lastSentData;
+        std::size_t sendCount{ 0 };
         uint8_t lastCommandType{ 0 };
         CanAckStatus lastStatus{ CanAckStatus::success };
         std::size_t ackCount{ 0 };
@@ -55,22 +94,12 @@ namespace
     public:
         TestFirmwareUpgradeCategoryServer()
         {
-            EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([this](hal::Can::Id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
-                {
-                    lastSentData = data;
-                    sendCount++;
-                    cb(true);
-                }));
-            server.SetAcknowledger(acknowledger);
+            server.AttachOutbound(outbound);
         }
 
-        StrictMock<hal::CanMock> canMock;
-        CanFrameTransport transport{ canMock, 1 };
         FirmwareUpgradeCategoryServer::Config config{ std::chrono::seconds(30) };
-        FirmwareUpgradeCategoryServer server{ transport, config };
-        AcknowledgerSpy acknowledger;
-        hal::Can::Message lastSentData;
-        std::size_t sendCount{ 0 };
+        FirmwareUpgradeCategoryServer server{ config };
+        OutboundSpy outbound;
     };
 
     class TestFirmwareUpgradeCategoryServerWithObserver : public TestFirmwareUpgradeCategoryServer
@@ -102,10 +131,10 @@ namespace
         CanFrameCodec::WriteInt32(data, 0, 12288);
         server.HandleMessage(fwuBeginUpgradeId, infra::MakeRange(data));
 
-        ASSERT_EQ(lastSentData.size(), 3u);
-        EXPECT_EQ(lastSentData[0], static_cast<uint8_t>(FwuError::ok));
-        EXPECT_EQ(CanFrameCodec::ReadInt16(lastSentData, 1), 4096);
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
+        ASSERT_EQ(outbound.lastSentData.size(), 3u);
+        EXPECT_EQ(outbound.lastSentData[0], static_cast<uint8_t>(FwuError::ok));
+        EXPECT_EQ(CanFrameCodec::ReadInt16(outbound.lastSentData, 1), 4096);
+        EXPECT_EQ(outbound.lastStatus, CanAckStatus::success);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServer, BeginUpgrade_TooShortRejected)
@@ -140,7 +169,7 @@ namespace
         block[3] = 0xBB;
         server.HandleMessage(fwuDataBlockId, infra::MakeRange(block));
 
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
+        EXPECT_EQ(outbound.lastStatus, CanAckStatus::success);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServer, DataBlock_TooShortRejected)
@@ -171,7 +200,7 @@ namespace
         CanFrameCodec::WriteInt32(data, 0, static_cast<int32_t>(0xABCD1234u));
         server.HandleMessage(fwuVerifyId, infra::MakeRange(data));
 
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
+        EXPECT_EQ(outbound.lastStatus, CanAckStatus::success);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServer, Verify_TooShortRejected)
@@ -200,7 +229,7 @@ namespace
         hal::Can::Message data;
         server.HandleMessage(fwuActivateId, infra::MakeRange(data));
 
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
+        EXPECT_EQ(outbound.lastStatus, CanAckStatus::success);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, Abort_CallbackSendsAck)
@@ -222,7 +251,7 @@ namespace
         hal::Can::Message data;
         server.HandleMessage(fwuAbortId, infra::MakeRange(data));
 
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
+        EXPECT_EQ(outbound.lastStatus, CanAckStatus::success);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, QueryProgress_CallbackSendsResponse)
@@ -235,11 +264,11 @@ namespace
         hal::Can::Message data;
         server.HandleMessage(fwuQueryProgressId, infra::MakeRange(data));
 
-        ASSERT_EQ(lastSentData.size(), 5u);
-        EXPECT_EQ(lastSentData[0], static_cast<uint8_t>(FwuState::receiving));
-        EXPECT_EQ(CanFrameCodec::ReadInt16(lastSentData, 1), 100);
-        EXPECT_EQ(CanFrameCodec::ReadInt16(lastSentData, 3), 2048);
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
+        ASSERT_EQ(outbound.lastSentData.size(), 5u);
+        EXPECT_EQ(outbound.lastSentData[0], static_cast<uint8_t>(FwuState::receiving));
+        EXPECT_EQ(CanFrameCodec::ReadInt16(outbound.lastSentData, 1), 100);
+        EXPECT_EQ(CanFrameCodec::ReadInt16(outbound.lastSentData, 3), 2048);
+        EXPECT_EQ(outbound.lastStatus, CanAckStatus::success);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServer, QueryProgress_NoObserverDoesNotCrash)
@@ -390,9 +419,8 @@ namespace
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, SessionTimeout_CustomDuration)
     {
         FirmwareUpgradeCategoryServer::Config shortConfig{ std::chrono::seconds(10) };
-        CanFrameTransport transport2{ canMock, 2 };
-        FirmwareUpgradeCategoryServer shortServer{ transport2, shortConfig };
-        shortServer.SetAcknowledger(acknowledger);
+        FirmwareUpgradeCategoryServer shortServer{ shortConfig };
+        shortServer.AttachOutbound(outbound);
         StrictMock<FirmwareUpgradeCategoryServerObserverMock> obs{ shortServer };
 
         EXPECT_CALL(obs, OnBeginUpgrade(_, _)).WillOnce(Invoke([](uint32_t, const infra::Function<void(FwuError, uint16_t)>& cb)

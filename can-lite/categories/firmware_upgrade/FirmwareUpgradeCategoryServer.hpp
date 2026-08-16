@@ -2,7 +2,6 @@
 
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeDefinitions.hpp"
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanFrameTransport.hpp"
 #include "infra/timer/Timer.hpp"
 #include "infra/util/ByteRange.hpp"
 #include "infra/util/Function.hpp"
@@ -39,7 +38,7 @@ namespace services
             infra::Duration sessionTimeout = std::chrono::seconds(30);
         };
 
-        FirmwareUpgradeCategoryServer(CanFrameTransport& transport, const Config& config);
+        explicit FirmwareUpgradeCategoryServer(const Config& config);
 
         uint8_t Id() const override;
         bool RequiresSequenceValidation() const override;
@@ -62,7 +61,6 @@ namespace services
         void StopSessionTimer();
         void HandleSessionTimeout();
 
-        CanFrameTransport& transport;
         Config config;
         infra::TimerSingleShot sessionTimeoutTimer;
     };

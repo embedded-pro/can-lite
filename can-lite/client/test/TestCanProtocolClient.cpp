@@ -40,6 +40,18 @@ namespace
             return false;
         }
 
+        bool SendSequenced(uint16_t targetNodeId, uint8_t messageType)
+        {
+            hal::Can::Message payload;
+            payload.push_back(0xA5);
+            return Send(targetNodeId, messageType, payload);
+        }
+
+        bool Send(uint16_t targetNodeId, uint8_t messageType, const hal::Can::Message& payload)
+        {
+            return Outbound().SendSequencedTo(targetNodeId, CanPriority::command, messageType, payload);
+        }
+
         void AcceptMessageType(uint8_t messageType)
         {
             AddMessageType(messageType, [this](infra::ConstByteRange payload)
@@ -242,35 +254,127 @@ namespace
         CanProtocolClient testClient(testCan);
     }
 
-    // === PeekSequence / CommitSequence ===
+    // === Per-(peer, category) sequencing ===
 
-    TEST_F(CanProtocolClientTest, PeekSequence_FirstCallReturnsZero)
+    class CanProtocolClientSequenceTest
+        : public CanProtocolClientTest
     {
-        EXPECT_EQ(client.PeekSequence(1), 0u);
+    public:
+        CanProtocolClientSequenceTest()
+        {
+            EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([this](hal::Can::Id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+                {
+                    ASSERT_FALSE(data.empty());
+                    sentSequences.push_back(data[0]);
+                    cb(true);
+                }));
+
+            client.RegisterCategory(categoryA);
+            client.RegisterCategory(categoryB);
+        }
+
+        ~CanProtocolClientSequenceTest() override
+        {
+            client.UnregisterCategory(categoryB);
+            client.UnregisterCategory(categoryA);
+        }
+
+        hal::Can::Message MakeAck(uint8_t category, uint8_t messageType, CanAckStatus status,
+            uint8_t correlation, uint8_t expectedSequence)
+        {
+            return MakeMessage({ category, messageType, static_cast<uint8_t>(status), correlation, expectedSequence });
+        }
+
+        TestCategoryClient categoryA{ 0x05 };
+        TestCategoryClient categoryB{ 0x06 };
+        infra::BoundedVector<uint8_t>::WithMaxSize<300> sentSequences;
+    };
+
+    TEST_F(CanProtocolClientSequenceTest, Sequence_StartsAtZeroAndAdvancesPerPeer)
+    {
+        categoryA.SendSequenced(1, 0x10);
+        categoryA.SendSequenced(1, 0x10);
+        categoryA.SendSequenced(2, 0x10);
+
+        EXPECT_THAT(sentSequences, ElementsAre(0, 1, 0));
     }
 
-    TEST_F(CanProtocolClientTest, PeekSequence_DoesNotAdvanceWithoutCommit)
+    TEST_F(CanProtocolClientSequenceTest, Sequence_IsIndependentPerCategory)
     {
-        client.PeekSequence(1);
-        EXPECT_EQ(client.PeekSequence(1), 0u);
+        categoryA.SendSequenced(1, 0x10);
+        categoryA.SendSequenced(1, 0x10);
+        categoryB.SendSequenced(1, 0x10);
+
+        EXPECT_THAT(sentSequences, ElementsAre(0, 1, 0));
     }
 
-    TEST_F(CanProtocolClientTest, CommitSequence_AdvancesCounter)
+    TEST_F(CanProtocolClientSequenceTest, Sequence_WrapsAfterMaximum)
     {
-        client.PeekSequence(1);
-        client.CommitSequence(1);
-        EXPECT_EQ(client.PeekSequence(1), 1u);
+        for (uint16_t i = 0; i != 258u; ++i)
+            categoryA.SendSequenced(1, 0x10);
+
+        ASSERT_EQ(sentSequences.size(), 258u);
+        EXPECT_EQ(sentSequences[255], 255);
+        EXPECT_EQ(sentSequences[256], 0);
+        EXPECT_EQ(sentSequences[257], 1);
     }
 
-    TEST_F(CanProtocolClientTest, PeekCommitSequence_IndependentPerServer)
+    TEST_F(CanProtocolClientSequenceTest, SequenceErrorAck_ResyncsOffendingCategory)
     {
-        EXPECT_EQ(client.PeekSequence(1), 0u);
-        client.CommitSequence(1);
-        EXPECT_EQ(client.PeekSequence(2), 0u);
-        client.CommitSequence(2);
-        EXPECT_EQ(client.PeekSequence(1), 1u);
-        client.CommitSequence(1);
-        EXPECT_EQ(client.PeekSequence(2), 1u);
+        categoryA.SendSequenced(3, 0x10);
+        categoryA.SendSequenced(3, 0x10);
+        sentSequences.clear();
+
+        SimulateRx(MakeSystemId(canCommandAckMessageTypeId, 3),
+            MakeAck(0x05, 0x10, CanAckStatus::sequenceError, 1, 42));
+
+        categoryA.SendSequenced(3, 0x10);
+        EXPECT_THAT(sentSequences, ElementsAre(42));
+    }
+
+    TEST_F(CanProtocolClientSequenceTest, SequenceErrorAck_LeavesOtherCategoriesAlone)
+    {
+        categoryB.SendSequenced(3, 0x10);
+        sentSequences.clear();
+
+        SimulateRx(MakeSystemId(canCommandAckMessageTypeId, 3),
+            MakeAck(0x05, 0x10, CanAckStatus::sequenceError, 0, 42));
+
+        categoryB.SendSequenced(3, 0x10);
+        EXPECT_THAT(sentSequences, ElementsAre(1));
+    }
+
+    TEST_F(CanProtocolClientSequenceTest, SequenceErrorAck_ResyncsOnlyTheReportingPeer)
+    {
+        categoryA.SendSequenced(3, 0x10);
+        categoryA.SendSequenced(4, 0x10);
+        sentSequences.clear();
+
+        SimulateRx(MakeSystemId(canCommandAckMessageTypeId, 3),
+            MakeAck(0x05, 0x10, CanAckStatus::sequenceError, 0, 42));
+
+        categoryA.SendSequenced(4, 0x10);
+        EXPECT_THAT(sentSequences, ElementsAre(1));
+    }
+
+    TEST_F(CanProtocolClientSequenceTest, SuccessAck_DoesNotResync)
+    {
+        categoryA.SendSequenced(3, 0x10);
+        sentSequences.clear();
+
+        SimulateRx(MakeSystemId(canCommandAckMessageTypeId, 3),
+            MakeAck(0x05, 0x10, CanAckStatus::success, 0, 42));
+
+        categoryA.SendSequenced(3, 0x10);
+        EXPECT_THAT(sentSequences, ElementsAre(1));
+    }
+
+    TEST_F(CanProtocolClientSequenceTest, SendSequenced_RejectsPayloadWithoutRoomForSequence)
+    {
+        hal::Can::Message full;
+        full.resize(full.max_size(), 0xFF);
+        EXPECT_FALSE(categoryA.Send(1, 0x10, full));
+        EXPECT_TRUE(sentSequences.empty());
     }
 
     // === Server liveness ===

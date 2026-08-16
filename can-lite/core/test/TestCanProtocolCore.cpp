@@ -1,6 +1,7 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameCodec.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
+#include "can-lite/core/CanSequenceTable.hpp"
 #include "gtest/gtest.h"
 #include <limits>
 
@@ -342,5 +343,118 @@ namespace
         CanFrameCodec::WriteInt32(msg, 1, 65536);
         EXPECT_EQ(msg[0], 0xBB);
         EXPECT_EQ(CanFrameCodec::ReadInt32(msg, 1), 65536);
+    }
+
+    // --- CanSequenceTable ---
+
+    TEST(CanSequenceTableTest, Allocate_StartsAtZeroAndAdvances)
+    {
+        CanSequenceTable table;
+
+        EXPECT_EQ(table.Allocate(1), 0);
+        EXPECT_EQ(table.Allocate(1), 1);
+        EXPECT_EQ(table.Allocate(1), 2);
+    }
+
+    TEST(CanSequenceTableTest, Allocate_IsIndependentPerPeer)
+    {
+        CanSequenceTable table;
+
+        EXPECT_EQ(table.Allocate(1), 0);
+        EXPECT_EQ(table.Allocate(2), 0);
+        EXPECT_EQ(table.Allocate(1), 1);
+        EXPECT_EQ(table.Allocate(2), 1);
+    }
+
+    TEST(CanSequenceTableTest, Allocate_WrapsAtByteBoundary)
+    {
+        CanSequenceTable table;
+
+        for (uint16_t i = 0; i != 256u; ++i)
+            table.Allocate(1);
+
+        EXPECT_EQ(table.Allocate(1), 0);
+    }
+
+    TEST(CanSequenceTableTest, Validate_AdoptsFirstSequenceFromAPeer)
+    {
+        CanSequenceTable table;
+
+        auto result = table.Validate(1, 200);
+        EXPECT_TRUE(result.accepted);
+        EXPECT_EQ(result.expected, 200);
+
+        EXPECT_TRUE(table.Validate(1, 201).accepted);
+    }
+
+    TEST(CanSequenceTableTest, Validate_RejectsOutOfOrderAndReportsExpectation)
+    {
+        CanSequenceTable table;
+
+        table.Validate(1, 0);
+
+        auto result = table.Validate(1, 5);
+        EXPECT_FALSE(result.accepted);
+        EXPECT_EQ(result.expected, 1);
+    }
+
+    TEST(CanSequenceTableTest, Validate_DoesNotAdvanceOnRejection)
+    {
+        CanSequenceTable table;
+
+        table.Validate(1, 0);
+        table.Validate(1, 5);
+
+        EXPECT_TRUE(table.Validate(1, 1).accepted);
+    }
+
+    TEST(CanSequenceTableTest, Validate_WrapsAtByteBoundary)
+    {
+        CanSequenceTable table;
+
+        EXPECT_TRUE(table.Validate(1, 255).accepted);
+        EXPECT_TRUE(table.Validate(1, 0).accepted);
+    }
+
+    TEST(CanSequenceTableTest, Resync_MovesExpectationForOnePeerOnly)
+    {
+        CanSequenceTable table;
+
+        table.Allocate(1);
+        table.Allocate(2);
+
+        table.Resync(1, 42);
+
+        EXPECT_EQ(table.Allocate(1), 42);
+        EXPECT_EQ(table.Allocate(2), 1);
+    }
+
+    TEST(CanSequenceTableTest, Forget_ClearsAllPeers)
+    {
+        CanSequenceTable table;
+
+        table.Allocate(1);
+        table.Allocate(1);
+        table.Forget();
+
+        EXPECT_EQ(table.Allocate(1), 0);
+    }
+
+    TEST(CanSequenceTableTest, FullTable_EvictsInsteadOfAborting)
+    {
+        CanSequenceTable table;
+
+        for (uint16_t peer = 0; peer != CanSequenceTable::maxPeers; ++peer)
+        {
+            table.Allocate(peer);
+            table.Allocate(peer);
+        }
+
+        // A ninth peer must be served rather than bringing the node down.
+        EXPECT_EQ(table.Allocate(CanSequenceTable::maxPeers), 0);
+        EXPECT_EQ(table.Allocate(CanSequenceTable::maxPeers), 1);
+
+        // The peer that lost its slot simply starts over.
+        EXPECT_EQ(table.Allocate(0), 0);
     }
 }

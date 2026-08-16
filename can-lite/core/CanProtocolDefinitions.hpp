@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace services
@@ -11,6 +12,18 @@ namespace services
     static constexpr uint32_t canIdMessageTypeShift = 12;
     static constexpr uint32_t canIdNodeIdMask = 0xFFF;
     static constexpr uint32_t canBroadcastNodeId = 0x000;
+
+    // Category identifiers are 4 bits wide on the wire, but the protocol
+    // constrains the usable range by validation so that a node never has to
+    // truncate its category list into a single frame:
+    //   0x0 - 0x1  management categories owned by can-lite
+    //   0x2 - 0x7  integrator-assigned custom categories
+    //   0x8 - 0xF  reserved
+    static constexpr uint8_t canMaxCategories = 8;
+    static constexpr uint8_t canManagementCategoryIdMax = 0x1;
+    static constexpr uint8_t canCustomCategoryIdMin = 0x2;
+    static constexpr uint8_t canCustomCategoryIdMax = 0x7;
+    static constexpr uint8_t canMaxCategoryId = canCustomCategoryIdMax;
 
     static constexpr uint8_t canSystemCategoryId = 0x00;
     static constexpr uint8_t canHeartbeatMessageTypeId = 0x01;
@@ -36,8 +49,9 @@ namespace services
         invalidState = 3,
         sequenceError = 4,
         rateLimited = 5,
-        notImplemented = 6,
-        categoryError = 7
+        notImplemented = 6
+        // 7 was categoryError; per-category error taxonomies belong to the
+        // consumer, so the value is left as a hole rather than renumbering.
     };
 
     static constexpr const char* CanAckStatusToString(CanAckStatus status)
@@ -58,11 +72,23 @@ namespace services
                 return "rateLimited";
             case CanAckStatus::notImplemented:
                 return "notImplemented";
-            case CanAckStatus::categoryError:
-                return "categoryError";
         }
         return "unknown";
     }
+
+    // Every command acknowledgement carries the same five bytes, whatever the
+    // status. correlation echoes the sequence number of the request being
+    // acknowledged; expectedSequence is only meaningful for sequenceError.
+    static constexpr std::size_t canCommandAckSize = 5;
+
+    struct CanCommandAck
+    {
+        uint8_t category;
+        uint8_t messageType;
+        CanAckStatus status;
+        uint8_t correlation;
+        uint8_t expectedSequence;
+    };
 
     static constexpr uint32_t MakeCanId(CanPriority priority, uint8_t category,
         uint8_t messageType, uint16_t nodeId)

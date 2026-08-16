@@ -31,12 +31,11 @@ namespace integration
     void ApplicationFixture::RegisterFirmwareUpgrade()
     {
         services::FirmwareUpgradeCategoryServer::Config fwuConfig{};
-        fwuServer.emplace(server.Transport(), fwuConfig);
+        fwuServer.emplace(fwuConfig);
         fwuServerObserver.emplace(*fwuServer);
         server.RegisterCategory(*fwuServer);
 
-        fwuClientTransport.emplace(clientCan, config.nodeId);
-        fwuClient.emplace(*fwuClientTransport);
+        fwuClient.emplace();
         fwuClientObserver.emplace(*fwuClient);
         client.RegisterCategory(*fwuClient);
     }
