@@ -2,8 +2,11 @@
 
 #include "hal/interfaces/Can.hpp"
 
-namespace integration
+namespace services
 {
+    // A two-node bus in memory: whatever one side sends, the other receives.
+    // Published alongside the echo category so a consumer can compose the same
+    // host-side test rig for its own categories.
     class VirtualCan : public hal::Can
     {
     public:

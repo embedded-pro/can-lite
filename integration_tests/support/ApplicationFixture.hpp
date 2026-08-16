@@ -1,66 +1,41 @@
 #pragma once
 
-#include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
-#include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryServer.hpp"
-#include "can-lite/categories/foc_motor/FocMotorCategoryClient.hpp"
-#include "can-lite/categories/foc_motor/FocMotorCategoryServer.hpp"
 #include "can-lite/client/CanProtocolClient.hpp"
-#include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "can-lite/server/CanProtocolServer.hpp"
+#include "can-lite/testing/EchoCategoryClient.hpp"
+#include "can-lite/testing/EchoCategoryServer.hpp"
+#include "can-lite/testing/VirtualCan.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "infra/util/BoundedVector.hpp"
 #include "support/Mocks.hpp"
-#include "support/TestCategories.hpp"
-#include "support/VirtualCan.hpp"
-#include <optional>
 
 namespace integration
 {
+    // The fixture composes nothing but the protocol itself and the generic echo
+    // category, so a scenario that needs a domain category brings its own.
     struct ApplicationFixture : infra::ClockFixture
     {
         struct Init
         {
-            Init(VirtualCan& server, VirtualCan& client);
+            Init(services::VirtualCan& server, services::VirtualCan& client);
         };
 
         ApplicationFixture(uint16_t nodeId, uint16_t rateLimit);
         ~ApplicationFixture();
 
-        void RegisterFocMotor();
-        void RegisterFocMotorServerOnly();
-        void RegisterFirmwareUpgrade();
-        SequencedTestCategory& RegisterSequencedCategory(uint8_t id);
-        SimpleTestCategory& RegisterSimpleCategory(uint8_t id);
-        SequencedTestCategory* FindSequencedCategory(uint8_t id);
+        services::EchoCategoryServer& RegisterEchoCategory(uint8_t id, bool requiresSequenceValidation);
+        services::EchoCategoryServer* FindEchoCategory(uint8_t id);
 
-        VirtualCan serverCan;
-        VirtualCan clientCan;
+        services::VirtualCan serverCan;
+        services::VirtualCan clientCan;
         Init init;
         services::CanProtocolServer::Config config;
         services::CanProtocolServer server;
         testing::StrictMock<ServerObserverMock> serverObserver;
         services::CanProtocolClient client;
 
-        std::optional<services::FocMotorCategoryServer> motorServer;
-        std::optional<testing::StrictMock<FocMotorServerObserverMock>> motorServerObserver;
-        std::optional<services::CanFrameTransport> clientTransport;
-        std::optional<services::FocMotorCategoryClient> motorClient;
-        std::optional<testing::StrictMock<FocMotorClientObserverMock>> motorClientObserver;
-
-        infra::Function<void(services::FocMotorMode)> capturedQueryMotorTypeResult;
-        infra::Function<void(services::FocElectricalParams)> capturedIdentifyElectricalResult;
-        infra::Function<void(services::FocMechanicalParams)> capturedIdentifyMechanicalResult;
-        infra::Function<void(services::FocTelemetryElectrical, services::FocTelemetryStatus)> capturedRequestTelemetryResult;
-
-        std::optional<services::FirmwareUpgradeCategoryServer> fwuServer;
-        std::optional<testing::StrictMock<FirmwareUpgradeServerObserverMock>> fwuServerObserver;
-        std::optional<services::CanFrameTransport> fwuClientTransport;
-        std::optional<services::FirmwareUpgradeCategoryClient> fwuClient;
-        std::optional<testing::StrictMock<FirmwareUpgradeClientObserverMock>> fwuClientObserver;
-
-        infra::BoundedVector<SequencedTestCategory>::WithMaxSize<4> sequencedCategories;
-        infra::BoundedVector<SimpleTestCategory>::WithMaxSize<4> simpleCategories;
+        infra::BoundedVector<services::EchoCategoryServer>::WithMaxSize<4> echoCategories;
 
         int processedCount = 0;
     };

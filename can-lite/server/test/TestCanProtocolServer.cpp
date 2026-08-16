@@ -20,6 +20,55 @@ namespace
         MOCK_METHOD(void, SetOnAbort, (infra::Function<void(uint32_t, iso_tp::AbortReason)>), (override));
     };
 
+    class TestCategoryServer
+        : private CanCategoryHandlerStorage<2>
+        , public CanCategoryServer
+    {
+    public:
+        TestCategoryServer(uint8_t id, bool requiresSequenceValidation)
+            : CanCategoryServer(messageTypeStorage)
+            , id(id)
+            , requiresSequenceValidation(requiresSequenceValidation)
+        {}
+
+        uint8_t Id() const override
+        {
+            return id;
+        }
+
+        bool RequiresSequenceValidation() const override
+        {
+            return requiresSequenceValidation;
+        }
+
+        void AcceptMessageType(uint8_t messageType)
+        {
+            AddMessageType(messageType, [this](infra::ConstByteRange payload)
+                {
+                    handleCount++;
+                    lastPayloadSize = payload.size();
+                    return true;
+                });
+        }
+
+        void RejectMessageType(uint8_t messageType)
+        {
+            AddMessageType(messageType, [this](infra::ConstByteRange)
+                {
+                    rejectCount++;
+                    return false;
+                });
+        }
+
+        int handleCount = 0;
+        int rejectCount = 0;
+        std::size_t lastPayloadSize = 0;
+
+    private:
+        uint8_t id;
+        bool requiresSequenceValidation;
+    };
+
     class CanProtocolServerObserverMock
         : public CanProtocolServerObserver
     {
@@ -232,98 +281,26 @@ namespace
 
     TEST_F(CanProtocolServerTest, SequenceValidation_RejectsDuplicateOnRegisteredCategory)
     {
-        class TestMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x01;
-            }
-
-            void Handle(const hal::Can::Message&) override
-            {
-                handleCount++;
-            }
-
-            int handleCount = 0;
-        };
-
-        class TestCategory : public CanCategoryServer
-        {
-        public:
-            TestCategory()
-            {
-                AddMessageType(msg);
-            }
-
-            uint8_t Id() const override
-            {
-                return 0x01;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return true;
-            }
-
-            TestMessageType msg;
-        };
-
-        TestCategory testCategory;
+        TestCategoryServer testCategory(0x01, true);
+        testCategory.AcceptMessageType(0x01);
         server.RegisterCategory(testCategory);
 
         auto id = MakeCommandId(0x01, 0x01);
 
         SimulateRx(id, MakeMessage({ 1 }));
-        EXPECT_EQ(testCategory.msg.handleCount, 1);
+        EXPECT_EQ(testCategory.handleCount, 1);
 
         EXPECT_CALL(canMock, SendData(_, _, _));
         SimulateRx(id, MakeMessage({ 1 }));
-        EXPECT_EQ(testCategory.msg.handleCount, 1);
+        EXPECT_EQ(testCategory.handleCount, 1);
 
         server.UnregisterCategory(testCategory);
     }
 
     TEST_F(CanProtocolServerTest, SequenceValidation_AcceptsSequentialMessages)
     {
-        class TestMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x01;
-            }
-
-            void Handle(const hal::Can::Message&) override
-            {
-                handleCount++;
-            }
-
-            int handleCount = 0;
-        };
-
-        class TestCategory : public CanCategoryServer
-        {
-        public:
-            TestCategory()
-            {
-                AddMessageType(msg);
-            }
-
-            uint8_t Id() const override
-            {
-                return 0x01;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return true;
-            }
-
-            TestMessageType msg;
-        };
-
-        TestCategory testCategory;
+        TestCategoryServer testCategory(0x01, true);
+        testCategory.AcceptMessageType(0x01);
         server.RegisterCategory(testCategory);
 
         auto id = MakeCommandId(0x01, 0x01);
@@ -331,51 +308,15 @@ namespace
         SimulateRx(id, MakeMessage({ 1 }));
         SimulateRx(id, MakeMessage({ 2 }));
 
-        EXPECT_EQ(testCategory.msg.handleCount, 2);
+        EXPECT_EQ(testCategory.handleCount, 2);
 
         server.UnregisterCategory(testCategory);
     }
 
     TEST_F(CanProtocolServerTest, SequenceWrapsAround)
     {
-        class TestMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x01;
-            }
-
-            void Handle(const hal::Can::Message&) override
-            {
-                handleCount++;
-            }
-
-            int handleCount = 0;
-        };
-
-        class TestCategory : public CanCategoryServer
-        {
-        public:
-            TestCategory()
-            {
-                AddMessageType(msg);
-            }
-
-            uint8_t Id() const override
-            {
-                return 0x01;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return true;
-            }
-
-            TestMessageType msg;
-        };
-
-        TestCategory testCategory;
+        TestCategoryServer testCategory(0x01, true);
+        testCategory.AcceptMessageType(0x01);
         server.RegisterCategory(testCategory);
 
         auto id = MakeCommandId(0x01, 0x01);
@@ -383,51 +324,15 @@ namespace
         SimulateRx(id, MakeMessage({ 255 }));
         SimulateRx(id, MakeMessage({ 0 }));
 
-        EXPECT_EQ(testCategory.msg.handleCount, 2);
+        EXPECT_EQ(testCategory.handleCount, 2);
 
         server.UnregisterCategory(testCategory);
     }
 
     TEST_F(CanProtocolServerTest, EmptyPayload_SequenceProtectedCommand_Rejected)
     {
-        class TestMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x01;
-            }
-
-            void Handle(const hal::Can::Message&) override
-            {
-                handleCount++;
-            }
-
-            int handleCount = 0;
-        };
-
-        class TestCategory : public CanCategoryServer
-        {
-        public:
-            TestCategory()
-            {
-                AddMessageType(msg);
-            }
-
-            uint8_t Id() const override
-            {
-                return 0x01;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return true;
-            }
-
-            TestMessageType msg;
-        };
-
-        TestCategory testCategory;
+        TestCategoryServer testCategory(0x01, true);
+        testCategory.AcceptMessageType(0x01);
         server.RegisterCategory(testCategory);
 
         auto id = MakeCommandId(0x01, 0x01);
@@ -435,9 +340,134 @@ namespace
         EXPECT_CALL(canMock, SendData(_, _, _));
 
         SimulateRx(id, MakeMessage({}));
-        EXPECT_EQ(testCategory.msg.handleCount, 0);
+        EXPECT_EQ(testCategory.handleCount, 0);
 
         server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, SequenceValidation_IsIndependentPerCategory)
+    {
+        TestCategoryServer categoryA(0x02, true);
+        TestCategoryServer categoryB(0x03, true);
+        categoryA.AcceptMessageType(0x01);
+        categoryB.AcceptMessageType(0x01);
+        server.RegisterCategory(categoryA);
+        server.RegisterCategory(categoryB);
+
+        SimulateRx(MakeCommandId(0x02, 0x01), MakeMessage({ 0 }));
+        SimulateRx(MakeCommandId(0x03, 0x01), MakeMessage({ 0 }));
+        SimulateRx(MakeCommandId(0x02, 0x01), MakeMessage({ 1 }));
+        SimulateRx(MakeCommandId(0x03, 0x01), MakeMessage({ 1 }));
+
+        EXPECT_EQ(categoryA.handleCount, 2);
+        EXPECT_EQ(categoryB.handleCount, 2);
+
+        server.UnregisterCategory(categoryB);
+        server.UnregisterCategory(categoryA);
+    }
+
+    TEST_F(CanProtocolServerTest, SequenceError_AckCarriesExpectedSequenceAndClientCanResync)
+    {
+        TestCategoryServer testCategory(0x02, true);
+        testCategory.AcceptMessageType(0x07);
+        server.RegisterCategory(testCategory);
+
+        auto id = MakeCommandId(0x02, 0x07);
+        SimulateRx(id, MakeMessage({ 10 }));
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([&ack](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+            {
+                ack = data;
+                cb(true);
+            });
+
+        SimulateRx(id, MakeMessage({ 40 }));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[0], 0x02);
+        EXPECT_EQ(ack[1], 0x07);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::sequenceError));
+        EXPECT_EQ(ack[3], 40);
+        EXPECT_EQ(ack[4], 11);
+
+        // The peer resynchronises onto the reported expectation and the link recovers.
+        SimulateRx(id, MakeMessage({ ack[4] }));
+        EXPECT_EQ(testCategory.handleCount, 2);
+
+        server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, CommandAck_IsFiveBytesAndEchoesCorrelation)
+    {
+        TestCategoryServer testCategory(0x02, true);
+        server.RegisterCategory(testCategory);
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([&ack](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+            {
+                ack = data;
+                cb(true);
+            });
+
+        SimulateRx(MakeCommandId(0x02, 0x33), MakeMessage({ 0, 0xAA }));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[0], 0x02);
+        EXPECT_EQ(ack[1], 0x33);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::unknownCommand));
+        EXPECT_EQ(ack[3], 0);
+        EXPECT_EQ(ack[4], 0);
+
+        server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, RejectedHandler_AcksInvalidPayload)
+    {
+        TestCategoryServer testCategory(0x02, false);
+        testCategory.RejectMessageType(0x21);
+        server.RegisterCategory(testCategory);
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([&ack](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+            {
+                ack = data;
+                cb(true);
+            });
+
+        SimulateRx(MakeCommandId(0x02, 0x21), MakeMessage({ 0x01 }));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[1], 0x21);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::invalidPayload));
+
+        server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, RegisterCategory_IdBeyondPolicyRangeAsserts)
+    {
+        TestCategoryServer outOfRange(canMaxCategoryId + 1, false);
+        EXPECT_DEATH(server.RegisterCategory(outOfRange), "");
+    }
+
+    TEST_F(CanProtocolServerTest, RegisterCategory_BeyondCapacityAsserts)
+    {
+        // The system category already occupies one of the slots.
+        infra::BoundedVector<TestCategoryServer>::WithMaxSize<canMaxCategories> categories;
+        for (uint8_t id = 1; id != canMaxCategories; ++id)
+        {
+            categories.emplace_back(id, false);
+            server.RegisterCategory(categories.back());
+        }
+
+        TestCategoryServer overflow(canMaxCategoryId, false);
+        EXPECT_DEATH(server.RegisterCategory(overflow), "");
+
+        while (!categories.empty())
+        {
+            server.UnregisterCategory(categories.back());
+            categories.pop_back();
+        }
     }
 
     TEST_F(CanProtocolServerTest, SystemCategoryDoesNotRequireSequenceValidation)
@@ -454,44 +484,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, RegisterCategory_DispatchesMessages)
     {
-        class TestMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x42;
-            }
-
-            void Handle(const hal::Can::Message& data) override
-            {
-                handled = true;
-            }
-
-            bool handled = false;
-        };
-
-        class TestCategory : public CanCategoryServer
-        {
-        public:
-            TestCategory()
-            {
-                AddMessageType(msg);
-            }
-
-            uint8_t Id() const override
-            {
-                return 0x05;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return false;
-            }
-
-            TestMessageType msg;
-        };
-
-        TestCategory testCategory;
+        TestCategoryServer testCategory(0x05, false);
+        testCategory.AcceptMessageType(0x42);
         server.RegisterCategory(testCategory);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, 1);
@@ -499,23 +493,14 @@ namespace
 
         SimulateRx(id, MakeMessage({ 0xAA }));
 
-        EXPECT_TRUE(testCategory.msg.handled);
+        EXPECT_EQ(testCategory.handleCount, 1);
 
         server.UnregisterCategory(testCategory);
     }
 
     TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdAsserts)
     {
-        class TestCategory : public CanCategoryServer
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return canSystemCategoryId;
-            }
-        };
-
-        TestCategory duplicate;
+        TestCategoryServer duplicate(canSystemCategoryId, false);
         EXPECT_DEATH(server.RegisterCategory(duplicate), "");
     }
 
@@ -535,29 +520,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, CategoryListRequest_RespondsWithRegisteredCategories)
     {
-        class TestCategory : public CanCategoryServer
-        {
-        public:
-            explicit TestCategory(uint8_t id)
-                : categoryId(id)
-            {}
-
-            uint8_t Id() const override
-            {
-                return categoryId;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return false;
-            }
-
-        private:
-            uint8_t categoryId;
-        };
-
-        TestCategory cat1(0x01);
-        TestCategory cat2(0x05);
+        TestCategoryServer cat1(0x01, false);
+        TestCategoryServer cat2(0x05, false);
         server.RegisterCategory(cat1);
         server.RegisterCategory(cat2);
 
@@ -641,48 +605,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_DispatchesPduToCategory)
     {
-        class PduMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x42;
-            }
-
-            void Handle(const hal::Can::Message&) override
-            {}
-
-            bool HandlePdu(infra::ConstByteRange) override
-            {
-                pduReceived = true;
-                return true;
-            }
-
-            bool pduReceived = false;
-        };
-
-        class PduCategory : public CanCategoryServer
-        {
-        public:
-            PduCategory()
-            {
-                AddMessageType(msg);
-            }
-
-            uint8_t Id() const override
-            {
-                return 0x05;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return false;
-            }
-
-            PduMessageType msg;
-        };
-
-        PduCategory pduCategory;
+        TestCategoryServer pduCategory(0x05, false);
+        pduCategory.AcceptMessageType(0x42);
         server.RegisterCategory(pduCategory);
 
         StrictMock<MockIsoTpTransport> mockIsoTp;
@@ -694,7 +618,7 @@ namespace
         uint8_t pduData[] = { 0xDE, 0xAD };
         capturedPduCallback(rawId, infra::MakeRange(pduData));
 
-        EXPECT_TRUE(pduCategory.msg.pduReceived);
+        EXPECT_EQ(pduCategory.handleCount, 1);
         server.UnregisterCategory(pduCategory);
     }
 
@@ -718,48 +642,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, DispatchPdu_WrongNodeId_Ignored)
     {
-        class PduMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x42;
-            }
-
-            void Handle(const hal::Can::Message&) override
-            {}
-
-            bool HandlePdu(infra::ConstByteRange) override
-            {
-                pduReceived = true;
-                return true;
-            }
-
-            bool pduReceived = false;
-        };
-
-        class PduCategory : public CanCategoryServer
-        {
-        public:
-            PduCategory()
-            {
-                AddMessageType(msg);
-            }
-
-            uint8_t Id() const override
-            {
-                return 0x05;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return false;
-            }
-
-            PduMessageType msg;
-        };
-
-        PduCategory pduCategory;
+        TestCategoryServer pduCategory(0x05, false);
+        pduCategory.AcceptMessageType(0x42);
         server.RegisterCategory(pduCategory);
 
         StrictMock<MockIsoTpTransport> mockIsoTp;
@@ -772,54 +656,14 @@ namespace
         uint8_t pduData[] = { 0xDE };
         capturedPduCallback(rawId, infra::MakeRange(pduData));
 
-        EXPECT_FALSE(pduCategory.msg.pduReceived);
+        EXPECT_EQ(pduCategory.handleCount, 0);
         server.UnregisterCategory(pduCategory);
     }
 
     TEST_F(CanProtocolServerTest, DispatchPdu_BroadcastNodeId_Accepted)
     {
-        class PduMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x42;
-            }
-
-            void Handle(const hal::Can::Message&) override
-            {}
-
-            bool HandlePdu(infra::ConstByteRange) override
-            {
-                pduReceived = true;
-                return true;
-            }
-
-            bool pduReceived = false;
-        };
-
-        class PduCategory : public CanCategoryServer
-        {
-        public:
-            PduCategory()
-            {
-                AddMessageType(msg);
-            }
-
-            uint8_t Id() const override
-            {
-                return 0x05;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return false;
-            }
-
-            PduMessageType msg;
-        };
-
-        PduCategory pduCategory;
+        TestCategoryServer pduCategory(0x05, false);
+        pduCategory.AcceptMessageType(0x42);
         server.RegisterCategory(pduCategory);
 
         StrictMock<MockIsoTpTransport> mockIsoTp;
@@ -831,27 +675,13 @@ namespace
         uint8_t pduData[] = { 0xDE, 0xAD };
         capturedPduCallback(rawId, infra::MakeRange(pduData));
 
-        EXPECT_TRUE(pduCategory.msg.pduReceived);
+        EXPECT_EQ(pduCategory.handleCount, 1);
         server.UnregisterCategory(pduCategory);
     }
 
     TEST_F(CanProtocolServerTest, DispatchPdu_UnknownMessageType_SendsUnknownCommandAck)
     {
-        class EmptyCategory : public CanCategoryServer
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x05;
-            }
-
-            bool RequiresSequenceValidation() const override
-            {
-                return false;
-            }
-        };
-
-        EmptyCategory emptyCategory;
+        TestCategoryServer emptyCategory(0x05, false);
         server.RegisterCategory(emptyCategory);
 
         StrictMock<MockIsoTpTransport> mockIsoTp;

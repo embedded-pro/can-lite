@@ -10,7 +10,7 @@ using integration::CategoryDiscoveryResult;
 GIVEN(R"(a custom category with ID {int} is registered on the server)", (std::int32_t categoryId))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    fixture.RegisterSimpleCategory(static_cast<uint8_t>(categoryId));
+    fixture.RegisterEchoCategory(static_cast<uint8_t>(categoryId), false);
 }
 
 WHEN(R"(the client sends a category discovery request to node {int})", (std::int32_t nodeId))
@@ -18,9 +18,9 @@ WHEN(R"(the client sends a category discovery request to node {int})", (std::int
     auto& fixture = context.Get<ApplicationFixture>();
     auto result = context.Emplace<CategoryDiscoveryResult>();
 
-    fixture.client.DiscoverCategories(static_cast<uint16_t>(nodeId), [result](const hal::Can::Message& msg)
+    fixture.client.DiscoverCategories(static_cast<uint16_t>(nodeId), [result](infra::ConstByteRange categoryIds)
         {
-            result->categories = msg;
+            result->categories.assign(categoryIds.begin(), categoryIds.end());
             result->received = true;
         });
 }

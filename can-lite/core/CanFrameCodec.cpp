@@ -43,11 +43,11 @@ namespace services
         msg[offset + 1] = static_cast<uint8_t>(value & 0xFF);
     }
 
-    int16_t CanFrameCodec::ReadInt16(const hal::Can::Message& msg, std::size_t offset)
+    int16_t CanFrameCodec::ReadInt16(infra::ConstByteRange payload, std::size_t offset)
     {
         return static_cast<int16_t>(
-            (static_cast<uint16_t>(msg[offset]) << 8) |
-            static_cast<uint16_t>(msg[offset + 1]));
+            (static_cast<uint16_t>(payload[offset]) << 8) |
+            static_cast<uint16_t>(payload[offset + 1]));
     }
 
     void CanFrameCodec::WriteInt32(hal::Can::Message& msg, std::size_t offset, int32_t value)
@@ -61,13 +61,13 @@ namespace services
         msg[offset + 3] = static_cast<uint8_t>(value & 0xFF);
     }
 
-    int32_t CanFrameCodec::ReadInt32(const hal::Can::Message& msg, std::size_t offset)
+    int32_t CanFrameCodec::ReadInt32(infra::ConstByteRange payload, std::size_t offset)
     {
         return static_cast<int32_t>(
-            (static_cast<uint32_t>(msg[offset]) << 24) |
-            (static_cast<uint32_t>(msg[offset + 1]) << 16) |
-            (static_cast<uint32_t>(msg[offset + 2]) << 8) |
-            static_cast<uint32_t>(msg[offset + 3]));
+            (static_cast<uint32_t>(payload[offset]) << 24) |
+            (static_cast<uint32_t>(payload[offset + 1]) << 16) |
+            (static_cast<uint32_t>(payload[offset + 2]) << 8) |
+            static_cast<uint32_t>(payload[offset + 3]));
     }
 
     void CanFrameCodec::WriteUInt16(hal::Can::Message& msg, std::size_t offset, uint16_t value)
@@ -79,11 +79,11 @@ namespace services
         msg[offset + 1] = static_cast<uint8_t>(value & 0xFF);
     }
 
-    uint16_t CanFrameCodec::ReadUInt16(const hal::Can::Message& msg, std::size_t offset)
+    uint16_t CanFrameCodec::ReadUInt16(infra::ConstByteRange payload, std::size_t offset)
     {
         return static_cast<uint16_t>(
-            (static_cast<uint16_t>(msg[offset]) << 8) |
-            static_cast<uint16_t>(msg[offset + 1]));
+            (static_cast<uint16_t>(payload[offset]) << 8) |
+            static_cast<uint16_t>(payload[offset + 1]));
     }
 
     void CanFrameCodec::WriteUInt32(hal::Can::Message& msg, std::size_t offset, uint32_t value)
@@ -97,11 +97,31 @@ namespace services
         msg[offset + 3] = static_cast<uint8_t>(value & 0xFF);
     }
 
+    uint32_t CanFrameCodec::ReadUInt32(infra::ConstByteRange payload, std::size_t offset)
+    {
+        return (static_cast<uint32_t>(payload[offset]) << 24) |
+               (static_cast<uint32_t>(payload[offset + 1]) << 16) |
+               (static_cast<uint32_t>(payload[offset + 2]) << 8) |
+               static_cast<uint32_t>(payload[offset + 3]);
+    }
+
+    int16_t CanFrameCodec::ReadInt16(const hal::Can::Message& msg, std::size_t offset)
+    {
+        return ReadInt16(infra::MakeRange(msg), offset);
+    }
+
+    int32_t CanFrameCodec::ReadInt32(const hal::Can::Message& msg, std::size_t offset)
+    {
+        return ReadInt32(infra::MakeRange(msg), offset);
+    }
+
+    uint16_t CanFrameCodec::ReadUInt16(const hal::Can::Message& msg, std::size_t offset)
+    {
+        return ReadUInt16(infra::MakeRange(msg), offset);
+    }
+
     uint32_t CanFrameCodec::ReadUInt32(const hal::Can::Message& msg, std::size_t offset)
     {
-        return (static_cast<uint32_t>(msg[offset]) << 24) |
-               (static_cast<uint32_t>(msg[offset + 1]) << 16) |
-               (static_cast<uint32_t>(msg[offset + 2]) << 8) |
-               static_cast<uint32_t>(msg[offset + 3]);
+        return ReadUInt32(infra::MakeRange(msg), offset);
     }
 }

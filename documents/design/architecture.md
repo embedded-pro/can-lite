@@ -11,14 +11,14 @@ can-lite is a lightweight CAN bus protocol library implementing a client-server 
 block-beta
     columns 1
     block:app["Application Layer"]
-        columns 3
-        A["FOC Motor Control"] B["Firmware Upgrade"] C["Custom Categories"]
+        columns 2
+        B["Device management"] C["Consumer categories"]
     end
     block:cat["Category Layer"]
         columns 3
-        D["System\n(built-in)"]
-        E["FOC Motor\n(0x02)"]
-        F["Custom Category\n(app-defined)"]
+        D["System\n(0x0)"]
+        E["Firmware Upgrade\n(0x1)"]
+        F["Consumer category\n(0x2-0x7)"]
     end
     block:proto["Protocol Layer"]
         columns 2
@@ -53,10 +53,47 @@ block-beta
 | **Observer pattern over callbacks** | Consistent notification mechanism using `infra::Subject` / `infra::SingleObserver`. Avoids storing `infra::Function` objects for event dispatch; observers auto-attach and auto-detach on construction/destruction. |
 | **Fixed-point encoding** | Floating-point values are transmitted as scaled integers to avoid FPU dependencies and ensure deterministic wire representation. |
 | **Extensible via categories** | New functionality is added by implementing a category handler — no protocol core changes required. |
+| **Explicit composition** | Categories are registered by explicit `RegisterCategory` calls from a composition root. There is no plugin registry and no self-registration: a zero-heap embedded library must be able to account for every object it owns. |
+
+## 2.1 What Belongs In can-lite
+
+A category belongs in can-lite **if and only if** it concerns the node as a
+protocol participant or as a device, and is agnostic to what the device does.
+A category that ascribes meaning to the payload in application terms belongs
+to the consumer.
+
+By that rule:
+
+- **System (0x0)** stays — it is the protocol talking about itself.
+- **Firmware Upgrade (0x1)** stays — every node is a device that can be
+  reflashed, whatever it does.
+- **Motor control, sensing, actuation and the like do not** — they describe an
+  application, and their payloads only mean something to that application.
+
+This is why can-lite ships no domain categories. The echo category in
+`can_lite.testing` is a reference example, not a service: it deliberately
+ascribes no meaning at all to its payload.
+
+### Category ID Ranges
+
+| Range     | Owner      | Meaning                                                  |
+|-----------|------------|----------------------------------------------------------|
+| 0x0-0x1   | can-lite   | Management categories                                    |
+| 0x2-0x7   | Integrator | Application categories, assigned by the consuming project |
+| 0x8-0xF   | —          | Reserved                                                 |
+
+The category field on the wire is still 4 bits; the narrower policy range is a
+**protocol invariant enforced at registration**, not an encoding change. It
+bounds a node to 8 categories, which is exactly what a category discovery
+response holds in one frame — so discovery can never truncate.
+
+Consumer categories take their ID as a **constructor parameter**. Hard-coding
+it in a `constexpr` would make the library, rather than the integrator, the
+owner of the assignment.
 
 ## 3. Category Type Hierarchy
 
-A key architectural decision is the **compile-time separation** of server-side and client-side categories. This prevents a `FocMotorCategoryClient` from being accidentally registered on a `CanProtocolServer`.
+A key architectural decision is the **compile-time separation** of server-side and client-side categories. This prevents a client-side category from being accidentally registered on a `CanProtocolServer`.
 
 ```mermaid
 classDiagram
@@ -64,54 +101,56 @@ classDiagram
         <<abstract>>
         +Id() uint8_t*
         +RequiresSequenceValidation() bool*
-        +AddMessageType(CanMessageType&)
-        +HandleMessage(messageType, data) bool
+        +AddMessageType(messageType, CanMessageHandler)
+        +HandleMessage(messageType, payload) CanDispatchResult
+        #Outbound() CanCategoryOutbound&
     }
 
     class CanCategoryServer {
-        +RequiresSequenceValidation() bool
+        +SendCommandAck(messageType, status)
         IntrusiveList~CanCategoryServer~::NodeType
     }
 
     class CanCategoryClient {
-        +RequiresSequenceValidation() bool
         IntrusiveList~CanCategoryClient~::NodeType
     }
 
-    CanCategory <|-- CanCategoryServer : defaults true
-    CanCategory <|-- CanCategoryClient : defaults false
+    CanCategory <|-- CanCategoryServer
+    CanCategory <|-- CanCategoryClient
 ```
 
-**`CanCategory`** holds the shared logic: a list of `CanMessageType` handlers, message dispatch via `HandleMessage()`, and the pure virtual `Id()` and `RequiresSequenceValidation()`.
+**`CanCategory`** holds the shared logic: a bounded array of message-type bindings, message dispatch via `HandleMessage()`, the outbound handle, and the pure virtual `Id()` and `RequiresSequenceValidation()`.
 
 **`CanCategoryServer`** and **`CanCategoryClient`** each carry their own `IntrusiveList` node type, making them incompatible with each other's lists. `CanProtocolServer` holds an `IntrusiveList<CanCategoryServer>` and `CanProtocolClient` holds an `IntrusiveList<CanCategoryClient>`, so type safety is enforced at the compiler level.
 
-Default sequence validation:
-- **Server categories** default to `true` — incoming commands carry a sequence byte for replay protection.
-- **Client categories** default to `false` — responses do not require sequence validation.
+Sequence validation is declared by the category itself: `RequiresSequenceValidation()` is pure virtual, so a category states its own policy rather than inheriting a hardcoded default from its base. In practice server categories answer `true` (incoming commands carry a sequence byte for replay protection) and client categories answer `false` (responses do not), but neither is forced.
 
 ## 4. Message Type Dispatch
 
-Each category contains a set of `CanMessageType` subclasses, registered via `AddMessageType()` in the category constructor. When a frame arrives:
+Each category owns a bounded array of `(messageTypeId, infra::Function<bool(infra::ConstByteRange)>)` bindings, added via `AddMessageType()` in the category constructor. Storage comes from `CanCategoryHandlerStorage<Max>`, which the category derives from privately and first so the array exists before the base class takes a reference to it. There is no class per message type and no heap.
+
+A handler takes a **byte range**, not a `hal::Can::Message`, so the same handler serves a raw 8-byte frame and a reassembled ISO-TP PDU. It returns `bool`: `true` when it accepted the payload, `false` when it rejected it.
+
+When a frame arrives:
 
 1. `CanProtocolServer`/`CanProtocolClient` extracts the category ID and message type from the 29-bit CAN identifier.
 2. The corresponding category's `HandleMessage()` is called.
-3. `HandleMessage()` iterates the registered message types and dispatches to the matching handler.
-4. The handler parses the payload and notifies the observer.
+3. `HandleMessage()` finds the matching binding and returns a `CanDispatchResult`: `unknownMessageType`, `rejected`, or `handled`.
+4. The host turns that into an acknowledgement: `unknownCommand` for an unrecognised message type, `invalidPayload` for a rejection, nothing for success. A category that recognises a message type but has not implemented it answers `notImplemented` itself.
 
 ```mermaid
 sequenceDiagram
     participant Bus as CAN Bus
     participant Proto as CanProtocolServer/Client
     participant Cat as CanCategory
-    participant Msg as CanMessageType
+    participant Msg as Handler binding
     participant Obs as Observer
 
     Bus->>Proto: CAN Frame received
     Proto->>Proto: ProcessReceivedMessage()
     Proto->>Proto: FindCategory(categoryId)
-    Proto->>Cat: HandleMessage(messageType, data)
-    Cat->>Msg: Handle(data)
+    Proto->>Cat: HandleMessage(messageType, byteRange)
+    Cat->>Msg: handler(byteRange) : bool
     Msg->>Obs: NotifyObservers(...)
 ```
 
@@ -124,27 +163,28 @@ All category handlers use `infra::Subject<Observer>` / `infra::SingleObserver<Ob
 - **Auto-attach/detach**: The observer attaches in its constructor and detaches in its destructor — no manual registration needed.
 - **Zero-cost when unobserved**: `NotifyObservers()` checks for a null observer pointer before dispatching, making it safe to call with no observer attached.
 
-**Example — FOC Motor Category (Server side):**
+**Example — Echo Category (Server side), the reference for a consumer category:**
 
 ```cpp
 // Observer interface (pure virtual callbacks for each command)
-class FocMotorCategoryServerObserver
-    : public infra::SingleObserver<FocMotorCategoryServerObserver, FocMotorCategoryServer>
+class EchoCategoryServerObserver
+    : public infra::SingleObserver<EchoCategoryServerObserver, EchoCategoryServer>
 { ... };
 
 // Subject (the category handler)
-class FocMotorCategoryServer
-    : public CanCategoryServer
-    , public infra::Subject<FocMotorCategoryServerObserver>
+class EchoCategoryServer
+    : private CanCategoryHandlerStorage<2>
+    , public CanCategoryServer
+    , public infra::Subject<EchoCategoryServerObserver>
 { ... };
 
 // Application attaches by constructing an observer
-class MyMotorHandler : public FocMotorCategoryServerObserver
+class MyEchoHandler : public EchoCategoryServerObserver
 {
 public:
-    MyMotorHandler(FocMotorCategoryServer& server)
-        : FocMotorCategoryServerObserver(server) {}
-    void OnStart() override { /* start motor */ }
+    MyEchoHandler(EchoCategoryServer& server)
+        : EchoCategoryServerObserver(server) {}
+    void OnEchoRequest(infra::ConstByteRange payload) override { /* ... */ }
     ...
 };
 ```
@@ -173,11 +213,11 @@ The system category on the client exposes **only category discovery** through it
 |---------------------|-------------|
 | `OnCategoryListResponse(categoryIds)` | Notifies when a category list is received from a server |
 
-| Internal (not in observer) | Description |
+| Also exposed via observer | Description |
 |---------------------------|-------------|
-| `onCommandAck` | Protocol-internal acknowledgement handling; kept as `infra::Function` for future use by `CanProtocolClient` |
+| `OnCommandAck(CanCommandAck)` | The parsed 5-byte acknowledgement |
 
-Command acknowledgement is a protocol implementation detail — application code should not need to handle it directly. Category discovery is exposed because the application may want to enumerate a server's capabilities.
+`CanProtocolClient` subscribes to `OnCommandAck` itself. On a `sequenceError` it resynchronises the offending category's counter for that peer onto the sequence the server reported, which is what stops a single lost frame from bricking the link. Category discovery is exposed because the application may want to enumerate a server's capabilities.
 
 ## 7. Bidirectional Category Pattern
 
@@ -185,42 +225,53 @@ Each application category is split into two classes that mirror the client-serve
 
 ```mermaid
 classDiagram
-    class FocMotorCategoryClient {
+    class EchoCategoryClient {
         <<CanCategoryClient>>
-        +SendStartCommand()
-        +SendSetPidCommand()
-        +SendRequestTelemetryCommand()
+        +SendEchoRequest(nodeId, payload)
+        +SendValidatedRequest(nodeId, payload)
     }
 
-    class FocMotorClientObserver {
+    class EchoCategoryClientObserver {
         <<observer>>
-        +OnMotorTypeResponse()
-        +OnTelemetryResponse()
+        +OnEchoReply(payload)
     }
 
-    class FocMotorCategoryServer {
+    class EchoCategoryServer {
         <<CanCategoryServer>>
-        +SendMotorTypeResponse()
-        +SendTelemetryResponse()
+        +Id() from constructor
+        +RequiresSequenceValidation() from constructor
     }
 
-    class FocMotorServerObserver {
+    class EchoCategoryServerObserver {
         <<observer>>
-        +OnStart()
-        +OnSetPid()
-        +OnRequestTelemetry()
+        +OnEchoRequest(payload)
+        +OnValidatedRequest(payload)
     }
 
-    FocMotorCategoryClient ..> FocMotorCategoryServer : commands over CAN
-    FocMotorCategoryServer ..> FocMotorCategoryClient : responses over CAN
-    FocMotorClientObserver --> FocMotorCategoryClient : observes
-    FocMotorServerObserver --> FocMotorCategoryServer : observes
+    EchoCategoryClient ..> EchoCategoryServer : commands over CAN
+    EchoCategoryServer ..> EchoCategoryClient : responses over CAN
+    EchoCategoryClientObserver --> EchoCategoryClient : observes
+    EchoCategoryServerObserver --> EchoCategoryServer : observes
 ```
 
-- **Server category**: Registers `CanMessageType` handlers for **commands** (IDs `0x00`–`0x7F`). Provides `Send*Response()` methods that build response frames and send them via `CanFrameTransport`.
-- **Client category**: Registers `CanMessageType` handlers for **responses** (IDs `0x80`–`0xFF`). Provides `Send*Command(uint16_t targetNodeId, ...)` methods. The `targetNodeId` parameter directs each frame to a specific server. Sequence counters are tracked **per server node** via `CanProtocolClient::NextSequence(nodeId)`.
+- **Server category**: Binds handlers for **commands** (IDs `0x00`–`0x7F`). Provides `Send*Response()` methods that build response frames.
+- **Client category**: Binds handlers for **responses** (IDs `0x80`–`0xFF`). Provides `Send*Command(uint16_t targetNodeId, ...)` methods; the `targetNodeId` parameter directs each frame to a specific server.
 
-Both sides take a `CanFrameTransport&` in their constructor to send frames. Client-side categories additionally take a `CanProtocolClient&` to access the per-server sequence counter.
+Neither side takes a transport or a protocol host in its constructor. Both send through the **outbound handle** described in §7.1, which is why a category library links `can_lite.core` and nothing else.
+
+## 7.1 The Outbound Handle
+
+`CanProtocolServer` and `CanProtocolClient` own a fixed array of `CanCategoryOutboundImpl`, one slot per registerable category. At registration the host binds a slot to the transport and to that category's ID and attaches it; at unregistration it detaches and unbinds. The category holds a `CanCategoryOutbound&`.
+
+The handle owns everything a category must not do for itself:
+
+| Concern | Why it lives in the handle |
+|---------|----------------------------|
+| CAN identifier composition | The category never sees its own ID on the wire, so it cannot compose an identifier for a category it is not. |
+| Sequence allocation | Sequence numbers are a property of a (peer, category) pair, not of a message type. |
+| Acknowledgement | The handle already knows the category ID, the peer and the correlation, so `SendCommandAck` needs no arguments beyond message type and status — and no null check. |
+
+An unattached category holds `CanCategoryOutboundNull`, a null object whose sends are silent no-ops. That is what removed the `really_assert` that used to abort a node whose category had no acknowledger.
 
 ## 8. CAN Identifier Layout
 
@@ -245,18 +296,27 @@ Priority values (lower = higher priority on the CAN bus):
 
 ## 9. Sequence Validation
 
-Server-side categories validate an 8-bit sequence number in `data[0]` of every command frame:
+Categories that answer `true` to `RequiresSequenceValidation()` validate an 8-bit sequence number in `data[0]` of every command frame:
 
-- The server tracks the last accepted sequence number.
-- A command is accepted if its sequence number equals `(previous + 1) mod 256`.
-- On sequence error, the server sends a `CommandAck` with `sequenceError` status.
-- The sequence counter wraps from 255 → 0.
+- The first command from a peer is accepted at whatever value it carries and becomes the reference.
+- Each subsequent command must equal `(previous + 1) mod 256`.
+- On mismatch the server sends a `commandAck` with `sequenceError` status.
+- The counter wraps from 255 → 0.
 
-Client-side categories skip sequence validation (responses are stateless).
+## 9.1 Per-(Peer, Category) Sequence State
 
-## 9.1 Per-Server Sequence Tracking
+Sequence state lives in a `CanSequenceTable` owned by each outbound handle, so it is scoped to **one category** and, within that, tracked **per peer** in a fixed array of 8 slots. Client and server use the same table type, so both ends agree on what "the next sequence number" means.
 
-`CanProtocolClient` maintains **independent sequence counters per server node** in a fixed-size array (`maxServers = 8`). `NextSequence(nodeId)` returns the next sequence byte for the given node, creating a tracking entry on the first call. This ensures that commands directed to different servers do not share or interfere with each other's replay protection state.
+The peer key is the Node ID field of the frame, which the unchanged 29-bit layout defines as the *destination* of a command. A client therefore keys on the server it addresses, and a server keys on the address it was addressed by — its own address or the broadcast address — which separates the unicast stream from the broadcast one but cannot separate two clients from each other. Telling senders apart would need a source address on the wire, and the wire format is fixed.
+
+Two bugs motivated this:
+
+- The server used to keep a **single global counter** shared by every category, so traffic on one category invalidated the sequence of every other.
+- On mismatch the server did **not** advance its counter while the sender already had, so the two ends could never agree again: a single lost frame bricked the link permanently.
+
+The fix is the `expectedSequence` byte in the acknowledgement. `CanProtocolClient` subscribes to `CanSystemCategoryClientObserver::OnCommandAck`, and on `sequenceError` calls `ResyncSequence` on the offending category's handle for that peer. Recovery costs one round trip.
+
+When the peer table fills, the oldest slot is reused in round-robin order and the evicted peer simply renegotiates on its next message. A busy bus must never abort the node, which is why the previous `really_assert(false)` is gone.
 
 ## 9.2 Server Liveness Detection
 
@@ -278,8 +338,9 @@ Applications connect a `CanProtocolClientObserver` to receive these events and r
 ```
 can-lite/
 ├── core/                          # Protocol primitives
-│   ├── CanCategory.hpp/cpp        # Base class + Server/Client subclasses
-│   ├── CanMessageType.hpp         # Message handler interface
+│   ├── CanCategory.hpp/cpp        # Base class + Server/Client subclasses, handler binding
+│   ├── CanCategoryOutbound.hpp/cpp # Per-category outbound handle (send, sequence, ack)
+│   ├── CanSequenceTable.hpp/cpp   # Per-peer sequence state
 │   ├── CanProtocolDefinitions.hpp # CAN ID layout, constants, enums
 │   ├── CanFrameCodec.hpp/cpp      # Fixed-point encoding helpers
 │   └── CanFrameTransport.hpp/cpp  # Async send queue over hal::Can
@@ -292,11 +353,6 @@ can-lite/
 │   │   ├── FirmwareUpgradeCategoryServer.hpp/cpp
 │   │   ├── FirmwareUpgradeCategoryClient.hpp/cpp
 │   │   └── test/
-│   └── foc_motor/                 # FOC Motor Control category (0x02)
-│       ├── FocMotorDefinitions.hpp
-│       ├── FocMotorCategoryServer.hpp/cpp
-│       ├── FocMotorCategoryClient.hpp/cpp
-│       └── test/
 ├── transport/                     # ISO-TP segmentation layer
 │   ├── IsoTpTransport.hpp         # Abstract interface
 │   ├── IsoTpTransportImpl.hpp/cpp # Non-template concrete impl (WithStorage)
@@ -312,6 +368,12 @@ can-lite/
 │   └── test/
 ├── client/                        # CanProtocolClient
 │   ├── CanProtocolClient.hpp/cpp
+│   └── test/
+├── testing/                       # can_lite.testing — host-side test support
+│   ├── EchoCategoryDefinitions.hpp
+│   ├── EchoCategoryServer.hpp/cpp # Reference example for a consumer category
+│   ├── EchoCategoryClient.hpp/cpp
+│   ├── VirtualCan.hpp/cpp         # Two-node in-memory bus
 │   └── test/
 └── drivers/                       # Hardware driver adapters
 ```
@@ -381,12 +443,12 @@ integration_tests/
 ├── hooks/                         # Scenario lifecycle hooks
 ├── steps/                         # Step definitions (GIVEN/WHEN/THEN)
 └── support/
-    └── ApplicationFixture.hpp      # VirtualCan, ApplicationFixture, mocks
+    └── ApplicationFixture.hpp      # ApplicationFixture and protocol-level mocks
 ```
 
 ### VirtualCan
 
-`VirtualCan` is a concrete `hal::Can` implementation that replaces hardware drivers in integration tests. Two `VirtualCan` instances are connected via `ConnectTo()`: frames sent by one are delivered to the other's receive callback, simulating a shared CAN bus without mocking `SendData`/`ReceiveData`. `InjectFrame()` allows direct frame injection for testing error paths.
+`VirtualCan` (published in `can_lite.testing`, so consumers can reuse it) is a concrete `hal::Can` implementation that replaces hardware drivers in tests. Two `VirtualCan` instances are connected via `ConnectTo()`: frames sent by one are delivered to the other's receive callback, simulating a shared CAN bus without mocking `SendData`/`ReceiveData`. `InjectFrame()` allows direct frame injection for testing error paths.
 
 ### ApplicationFixture
 
@@ -394,10 +456,10 @@ integration_tests/
 
 - A pair of connected `VirtualCan` instances (server-side and client-side).
 - `CanProtocolServer` and `CanProtocolClient` wired to their respective CAN interfaces.
-- `StrictMock` observers for the server and (optionally) FOC motor category.
-- Optional FOC motor components (`CanFrameTransport`, `FocMotorCategoryServer`/`Client`, observers) activated via `RegisterFocMotor()`.
-- Optional Firmware Upgrade components (`FirmwareUpgradeCategoryServer`/`Client`, observers) activated via `RegisterFirmwareUpgrade()`.
-- Dynamic test categories (`SequencedTestCategory`, `SimpleTestCategory`) for sequence and discovery testing.
+- `StrictMock` observers for the server.
+- Echo categories registered on demand via `RegisterEchoCategory(id, requiresSequenceValidation)`, used for sequence, discovery and payload-validation scenarios.
+
+The fixture knows about **no domain category**. A scenario that needs one brings its own composition: the firmware upgrade scenarios emplace a `FirmwareUpgradeFixture` from the steps that use it, so `can_lite.integration_tests.support` links only the protocol and `can_lite.testing`.
 
 ### StrictMock Everywhere
 

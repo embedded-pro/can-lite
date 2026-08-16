@@ -3,54 +3,45 @@
 
 namespace services
 {
-    void CanCategory::AddMessageType(CanMessageType& messageType)
+    CanCategory::CanCategory(infra::BoundedVector<CanMessageTypeBinding>& messageTypes)
+        : messageTypes(messageTypes)
+    {}
+
+    void CanCategory::AddMessageType(uint8_t messageType, const CanMessageHandler& handler)
     {
-        messageTypes.push_back(messageType);
+        for (const auto& binding : messageTypes)
+            really_assert(binding.messageType != messageType);
+
+        really_assert(!messageTypes.full());
+        messageTypes.push_back(CanMessageTypeBinding{ messageType, handler });
     }
 
-    bool CanCategory::HandleMessage(uint8_t messageType, const hal::Can::Message& data)
+    CanDispatchResult CanCategory::HandleMessage(uint8_t messageType, infra::ConstByteRange payload) const
     {
-        for (auto& handler : messageTypes)
-        {
-            if (handler.Id() == messageType)
-            {
-                handler.Handle(data);
-                return true;
-            }
-        }
+        for (const auto& binding : messageTypes)
+            if (binding.messageType == messageType)
+                return binding.handler(payload) ? CanDispatchResult::handled : CanDispatchResult::rejected;
 
-        return false;
+        return CanDispatchResult::unknownMessageType;
     }
 
-    bool CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
+    void CanCategory::AttachOutbound(CanCategoryOutbound& newOutbound)
     {
-        for (auto& handler : messageTypes)
-        {
-            if (handler.Id() == messageType)
-                return handler.HandlePdu(pdu);
-        }
-
-        return false;
+        outbound = &newOutbound;
     }
 
-    bool CanCategoryServer::RequiresSequenceValidation() const
+    void CanCategory::DetachOutbound()
     {
-        return true;
+        outbound = &CanCategoryOutboundNull::Instance();
     }
 
-    void CanCategoryServer::SetAcknowledger(CanCommandAcknowledger& ack)
+    CanCategoryOutbound& CanCategory::Outbound() const
     {
-        acknowledger = &ack;
+        return *outbound;
     }
 
     void CanCategoryServer::SendCommandAck(uint8_t messageType, CanAckStatus status)
     {
-        really_assert(acknowledger != nullptr);
-        acknowledger->SendCommandAck(Id(), messageType, status);
-    }
-
-    bool CanCategoryClient::RequiresSequenceValidation() const
-    {
-        return false;
+        Outbound().SendAck(messageType, status);
     }
 }

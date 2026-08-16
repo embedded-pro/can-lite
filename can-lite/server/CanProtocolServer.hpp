@@ -2,6 +2,7 @@
 
 #include "can-lite/categories/system/CanSystemCategoryServer.hpp"
 #include "can-lite/core/CanCategory.hpp"
+#include "can-lite/core/CanCategoryOutbound.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "can-lite/transport/IsoTpTransport.hpp"
@@ -9,6 +10,7 @@
 #include "infra/timer/Timer.hpp"
 #include "infra/util/IntrusiveList.hpp"
 #include "infra/util/Observer.hpp"
+#include <array>
 #include <cstdint>
 
 namespace services
@@ -27,7 +29,6 @@ namespace services
 
     class CanProtocolServer
         : public infra::Subject<CanProtocolServerObserver>
-        , public CanCommandAcknowledger
     {
     public:
         struct Config
@@ -46,9 +47,6 @@ namespace services
 
         CanFrameTransport& Transport();
 
-        // CanCommandAcknowledger
-        void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status) override;
-
     private:
         class SystemObserver
             : public CanSystemCategoryServerObserver
@@ -65,26 +63,27 @@ namespace services
         };
 
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
+        void Dispatch(uint32_t rawId, infra::ConstByteRange payload);
         void SendHeartbeat();
         void SendCategoryList();
         bool CheckAndIncrementRate();
         void ResetRateCounter();
-        bool ValidateSequence(uint8_t sequenceNumber);
         CanCategoryServer* FindCategory(uint8_t categoryId);
+        CanCategoryOutboundImpl* FindOutbound(uint8_t categoryId);
+        CanCategoryOutboundImpl& AllocateOutbound(uint8_t categoryId);
         void ResetHeartbeatTimer();
-        void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
 
         Config config;
         CanFrameTransport transport;
         infra::TimerSingleShot heartbeatTimer;
         infra::TimerRepeating rateResetTimer;
         uint16_t messageCountThisPeriod = 0;
-        uint8_t lastSequenceNumber = 0;
-        bool sequenceInitialized = false;
 
         CanSystemCategoryServer systemCategory;
         SystemObserver systemObserver;
         infra::IntrusiveList<CanCategoryServer> categories;
+        uint8_t categoryCount = 0;
+        std::array<CanCategoryOutboundImpl, canMaxCategories> outbounds;
         IsoTpTransport* isoTpTransport = nullptr;
     };
 }

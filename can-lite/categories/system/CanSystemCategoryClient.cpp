@@ -3,11 +3,16 @@
 namespace services
 {
     CanSystemCategoryClient::CanSystemCategoryClient()
-        : commandAck(*this)
-        , categoryListResponse(*this)
+        : CanCategoryClient(messageTypeStorage)
     {
-        AddMessageType(commandAck);
-        AddMessageType(categoryListResponse);
+        AddMessageType(canCommandAckMessageTypeId, [this](infra::ConstByteRange payload)
+            {
+                return HandleCommandAck(payload);
+            });
+        AddMessageType(canCategoryListResponseMessageTypeId, [this](infra::ConstByteRange payload)
+            {
+                return HandleCategoryListResponse(payload);
+            });
     }
 
     uint8_t CanSystemCategoryClient::Id() const
@@ -15,38 +20,33 @@ namespace services
         return canSystemCategoryId;
     }
 
-    CanSystemCategoryClient::CommandAckMessageType::CommandAckMessageType(CanSystemCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t CanSystemCategoryClient::CommandAckMessageType::Id() const
+    bool CanSystemCategoryClient::RequiresSequenceValidation() const
     {
-        return canCommandAckMessageTypeId;
+        return false;
     }
 
-    void CanSystemCategoryClient::CommandAckMessageType::Handle(const hal::Can::Message& data)
+    bool CanSystemCategoryClient::HandleCommandAck(infra::ConstByteRange payload)
     {
-        if (data.size() < 3)
-            return;
+        if (payload.size() < canCommandAckSize)
+            return false;
 
-        if (parent.onCommandAck)
-            parent.onCommandAck(data[0], data[1], static_cast<CanAckStatus>(data[2]));
-    }
+        CanCommandAck ack{ payload[0], payload[1], static_cast<CanAckStatus>(payload[2]), payload[3], payload[4] };
 
-    CanSystemCategoryClient::CategoryListResponseMessageType::CategoryListResponseMessageType(CanSystemCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t CanSystemCategoryClient::CategoryListResponseMessageType::Id() const
-    {
-        return canCategoryListResponseMessageTypeId;
-    }
-
-    void CanSystemCategoryClient::CategoryListResponseMessageType::Handle(const hal::Can::Message& data)
-    {
-        parent.NotifyObservers([&data](auto& observer)
+        NotifyObservers([&ack](auto& observer)
             {
-                observer.OnCategoryListResponse(data);
+                observer.OnCommandAck(ack);
             });
+
+        return true;
+    }
+
+    bool CanSystemCategoryClient::HandleCategoryListResponse(infra::ConstByteRange payload)
+    {
+        NotifyObservers([payload](auto& observer)
+            {
+                observer.OnCategoryListResponse(payload);
+            });
+
+        return true;
     }
 }

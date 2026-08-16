@@ -1,6 +1,6 @@
-#include "support/VirtualCan.hpp"
+#include "can-lite/testing/VirtualCan.hpp"
 
-namespace integration
+namespace services
 {
     void VirtualCan::SendData(Id id, const Message& data, const infra::Function<void(bool)>& onDone)
     {

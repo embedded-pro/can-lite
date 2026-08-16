@@ -11,7 +11,7 @@ You are the executor agent for the can-lite project — a lightweight, extensibl
 1. **Read the plan or task** carefully.
 2. **Clarify before coding**: If any requirement is ambiguous, ask the user before proceeding.
 3. **Write tests first (TDD)**: Red → Green → Refactor. Write failing unit tests that capture requirements, then implement minimum code to pass them.
-4. **Search for existing patterns**: Follow them exactly — start with `categories/system/` and `categories/foc_motor/`.
+4. **Search for existing patterns**: Follow them exactly — start with `can-lite/categories/system/` (management category) and `can-lite/testing/` (the echo category, the reference for a consumer-owned one).
 5. **Implement one file at a time**, following all rules below.
 6. **Update CMakeLists.txt** if new files were added (library naming: `can_lite.<component>`).
 7. **Build and verify**: `cmake --build --preset host-Debug` then `ctest --preset host`.
@@ -54,11 +54,12 @@ You are the executor agent for the can-lite project — a lightweight, extensibl
 namespace services
 {
     class MyCategoryServer
-        : public CanCategoryServer
+        : private CanCategoryHandlerStorage<2>
+        , public CanCategoryServer
         , public infra::Subject<MyCategoryServerObserver>
     {
     public:
-        explicit MyCategoryServer(CanFrameTransport& transport);
+        explicit MyCategoryServer(uint8_t categoryId);
     };
 }
 ```
@@ -80,7 +81,7 @@ raw_id = (priority << 24) | (category << 20) | (message_type << 12) | node_id
 ```
 
 - Priority values: Emergency=0, Command=4, Response=8, Telemetry=12, Heartbeat=16
-- Categories: System=0x0, FirmwareUpgrade=0x1, FocMotor=0x2, custom=0x3–0xF
+- Categories: System=0x0, FirmwareUpgrade=0x1 (management, owned by can-lite), 0x2–0x7 integrator-assigned, 0x8–0xF reserved; at most 8 per node
 - Message types: commands 0x00–0x7F, responses 0x80–0xFF
 - Node IDs: 0x000=broadcast, 0x001–0xFFF=individual
 - All multi-byte wire values **big-endian**
@@ -89,39 +90,60 @@ raw_id = (priority << 24) | (category << 20) | (message_type << 12) | node_id
 
 ## Category Implementation Pattern
 
+A category takes its ID as a constructor parameter, holds no `CanFrameTransport&`,
+composes no CAN identifier, and sends through `Outbound()`. Message types are bound
+to handlers in the constructor; there is no class per message type. A handler returns
+`false` to reject a payload, which the host answers with an `invalidPayload`
+acknowledgement.
+
 ```cpp
-// Server side
+// Server side — commands 0x00–0x7F
 class MyCategoryServer
-    : public CanCategoryServer
+    : private CanCategoryHandlerStorage<2>
+    , public CanCategoryServer
     , public infra::Subject<MyCategoryServerObserver>
 {
 public:
-    explicit MyCategoryServer(CanFrameTransport& transport);
+    explicit MyCategoryServer(uint8_t categoryId);
+
     uint8_t Id() const override;
-    void SendMyResponse(uint16_t nodeId, /* params */);
+    bool RequiresSequenceValidation() const override;   // normally true
 
 private:
-    class MyCommandHandler : public CanMessageType { /* ... */ };
-    MyCommandHandler myCommandHandler;
-    CanFrameTransport& transport;
+    bool HandleMyCommand(infra::ConstByteRange payload);
+
+    uint8_t categoryId;
 };
 
-// Client side
+MyCategoryServer::MyCategoryServer(uint8_t categoryId)
+    : CanCategoryServer(messageTypeStorage)
+    , categoryId(categoryId)
+{
+    AddMessageType(myCommandMessageTypeId, [this](infra::ConstByteRange payload)
+        {
+            return HandleMyCommand(payload);
+        });
+}
+
+// Outbound() already knows the category, the peer and the correlation.
+Outbound().Send(CanPriority::response, myResponseMessageTypeId, payload);
+
+// Client side — responses 0x80–0xFF; commands go out sequenced.
 class MyCategoryClient
-    : public CanCategoryClient
+    : private CanCategoryHandlerStorage<2>
+    , public CanCategoryClient
     , public infra::Subject<MyCategoryClientObserver>
 {
 public:
-    explicit MyCategoryClient(CanFrameTransport& transport, CanProtocolClient& client);
-    uint8_t Id() const override;
-    void SendMyCommand(uint16_t nodeId, /* params */);
+    explicit MyCategoryClient(uint8_t categoryId);
 
-private:
-    class MyResponseHandler : public CanMessageType { /* ... */ };
-    MyResponseHandler myResponseHandler;
-    CanFrameTransport& transport;
-    CanProtocolClient& protocolClient;
+    uint8_t Id() const override;
+    bool RequiresSequenceValidation() const override;   // normally false
+
+    void SendMyCommand(uint16_t nodeId, /* params */);
 };
+
+Outbound().SendSequencedTo(nodeId, CanPriority::command, myCommandMessageTypeId, payload);
 
 // Observer interface
 class MyCategoryServerObserver
@@ -132,6 +154,11 @@ public:
     virtual void OnMyCommand(/* params */) = 0;
 };
 ```
+
+`CanCategoryHandlerStorage<Max>` is derived from **privately and first** so the
+storage outlives the base's reference to it. Register from a composition root with
+`server.RegisterCategory(...)` / `client.RegisterCategory(...)` — there is no plugin
+registry and no self-registration.
 
 ## WithStorage Pattern
 
@@ -166,7 +193,7 @@ TEST(ComponentTest, specific_behavior_description)
 ```
 
 - Integration tests: cucumber-cpp-runner with Gherkin features in `integration_tests/features/`. Step definitions in `integration_tests/steps/`.
-- `ApplicationFixture` in `integration_tests/support/ApplicationFixture.hpp` provides `VirtualCan`, server, client, and `StrictMock` observers.
+- `ApplicationFixture` in `integration_tests/support/ApplicationFixture.hpp` provides `VirtualCan` pairs, server, client, `StrictMock` observers and `RegisterEchoCategory(id, requiresSequenceValidation)`. It knows about no domain category — a scenario that needs one emplaces its own fixture (see `steps/FirmwareUpgradeFixture.hpp`).
 
 ## What NOT to Do
 

@@ -42,7 +42,7 @@ TEST(ComponentTest, specific_behavior_description)
 - Test edge cases: empty payload, max payload (8 bytes), boundary values, invalid inputs
 - Test sequence error paths for server categories
 - Verify observer notifications in tests
-- Each new `CanMessageType` must have at least one test
+- Each new message type binding must have at least one test
 
 ## Test-Driven Development (TDD)
 

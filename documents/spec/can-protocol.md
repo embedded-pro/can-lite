@@ -21,7 +21,7 @@ protocol by registering custom category handlers on the server.
 | Server          | A node on the CAN bus that listens for commands, processes them, and sends responses. Each server has a unique node ID. |
 | Client          | The initiator of all commands and queries. A single client can communicate with multiple servers. |
 | Broadcast       | A message addressed to all servers (node ID 0x000)                  |
-| Category        | A 4-bit field in the CAN identifier that groups related message types. The built-in System category (0x0) is always available; applications register additional categories. |
+| Category        | A 4-bit field in the CAN identifier that groups related message types. Values 0x0-0x1 are management categories owned by can-lite, 0x2-0x7 are assigned by the integrator, and 0x8-0xF are reserved. |
 | Category Handler| A component registered on the server that processes all messages for a specific category. |
 | Sequence Number | An 8-bit counter in byte[0] of command frames for replay protection |
 | Scale Factor    | Integer multiplier used to convert floats to fixed-point integers   |
@@ -136,21 +136,42 @@ Lower numerical values have higher CAN bus arbitration priority.
 
 ## 7. Message Categories
 
-| Value | Name              | Description                                                      |
-|-------|-------------------|------------------------------------------------------------------|
-| 0x0   | System            | Heartbeat, command acknowledgement, status request, category discovery |
-| 0x1   | Firmware Upgrade  | Block-based firmware transfer, verification, and activation      |
-| 0x2   | FOC Motor Control | Field-oriented motor control commands and telemetry              |
+### 7.1 Category ID Ranges
 
-The System category is always available. Categories 0x1 and 0x2 are
-defined in separate extension specifications:
+| Range     | Owner      | Meaning                                                       |
+|-----------|------------|---------------------------------------------------------------|
+| 0x0-0x1   | can-lite   | Management categories defined by this specification           |
+| 0x2-0x7   | Integrator | Application categories assigned by the consuming project      |
+| 0x8-0xF   | —          | Reserved; registering one is a programming error              |
+
+A category belongs in can-lite if and only if it concerns the node as a
+protocol participant or as a device, and is agnostic to what the device
+does. A category that ascribes meaning to the payload in application terms
+belongs to the consumer and takes an ID from the integrator range.
+
+The category field on the wire remains 4 bits wide. The narrower policy
+range is a protocol invariant enforced at registration, not an encoding
+change, so at most **8 categories** can be registered on one node.
+
+### 7.2 Management Categories
+
+| Value | Name              | Description                                                            |
+|-------|-------------------|------------------------------------------------------------------------|
+| 0x0   | System            | Heartbeat, command acknowledgement, status request, category discovery |
+| 0x1   | Firmware Upgrade  | Block-based firmware transfer, verification, and activation            |
+
+The System category is always available. Category 0x1 is defined in a
+separate extension specification:
 
 - [Firmware Upgrade](firmware-upgrade.md)
-- [FOC Motor Control](foc-motor-control.md)
 
-Applications may register additional categories (values 0x3–0xF) by
-providing custom `CanCategoryHandler` implementations to the server at
-construction time.
+### 7.3 Application Categories
+
+Applications register their own categories with IDs in the 0x2-0x7 range by
+implementing a `CanCategoryServer` and a `CanCategoryClient` pair. A category
+takes its ID as a constructor parameter rather than hard-coding it, so the
+integrator owns the assignment. The echo category shipped in `can_lite.testing`
+is the reference example.
 
 ## 8. Message Catalog
 
@@ -184,15 +205,27 @@ independent liveness timers.
 
 Sent by the server at CanPriority::response.
 
-| Byte | Field    | Type  | Description                                |
-|------|----------|-------|--------------------------------------------|
-| 0    | Category | uint8 | CanCategory of the acknowledged command    |
-| 1    | Command  | uint8 | CanMessageType of the acknowledged command |
-| 2    | Status   | uint8 | See acknowledgement status table           |
+| Byte | Field             | Type  | Description                                  |
+|------|-------------------|-------|----------------------------------------------|
+| 0    | Category          | uint8 | Category ID of the acknowledged command      |
+| 1    | Command           | uint8 | Message type of the acknowledged command     |
+| 2    | Status            | uint8 | See acknowledgement status table             |
+| 3    | Correlation       | uint8 | Sequence number of the acknowledged command  |
+| 4    | Expected Sequence | uint8 | Sequence the server expects next             |
+
+The payload is always exactly 5 bytes and the field meanings never vary
+with the status, so a client can parse an acknowledgement without knowing
+which category produced it.
 
 The category byte ensures the client can uniquely identify which command
 is being acknowledged, since message type values may be reused across
-categories.
+categories. The correlation byte echoes the sequence number of the request;
+it is 0 for commands on categories that do not use sequence validation.
+The expected-sequence byte is only meaningful when the status is
+`sequenceError`, and is 0 otherwise.
+
+Correlation is a protocol concern. Categories MUST NOT invent their own
+correlation scheme on top of the message type.
 
 #### 8.1.3 Status Request (Type 0x03)
 
@@ -221,8 +254,13 @@ Sent by the server at CanPriority::response.
 
 Each byte contains the ID of one registered category handler. The
 System category (0x0) is always included. Categories are listed in
-registration order. The response is limited to 8 category IDs by the
-CAN frame payload size.
+registration order.
+
+The response is bounded by the protocol invariant that at most 8
+categories can be registered on one node (§7.1), which is why it always
+fits in one frame. The server therefore never truncates the list; a
+registration that would overflow it is rejected as a programming error
+instead.
 
 ## 9. Data Encoding
 
@@ -250,7 +288,10 @@ Values are saturated (clamped) to the target integer range to prevent overflow.
 | 4     | Sequence Error  | Sequence number not (previous + 1) mod 256                  |
 | 5     | Rate Limited    | Message rate limit exceeded                                 |
 | 6     | Not Implemented | Command recognized but handler not implemented              |
-| 7     | Category Error  | Category-specific rejection; details in category 0xFE frame |
+
+Value 7 was `Category Error` and has been withdrawn; it is left unassigned
+rather than reused. Per-category error taxonomies belong to the category's
+own response messages, not to the shared acknowledgement.
 
 ## 11. Sequence Number Protocol
 
@@ -274,7 +315,15 @@ sequenceDiagram
   sequence value and records it as the reference.
 - Each subsequent command should have sequence = (previous + 1) mod 256.
 - Out-of-order or duplicated commands are rejected with a `sequenceError`
-  acknowledgement.
+  acknowledgement that carries the sequence number the server expects next,
+  so a peer that lost a frame resynchronises instead of being locked out.
+- Sequence state is kept per (peer, category) on both ends, so one category
+  losing synchronisation does not disturb the others. The peer key is the
+  Node ID field of the frame, which for a command is the destination: a client
+  keys on the server it addresses, and a server keys on the address it was
+  addressed by — its own address or the broadcast address. A command frame
+  carries no source address, so sequenced commands sent to one server by
+  several clients share a single stream and resynchronise against each other.
 - Individual category handlers declare whether they require sequence
   validation via `RequiresSequenceValidation()`. Categories that opt out
   bypass validation entirely.
@@ -352,15 +401,22 @@ sequenceDiagram
 
 Applications extend can-lite by defining additional categories:
 
-1. **Define an enum value** for the new category (0x1–0xF).
-2. **Implement a `CanCategoryHandler`** subclass that handles the message
-   types within that category.
-3. **Register the handler** with the server at construction time.
+1. **Choose a category ID** from the integrator range (0x2-0x7) and pass it
+   to the category's constructor.
+2. **Implement a `CanCategoryServer` and a `CanCategoryClient`** that bind
+   handlers for the message types within that category.
+3. **Register both** with `CanProtocolServer::RegisterCategory` and
+   `CanProtocolClient::RegisterCategory` from the composition root.
 
 The server dispatches incoming frames to the matching category handler.
 Frames with unregistered categories are silently discarded. Frames with
 a registered category but an unknown message type receive an
-`unknownCommand` acknowledgement.
+`unknownCommand` acknowledgement; a handler that recognises the message
+type but rejects its payload produces `invalidPayload`, and one that is
+deliberately unfinished answers `notImplemented`.
+
+Registering a category with an ID outside 0x0-0x7, a duplicate ID, or a
+ninth category is a programming error and aborts in debug builds.
 
 ## 16. Security Considerations
 

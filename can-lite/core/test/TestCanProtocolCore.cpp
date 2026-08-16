@@ -1,7 +1,7 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameCodec.hpp"
-#include "can-lite/core/CanMessageType.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
+#include "can-lite/core/CanSequenceTable.hpp"
 #include "gtest/gtest.h"
 #include <limits>
 
@@ -9,40 +9,16 @@ namespace
 {
     using namespace services;
 
-    // --- CanMessageType ---
-
-    class StubMessageType : public CanMessageType
-    {
-    public:
-        explicit StubMessageType(uint8_t id)
-            : id(id)
-        {}
-
-        uint8_t Id() const override
-        {
-            return id;
-        }
-
-        void Handle(const hal::Can::Message& data) override
-        {
-            lastDataSize = data.size();
-            handleCallCount++;
-        }
-
-        std::size_t lastDataSize = 0;
-        int handleCallCount = 0;
-
-    private:
-        uint8_t id;
-    };
-
     // --- CanCategory ---
 
-    class StubCategoryServer : public CanCategoryServer
+    class StubCategoryServer
+        : private CanCategoryHandlerStorage<4>
+        , public CanCategoryServer
     {
     public:
         explicit StubCategoryServer(uint8_t id)
-            : id(id)
+            : CanCategoryServer(messageTypeStorage)
+            , id(id)
         {}
 
         uint8_t Id() const override
@@ -50,15 +26,41 @@ namespace
             return id;
         }
 
+        bool RequiresSequenceValidation() const override
+        {
+            return true;
+        }
+
+        void AddCountingHandler(uint8_t messageType, int& count, std::size_t& lastSize)
+        {
+            AddMessageType(messageType, [&count, &lastSize](infra::ConstByteRange payload)
+                {
+                    lastSize = payload.size();
+                    ++count;
+                    return true;
+                });
+        }
+
+        void AddRejectingHandler(uint8_t messageType)
+        {
+            AddMessageType(messageType, [](infra::ConstByteRange)
+                {
+                    return false;
+                });
+        }
+
     private:
         uint8_t id;
     };
 
-    class StubCategoryClient : public CanCategoryClient
+    class StubCategoryClient
+        : private CanCategoryHandlerStorage<2>
+        , public CanCategoryClient
     {
     public:
         explicit StubCategoryClient(uint8_t id)
-            : id(id)
+            : CanCategoryClient(messageTypeStorage)
+            , id(id)
         {}
 
         uint8_t Id() const override
@@ -66,87 +68,114 @@ namespace
             return id;
         }
 
+        bool RequiresSequenceValidation() const override
+        {
+            return false;
+        }
+
     private:
         uint8_t id;
     };
 
-    TEST(CanCategoryTest, ServerDefaultRequiresSequenceValidation)
+    TEST(CanCategoryTest, CategoryDeclaresWhetherSequenceValidationIsRequired)
     {
-        StubCategoryServer category(0x01);
-        EXPECT_TRUE(category.RequiresSequenceValidation());
-    }
+        StubCategoryServer server(0x01);
+        StubCategoryClient client(0x01);
 
-    TEST(CanCategoryTest, ClientDefaultDoesNotRequireSequenceValidation)
-    {
-        StubCategoryClient category(0x01);
-        EXPECT_FALSE(category.RequiresSequenceValidation());
+        EXPECT_TRUE(server.RequiresSequenceValidation());
+        EXPECT_FALSE(client.RequiresSequenceValidation());
     }
 
     TEST(CanCategoryTest, IdReturnsConfiguredValue)
     {
         StubCategoryServer cat1(0x01);
         StubCategoryServer cat2(0x05);
-        StubCategoryServer cat3(0x0F);
+        StubCategoryServer cat3(0x07);
 
         EXPECT_EQ(cat1.Id(), 0x01);
         EXPECT_EQ(cat2.Id(), 0x05);
-        EXPECT_EQ(cat3.Id(), 0x0F);
+        EXPECT_EQ(cat3.Id(), 0x07);
     }
 
     TEST(CanCategoryTest, HandleMessageDispatchesToRegisteredMessageType)
     {
         StubCategoryServer category(0x01);
-        StubMessageType msg1(0x01);
-        StubMessageType msg2(0x02);
-        category.AddMessageType(msg1);
-        category.AddMessageType(msg2);
+        int count1 = 0;
+        int count2 = 0;
+        std::size_t size1 = 0;
+        std::size_t size2 = 0;
+        category.AddCountingHandler(0x01, count1, size1);
+        category.AddCountingHandler(0x02, count2, size2);
 
-        hal::Can::Message data;
-        data.push_back(0xAA);
-        data.push_back(0xBB);
+        uint8_t data[] = { 0xAA, 0xBB };
 
-        EXPECT_TRUE(category.HandleMessage(0x01, data));
-        EXPECT_EQ(msg1.handleCallCount, 1);
-        EXPECT_EQ(msg1.lastDataSize, 2u);
-        EXPECT_EQ(msg2.handleCallCount, 0);
+        EXPECT_EQ(category.HandleMessage(0x01, infra::MakeRange(data)), CanDispatchResult::handled);
+        EXPECT_EQ(count1, 1);
+        EXPECT_EQ(size1, 2u);
+        EXPECT_EQ(count2, 0);
     }
 
-    TEST(CanCategoryTest, HandleMessageReturnsFalseForUnknownType)
+    TEST(CanCategoryTest, HandleMessageReportsUnknownMessageType)
     {
         StubCategoryServer category(0x01);
-        StubMessageType msg1(0x01);
-        category.AddMessageType(msg1);
+        int count = 0;
+        std::size_t size = 0;
+        category.AddCountingHandler(0x01, count, size);
 
-        hal::Can::Message data;
-        EXPECT_FALSE(category.HandleMessage(0xFF, data));
-        EXPECT_EQ(msg1.handleCallCount, 0);
+        EXPECT_EQ(category.HandleMessage(0xFF, infra::ConstByteRange()), CanDispatchResult::unknownMessageType);
+        EXPECT_EQ(count, 0);
+    }
+
+    TEST(CanCategoryTest, HandleMessageReportsRejectionFromHandler)
+    {
+        StubCategoryServer category(0x01);
+        category.AddRejectingHandler(0x03);
+
+        uint8_t data[] = { 0x01 };
+
+        EXPECT_EQ(category.HandleMessage(0x03, infra::MakeRange(data)), CanDispatchResult::rejected);
     }
 
     TEST(CanCategoryTest, HandleMessageDispatchesCorrectMessageType)
     {
         StubCategoryServer category(0x01);
-        StubMessageType msg1(0x01);
-        StubMessageType msg2(0x02);
-        category.AddMessageType(msg1);
-        category.AddMessageType(msg2);
+        int count1 = 0;
+        int count2 = 0;
+        std::size_t size1 = 0;
+        std::size_t size2 = 0;
+        category.AddCountingHandler(0x01, count1, size1);
+        category.AddCountingHandler(0x02, count2, size2);
 
-        hal::Can::Message data;
-        EXPECT_TRUE(category.HandleMessage(0x02, data));
-        EXPECT_EQ(msg1.handleCallCount, 0);
-        EXPECT_EQ(msg2.handleCallCount, 1);
+        EXPECT_EQ(category.HandleMessage(0x02, infra::ConstByteRange()), CanDispatchResult::handled);
+        EXPECT_EQ(count1, 0);
+        EXPECT_EQ(count2, 1);
     }
 
     TEST(CanCategoryTest, HandleMessageCanBeCalledMultipleTimes)
     {
         StubCategoryServer category(0x01);
-        StubMessageType msg1(0x01);
-        category.AddMessageType(msg1);
+        int count = 0;
+        std::size_t size = 0;
+        category.AddCountingHandler(0x01, count, size);
 
-        hal::Can::Message data;
-        category.HandleMessage(0x01, data);
-        category.HandleMessage(0x01, data);
+        category.HandleMessage(0x01, infra::ConstByteRange());
+        category.HandleMessage(0x01, infra::ConstByteRange());
 
-        EXPECT_EQ(msg1.handleCallCount, 2);
+        EXPECT_EQ(count, 2);
+    }
+
+    TEST(CanCategoryTest, HandleMessageAcceptsReassembledPduLargerThanAFrame)
+    {
+        StubCategoryServer category(0x01);
+        int count = 0;
+        std::size_t size = 0;
+        category.AddCountingHandler(0x10, count, size);
+
+        uint8_t pdu[32] = {};
+
+        EXPECT_EQ(category.HandleMessage(0x10, infra::MakeRange(pdu)), CanDispatchResult::handled);
+        EXPECT_EQ(count, 1);
+        EXPECT_EQ(size, 32u);
     }
 
     // --- CanId construction and extraction ---
@@ -316,71 +345,116 @@ namespace
         EXPECT_EQ(CanFrameCodec::ReadInt32(msg, 1), 65536);
     }
 
-    // --- HandlePduMessage ---
+    // --- CanSequenceTable ---
 
-    class StubPduMessageType : public CanMessageType
+    TEST(CanSequenceTableTest, Allocate_StartsAtZeroAndAdvances)
     {
-    public:
-        explicit StubPduMessageType(uint8_t id)
-            : id(id)
-        {}
+        CanSequenceTable table;
 
-        uint8_t Id() const override
-        {
-            return id;
-        }
-
-        void Handle(const hal::Can::Message&) override
-        {}
-
-        bool HandlePdu(infra::ConstByteRange data) override
-        {
-            lastPduSize = data.size();
-            handlePduCallCount++;
-            return true;
-        }
-
-        std::size_t lastPduSize = 0;
-        int handlePduCallCount = 0;
-
-    private:
-        uint8_t id;
-    };
-
-    TEST(CanCategoryTest, HandlePduMessage_DispatchesToRegisteredHandler)
-    {
-        StubCategoryServer category(0x01);
-        StubPduMessageType msgPdu(0x10);
-        category.AddMessageType(msgPdu);
-
-        uint8_t data[] = { 0x01, 0x02, 0x03 };
-
-        EXPECT_TRUE(category.HandlePduMessage(0x10, infra::MakeRange(data)));
-        EXPECT_EQ(msgPdu.handlePduCallCount, 1);
-        EXPECT_EQ(msgPdu.lastPduSize, 3u);
+        EXPECT_EQ(table.Allocate(1), 0);
+        EXPECT_EQ(table.Allocate(1), 1);
+        EXPECT_EQ(table.Allocate(1), 2);
     }
 
-    TEST(CanCategoryTest, HandlePduMessage_ReturnsFalseForUnknownType)
+    TEST(CanSequenceTableTest, Allocate_IsIndependentPerPeer)
     {
-        StubCategoryServer category(0x01);
-        StubPduMessageType msgPdu(0x10);
-        category.AddMessageType(msgPdu);
+        CanSequenceTable table;
 
-        uint8_t data[] = { 0x01 };
-
-        EXPECT_FALSE(category.HandlePduMessage(0xFF, infra::MakeRange(data)));
-        EXPECT_EQ(msgPdu.handlePduCallCount, 0);
+        EXPECT_EQ(table.Allocate(1), 0);
+        EXPECT_EQ(table.Allocate(2), 0);
+        EXPECT_EQ(table.Allocate(1), 1);
+        EXPECT_EQ(table.Allocate(2), 1);
     }
 
-    TEST(CanCategoryTest, HandlePduMessage_DefaultHandlePdu_Asserts)
+    TEST(CanSequenceTableTest, Allocate_WrapsAtByteBoundary)
     {
-        // StubMessageType does NOT override HandlePdu — the loud default asserts
-        StubCategoryServer category(0x01);
-        StubMessageType msgDefault(0x20);
-        category.AddMessageType(msgDefault);
+        CanSequenceTable table;
 
-        uint8_t data[] = { 0xAB };
+        for (uint16_t i = 0; i != 256u; ++i)
+            table.Allocate(1);
 
-        EXPECT_DEATH(category.HandlePduMessage(0x20, infra::MakeRange(data)), "");
+        EXPECT_EQ(table.Allocate(1), 0);
+    }
+
+    TEST(CanSequenceTableTest, Validate_AdoptsFirstSequenceFromAPeer)
+    {
+        CanSequenceTable table;
+
+        auto result = table.Validate(1, 200);
+        EXPECT_TRUE(result.accepted);
+        EXPECT_EQ(result.expected, 200);
+
+        EXPECT_TRUE(table.Validate(1, 201).accepted);
+    }
+
+    TEST(CanSequenceTableTest, Validate_RejectsOutOfOrderAndReportsExpectation)
+    {
+        CanSequenceTable table;
+
+        table.Validate(1, 0);
+
+        auto result = table.Validate(1, 5);
+        EXPECT_FALSE(result.accepted);
+        EXPECT_EQ(result.expected, 1);
+    }
+
+    TEST(CanSequenceTableTest, Validate_DoesNotAdvanceOnRejection)
+    {
+        CanSequenceTable table;
+
+        table.Validate(1, 0);
+        table.Validate(1, 5);
+
+        EXPECT_TRUE(table.Validate(1, 1).accepted);
+    }
+
+    TEST(CanSequenceTableTest, Validate_WrapsAtByteBoundary)
+    {
+        CanSequenceTable table;
+
+        EXPECT_TRUE(table.Validate(1, 255).accepted);
+        EXPECT_TRUE(table.Validate(1, 0).accepted);
+    }
+
+    TEST(CanSequenceTableTest, Resync_MovesExpectationForOnePeerOnly)
+    {
+        CanSequenceTable table;
+
+        table.Allocate(1);
+        table.Allocate(2);
+
+        table.Resync(1, 42);
+
+        EXPECT_EQ(table.Allocate(1), 42);
+        EXPECT_EQ(table.Allocate(2), 1);
+    }
+
+    TEST(CanSequenceTableTest, Forget_ClearsAllPeers)
+    {
+        CanSequenceTable table;
+
+        table.Allocate(1);
+        table.Allocate(1);
+        table.Forget();
+
+        EXPECT_EQ(table.Allocate(1), 0);
+    }
+
+    TEST(CanSequenceTableTest, FullTable_EvictsInsteadOfAborting)
+    {
+        CanSequenceTable table;
+
+        for (uint16_t peer = 0; peer != CanSequenceTable::maxPeers; ++peer)
+        {
+            table.Allocate(peer);
+            table.Allocate(peer);
+        }
+
+        // A ninth peer must be served rather than bringing the node down.
+        EXPECT_EQ(table.Allocate(CanSequenceTable::maxPeers), 0);
+        EXPECT_EQ(table.Allocate(CanSequenceTable::maxPeers), 1);
+
+        // The peer that lost its slot simply starts over.
+        EXPECT_EQ(table.Allocate(0), 0);
     }
 }
