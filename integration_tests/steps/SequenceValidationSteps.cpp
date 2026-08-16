@@ -1,14 +1,15 @@
 #include "cucumber_cpp/Steps.hpp"
+#include "can-lite/testing/EchoCategoryDefinitions.hpp"
 #include "support/ApplicationFixture.hpp"
 #include "gtest/gtest.h"
 
 using namespace services;
 using integration::ApplicationFixture;
 
-GIVEN(R"(a sequenced test category with ID {int} is registered on the server)", (std::int32_t categoryId))
+GIVEN(R"(an echo category with ID {int} is registered on the server)", (std::int32_t categoryId))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    fixture.RegisterSequencedCategory(static_cast<uint8_t>(categoryId));
+    fixture.RegisterEchoCategory(static_cast<uint8_t>(categoryId), true);
 }
 
 WHEN(R"(the client sends a command to category {int} with sequence number {int})", (std::int32_t category, std::int32_t seqNum))
@@ -16,7 +17,7 @@ WHEN(R"(the client sends a command to category {int} with sequence number {int})
     auto& fixture = context.Get<ApplicationFixture>();
 
     uint32_t rawId = MakeCanId(CanPriority::command, static_cast<uint8_t>(category),
-        0x01, fixture.config.nodeId);
+        echoRequestMessageTypeId, fixture.config.nodeId);
     auto id = hal::Can::Id::Create29BitId(rawId);
     hal::Can::Message msg;
     msg.push_back(static_cast<uint8_t>(seqNum));
@@ -27,17 +28,17 @@ WHEN(R"(the client sends a command to category {int} with sequence number {int})
 THEN(R"(the server category handler shall have received {int} command)", (std::int32_t count))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    auto* category = fixture.FindSequencedCategory(3);
+    auto* category = fixture.FindEchoCategory(3);
     ASSERT_NE(category, nullptr);
-    EXPECT_EQ(category->handleCount, count);
+    EXPECT_EQ(category->RequestCount(), static_cast<uint32_t>(count));
 }
 
 THEN(R"(the server category handler shall have received {int} commands)", (std::int32_t count))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    auto* category = fixture.FindSequencedCategory(3);
+    auto* category = fixture.FindEchoCategory(3);
     ASSERT_NE(category, nullptr);
-    EXPECT_EQ(category->handleCount, count);
+    EXPECT_EQ(category->RequestCount(), static_cast<uint32_t>(count));
 }
 
 WHEN(R"(the client sends a status request to the server with empty payload)")
@@ -57,7 +58,7 @@ WHEN(R"(the client sends a command to category {int} with empty payload)", (std:
     auto& fixture = context.Get<ApplicationFixture>();
 
     uint32_t rawId = MakeCanId(CanPriority::command, static_cast<uint8_t>(category),
-        0x01, fixture.config.nodeId);
+        echoRequestMessageTypeId, fixture.config.nodeId);
     auto id = hal::Can::Id::Create29BitId(rawId);
     hal::Can::Message msg;
 

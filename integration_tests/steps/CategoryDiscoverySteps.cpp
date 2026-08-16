@@ -10,7 +10,7 @@ using integration::CategoryDiscoveryResult;
 GIVEN(R"(a custom category with ID {int} is registered on the server)", (std::int32_t categoryId))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    fixture.RegisterSimpleCategory(static_cast<uint8_t>(categoryId));
+    fixture.RegisterEchoCategory(static_cast<uint8_t>(categoryId), false);
 }
 
 WHEN(R"(the client sends a category discovery request to node {int})", (std::int32_t nodeId))

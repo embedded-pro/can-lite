@@ -2,7 +2,7 @@
 
 namespace integration
 {
-    ApplicationFixture::Init::Init(VirtualCan& server, VirtualCan& client)
+    ApplicationFixture::Init::Init(services::VirtualCan& server, services::VirtualCan& client)
     {
         server.ConnectTo(client);
     }
@@ -17,50 +17,24 @@ namespace integration
 
     ApplicationFixture::~ApplicationFixture()
     {
-        if (fwuClient)
-            client.UnregisterCategory(*fwuClient);
-        if (fwuServer)
-            server.UnregisterCategory(*fwuServer);
-
-        for (auto& cat : sequencedCategories)
-            server.UnregisterCategory(cat);
-        for (auto& cat : simpleCategories)
-            server.UnregisterCategory(cat);
+        for (auto& category : echoCategories)
+            server.UnregisterCategory(category);
     }
 
-    void ApplicationFixture::RegisterFirmwareUpgrade()
+    services::EchoCategoryServer& ApplicationFixture::RegisterEchoCategory(uint8_t id, bool requiresSequenceValidation)
     {
-        services::FirmwareUpgradeCategoryServer::Config fwuConfig{};
-        fwuServer.emplace(fwuConfig);
-        fwuServerObserver.emplace(*fwuServer);
-        server.RegisterCategory(*fwuServer);
-
-        fwuClient.emplace();
-        fwuClientObserver.emplace(*fwuClient);
-        client.RegisterCategory(*fwuClient);
+        echoCategories.emplace_back(id, requiresSequenceValidation);
+        auto& category = echoCategories.back();
+        server.RegisterCategory(category);
+        return category;
     }
 
-    SequencedTestCategory& ApplicationFixture::RegisterSequencedCategory(uint8_t id)
+    services::EchoCategoryServer* ApplicationFixture::FindEchoCategory(uint8_t id)
     {
-        sequencedCategories.emplace_back(id);
-        auto& cat = sequencedCategories.back();
-        server.RegisterCategory(cat);
-        return cat;
-    }
+        for (auto& category : echoCategories)
+            if (category.Id() == id)
+                return &category;
 
-    SimpleTestCategory& ApplicationFixture::RegisterSimpleCategory(uint8_t id)
-    {
-        simpleCategories.emplace_back(id);
-        auto& cat = simpleCategories.back();
-        server.RegisterCategory(cat);
-        return cat;
-    }
-
-    SequencedTestCategory* ApplicationFixture::FindSequencedCategory(uint8_t id)
-    {
-        for (auto& cat : sequencedCategories)
-            if (cat.Id() == id)
-                return &cat;
         return nullptr;
     }
 }

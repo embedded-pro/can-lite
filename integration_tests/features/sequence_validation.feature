@@ -6,7 +6,7 @@ Feature: Sequence Validation
   Background:
     Given a CAN bus with a server at node 1 and rate limit 500
     And a CAN bus client connected to the same bus
-    And a sequenced test category with ID 3 is registered on the server
+    And an echo category with ID 3 is registered on the server
 
   @REQ-CAN-017
   Scenario: First command is accepted regardless of sequence value

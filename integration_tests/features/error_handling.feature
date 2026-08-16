@@ -28,7 +28,7 @@ Feature: Error Handling
 
   @REQ-CAN-016
   Scenario: A payload shorter than the message type requires is rejected
-    Given a sequenced test category with ID 3 is registered on the server
+    Given an echo category with ID 3 is registered on the server
     When the client sends a command to category 3 with a payload shorter than the handler requires
     Then the server category handler shall not have accepted the command
 

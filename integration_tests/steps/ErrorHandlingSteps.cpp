@@ -1,4 +1,5 @@
 #include "cucumber_cpp/Steps.hpp"
+#include "can-lite/testing/EchoCategoryDefinitions.hpp"
 #include "support/ApplicationFixture.hpp"
 #include "support/ResultTypes.hpp"
 #include "gtest/gtest.h"
@@ -132,7 +133,7 @@ WHEN(R"(the client sends a command to category {int} with a payload shorter than
     auto& fixture = context.Get<ApplicationFixture>();
 
     uint32_t rawId = MakeCanId(CanPriority::command, static_cast<uint8_t>(category),
-        0x02, fixture.config.nodeId);
+        echoValidatedRequestMessageTypeId, fixture.config.nodeId);
     auto id = hal::Can::Id::Create29BitId(rawId);
     hal::Can::Message msg;
     msg.push_back(0x00);
@@ -145,10 +146,10 @@ WHEN(R"(the client sends a command to category {int} with a payload shorter than
 THEN(R"(the server category handler shall not have accepted the command)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    auto* category = fixture.FindSequencedCategory(3);
+    auto* category = fixture.FindEchoCategory(3);
     ASSERT_NE(category, nullptr);
-    EXPECT_EQ(category->validatedHandleCount, 0);
-    EXPECT_EQ(category->validatedRejectedCount, 1);
+    EXPECT_EQ(category->ValidatedRequestCount(), 0u);
+    EXPECT_EQ(category->RejectedRequestCount(), 1u);
 }
 
 WHEN(R"(the client receives a response for unregistered category {int})", (std::int32_t category))
