@@ -200,8 +200,9 @@
     Out-of-sequence commands shall be rejected with a sequence
     error response that carries the sequence number the server
     expects next, so that the sender can resynchronise. Sequence
-    state shall be tracked per (peer node, category) pair on both
-    ends, so that loss of synchronisation on one category does not
+    state shall be tracked per (peer address, category) pair on both
+    ends, where the peer address is the node identifier carried in the
+    frame, so that loss of synchronisation on one category does not
     affect any other.
 
 - id: REQ-CAN-017.1

@@ -318,7 +318,12 @@ sequenceDiagram
   acknowledgement that carries the sequence number the server expects next,
   so a peer that lost a frame resynchronises instead of being locked out.
 - Sequence state is kept per (peer, category) on both ends, so one category
-  losing synchronisation does not disturb the others.
+  losing synchronisation does not disturb the others. The peer key is the
+  Node ID field of the frame, which for a command is the destination: a client
+  keys on the server it addresses, and a server keys on the address it was
+  addressed by — its own address or the broadcast address. A command frame
+  carries no source address, so sequenced commands sent to one server by
+  several clients share a single stream and resynchronise against each other.
 - Individual category handlers declare whether they require sequence
   validation via `RequiresSequenceValidation()`. Categories that opt out
   bypass validation entirely.

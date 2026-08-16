@@ -307,6 +307,8 @@ Categories that answer `true` to `RequiresSequenceValidation()` validate an 8-bi
 
 Sequence state lives in a `CanSequenceTable` owned by each outbound handle, so it is scoped to **one category** and, within that, tracked **per peer** in a fixed array of 8 slots. Client and server use the same table type, so both ends agree on what "the next sequence number" means.
 
+The peer key is the Node ID field of the frame, which the unchanged 29-bit layout defines as the *destination* of a command. A client therefore keys on the server it addresses, and a server keys on the address it was addressed by — its own address or the broadcast address — which separates the unicast stream from the broadcast one but cannot separate two clients from each other. Telling senders apart would need a source address on the wire, and the wire format is fixed.
+
 Two bugs motivated this:
 
 - The server used to keep a **single global counter** shared by every category, so traffic on one category invalidated the sequence of every other.
