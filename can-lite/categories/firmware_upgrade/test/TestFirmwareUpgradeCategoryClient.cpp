@@ -196,6 +196,13 @@ namespace
         client.HandleMessage(fwuDataBlockAckId, data);
     }
 
+    TEST_F(TestFirmwareUpgradeCategoryClient, DataBlockAck_TooShortIgnored)
+    {
+        hal::Can::Message data;
+        data.resize(2, 0);
+        client.HandleMessage(fwuDataBlockAckId, data);
+    }
+
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, VerifyResponse_ParsesStatus)
     {
         EXPECT_CALL(observer, OnVerifyResponse(FwuError::crcMismatch));
@@ -217,6 +224,12 @@ namespace
 
         hal::Can::Message data;
         data.push_back(static_cast<uint8_t>(FwuError::notReady));
+        client.HandleMessage(fwuActivateResponseId, data);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClient, ActivateResponse_EmptyIgnored)
+    {
+        hal::Can::Message data;
         client.HandleMessage(fwuActivateResponseId, data);
     }
 

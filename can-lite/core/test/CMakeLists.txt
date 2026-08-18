@@ -26,5 +26,8 @@ target_link_libraries(can_lite.core_test PRIVATE
 )
 
 target_sources(can_lite.core_test PRIVATE
+    TestCanFrameTransport.cpp
+    TestCanMessageHandler.cpp
+    TestCanPayload.cpp
     TestCanProtocolCore.cpp
 )
