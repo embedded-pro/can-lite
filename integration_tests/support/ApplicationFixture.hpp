@@ -2,8 +2,6 @@
 
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryServer.hpp"
-#include "can-lite/categories/foc_motor/FocMotorCategoryClient.hpp"
-#include "can-lite/categories/foc_motor/FocMotorCategoryServer.hpp"
 #include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
@@ -27,8 +25,8 @@ namespace integration
         ApplicationFixture(uint16_t nodeId, uint16_t rateLimit);
         ~ApplicationFixture();
 
-        void RegisterFocMotor();
-        void RegisterFocMotorServerOnly();
+        void RegisterDemoCategory();
+        void RegisterDemoCategoryServerOnly();
         void RegisterFirmwareUpgrade();
         SequencedTestCategory& RegisterSequencedCategory(uint8_t id);
         SimpleTestCategory& RegisterSimpleCategory(uint8_t id);
@@ -42,16 +40,16 @@ namespace integration
         testing::StrictMock<ServerObserverMock> serverObserver;
         services::CanProtocolClient client;
 
-        std::optional<services::FocMotorCategoryServer> motorServer;
-        std::optional<testing::StrictMock<FocMotorServerObserverMock>> motorServerObserver;
+        std::optional<DemoCategoryServer> demoServer;
+        std::optional<testing::StrictMock<DemoServerObserverMock>> demoServerObserver;
         std::optional<services::CanFrameTransport> clientTransport;
-        std::optional<services::FocMotorCategoryClient> motorClient;
-        std::optional<testing::StrictMock<FocMotorClientObserverMock>> motorClientObserver;
+        std::optional<DemoCategoryClient> demoClient;
+        std::optional<testing::StrictMock<DemoClientObserverMock>> demoClientObserver;
 
-        infra::Function<void(services::FocMotorMode)> capturedQueryMotorTypeResult;
-        infra::Function<void(services::FocElectricalParams)> capturedIdentifyElectricalResult;
-        infra::Function<void(services::FocMechanicalParams)> capturedIdentifyMechanicalResult;
-        infra::Function<void(services::FocTelemetryElectrical, services::FocTelemetryStatus)> capturedRequestTelemetryResult;
+        infra::Function<void()> capturedPingDone;
+        infra::Function<void(int16_t)> capturedQueryValueResult;
+        infra::Function<void(DemoError)> capturedFailResult;
+        std::optional<DemoParameters> receivedParameters;
 
         std::optional<services::FirmwareUpgradeCategoryServer> fwuServer;
         std::optional<testing::StrictMock<FirmwareUpgradeServerObserverMock>> fwuServerObserver;

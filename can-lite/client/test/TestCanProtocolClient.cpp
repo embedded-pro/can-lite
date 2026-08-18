@@ -1,4 +1,5 @@
 #include "can-lite/client/CanProtocolClient.hpp"
+#include "can-lite/core/test/CanCategoryStubs.hpp"
 #include "can-lite/core/test/CanMock.hpp"
 #include "can-lite/transport/IsoTpTransport.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
@@ -87,7 +88,7 @@ namespace
             bool handled = false;
         };
 
-        class TestCategory : public CanCategoryClient
+        class TestCategory : public CanCategoryClientStub
         {
         public:
             TestCategory()
@@ -123,7 +124,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, RegisterCategory_DuplicateIdAsserts)
     {
-        class TestCategory : public CanCategoryClient
+        class TestCategory : public CanCategoryClientStub
         {
         public:
             uint8_t Id() const override
@@ -154,7 +155,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategoryClient
+        class TestCategory : public CanCategoryClientStub
         {
         public:
             TestCategory()
@@ -447,7 +448,7 @@ namespace
             bool pduReceived = false;
         };
 
-        class PduCategory : public CanCategoryClient
+        class PduCategory : public CanCategoryClientStub
         {
         public:
             PduCategory()

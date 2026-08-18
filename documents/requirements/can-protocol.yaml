@@ -1,7 +1,7 @@
 # can-lite Protocol Requirements
 #
 # Architecture: Client-Server over CAN 2.0B (29-bit extended identifiers)
-#   - Server: listens for commands from clients, has its own node ID
+#   - Server: listens for commands from a single client, has its own node ID
 #   - Client: initiates all requests, can address multiple servers
 #   - Default category: System (heartbeat, acknowledgement, status request)
 #   - Additional categories are defined by the application layer
@@ -57,6 +57,16 @@
     the same CAN bus by addressing frames to different server node
     addresses. The client shall maintain independent sequence counters
     per server.
+
+- id: REQ-CAN-006.1
+  title: Single-client server
+  shall: >
+    Each server shall serve exactly one client. The server shall
+    maintain a single sequence counter shared by all sequence-validated
+    categories, so concurrent command streams originating from more
+    than one client are not supported and shall be rejected with a
+    sequence error. The relationship is therefore one client to many
+    servers, never many clients to one server.
 
 - id: REQ-CAN-007
   title: Broadcast message support
@@ -138,10 +148,11 @@
   title: Application-defined categories
   shall: >
     The protocol shall allow applications to define additional
-    message categories beyond the built-in System category by
-    registering custom category handlers on the server. The
-    maximum number of registered category handlers shall be
-    bounded at compile time.
+    message categories beyond the built-in System and Firmware
+    Upgrade categories by registering custom category handlers on
+    the server and client. Category identifiers 0x2 to 0xF shall be
+    available to applications. The maximum number of registered
+    category handlers shall be bounded at compile time.
 
 # --- Data Encoding ---
 

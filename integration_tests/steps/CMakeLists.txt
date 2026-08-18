@@ -3,7 +3,7 @@ add_library(can_lite.integration_tests.steps OBJECT
     CategoryDiscoverySteps.cpp
     ErrorHandlingSteps.cpp
     FirmwareUpgradeSteps.cpp
-    FocMotorSteps.cpp
+    CustomCategorySteps.cpp
     RateLimitingSteps.cpp
     SequenceValidationSteps.cpp
     SystemCategorySteps.cpp

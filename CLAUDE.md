@@ -34,47 +34,53 @@ Warnings are treated as errors (`CMAKE_COMPILE_WARNING_AS_ERROR=On`). `compile_c
 ### Layer Stack
 
 ```
-Application Layer  (consumer code; custom categories)
-Category Layer     (system/0x00, firmware_upgrade/0x01, foc_motor/0x02)
+Application Layer  (consumer code; application categories)
+Category Layer     (system/0x00, firmware_upgrade/0x01)
 Protocol Layer     (CanProtocolServer / CanProtocolClient)
 Transport Layer    (IsoTpTransportImpl — ISO 15765-2, optional)
-Core Layer         (CanFrameTransport, CanFrameCodec, CanCategory)
+Core Layer         (CanFrameTransport, CanFrameCodec, CanPayload, CanCategory, CanMessageHandler)
 HAL                (hal::Can)
 ```
 
 ### Key Components
 
-- **`can-lite/core/`** — `CanProtocolDefinitions.hpp` (CAN ID layout, enums, constants), `CanFrameCodec` (fixed-point encode/decode), `CanFrameTransport` (async send queue), `CanCategory` base hierarchy (`CanCategoryServer`/`CanCategoryClient`).
-- **`can-lite/categories/`** — Server/client pairs: `system/` (heartbeat, ack, discovery), `firmware_upgrade/`, `foc_motor/`. Each pair has its own `*Definitions.hpp` with category ID and message type IDs.
-- **`can-lite/server/`** and **`can-lite/client/`** — `CanProtocolServer`/`CanProtocolClient` handle dispatch, sequence tracking, liveness detection, and optional ISO-TP attachment.
+- **`can-lite/core/`** — `CanProtocolDefinitions.hpp` (CAN ID layout, enums, constants), `CanFrameCodec` (fixed-point encode/decode), `CanPayload` (bounds-checked big-endian reader/writer), `CanFrameTransport` (async send queue), `CanCategory` base hierarchy (`CanCategoryServer`/`CanCategoryClient`), `CanMessageHandler` (binds a message type ID to a member function), `CanSequenceSource` (per-server sequence supply).
+- **`can-lite/categories/`** — Server/client pairs shipped with the library: `system/` (heartbeat, ack, discovery), `firmware_upgrade/`. Each pair has its own `*Definitions.hpp` with category ID and message type IDs. **Application-specific categories belong in the consuming project, not here.**
+- **`can-lite/server/`** and **`can-lite/client/`** — `CanProtocolServer`/`CanProtocolClient` handle dispatch, sequence tracking, liveness detection, and optional ISO-TP attachment. `CanProtocolClient` implements `CanSequenceSource`.
 - **`can-lite/transport/`** — ISO-TP layer (`IsoTpTransportImpl`); all classes are non-template with `WithStorage` aliases. Attach via `server.AttachIsoTpTransport(isoTp)`.
-- **`integration_tests/`** — BDD tests (cucumber-cpp-runner); `support/ApplicationFixture.hpp` composes `VirtualCan` pairs, server, client, and `StrictMock` observers.
+- **`examples/`** — Reference application categories (`foc_motor/`). Not built by default; enable with `-DCAN_LITE_BUILD_EXAMPLES=On` (forced On when tests are enabled).
+- **`integration_tests/`** — BDD tests (cucumber-cpp-runner); `support/ApplicationFixture.hpp` composes `VirtualCan` pairs, server, client, and `StrictMock` observers. `support/TestCategories.hpp` holds the `DemoCategory` server/client pair (`0x3`) used as the minimal reference category.
 
 ### CAN ID Layout (29-bit extended)
 
 ```
 [28:24] Priority (5 bits): Emergency=0, Command=4, Response=8, Telemetry=12, Heartbeat=16
-[23:20] Category (4 bits): System=0x0, FirmwareUpgrade=0x1, FocMotor=0x2, custom=0x3–0xF
-[19:12] Message Type (8 bits): commands 0x00–0x7F, responses 0x80–0xFF
+[23:20] Category (4 bits): System=0x0, FirmwareUpgrade=0x1, application=0x2–0xF
+[19:12] Message Type (8 bits): commands 0x00–0x7F, responses 0x80–0xFF (0xFE reserved for category error)
 [11:0]  Node ID (12 bits): 0x000=broadcast, 0x001–0xFFF=individual
 ```
 
 Use `CanProtocolDefinitions::MakeCanId()` and `ExtractCan*()` helpers — never manual bit shifts in category code.
 
+Topology is **one client to many servers**. A server serves exactly one client and keeps a single sequence counter (REQ-CAN-006.1).
+
 ### Category Pattern
 
-Every category is a **server/client pair**:
+Every category is a **server/client pair**. Full guide: `documents/design/extending-categories.md`.
 
-- Server inherits `CanCategoryServer` + `infra::Subject<MyServerObserver>`. Registers command handlers (`0x00–0x7F`), provides `Send*Response()` methods.
-- Client inherits `CanCategoryClient` + `infra::Subject<MyClientObserver>`. Registers response handlers (`0x80–0xFF`), provides `Send*Command(nodeId, …)` methods.
-- Message types are registered via `AddMessageType()` in the constructor.
-- Sequence validation: server categories default `true` (validates `data[0]`), client categories default `false`.
+- Server inherits `CanCategoryServer` + `infra::Subject<MyServerObserver>`. Takes a `CanFrameTransport&`. Registers command handlers (`0x00–0x7F`); sends via the inherited `SendResponse()` / `SendTelemetry()` / `SendCategoryError()` / `SendCommandAck()`.
+- Client inherits `CanCategoryClient` + `infra::Subject<MyClientObserver>`. Takes a `CanFrameTransport&` and a `CanSequenceSource&`. Registers response handlers (`0x80–0xFF`); sends via the inherited `SendCommand(nodeId, messageType[, payload][, priority])`, which prepends the sequence byte. Use `SendCommandWithoutSequence()` only when the paired server sets `RequiresSequenceValidation()` to `false`.
+- Message types are `CanMessageHandler<Owner>` members binding an ID to a member function, registered with `AddMessageTypes(...)` in the constructor. Do not write a nested `CanMessageType` subclass per message.
+- Payloads use `CanPayloadReader` / `CanPayloadWriter` (big-endian, bounds-checked, sticky `Valid()`), not manual byte offsets.
+- Sequence validation: server categories default `true` (byte `data[0]`, so server command handlers `Skip(1)` before reading), client categories default `false`.
 - Observer interfaces use `infra::SingleObserver<Observer, Subject>` — one observer per subject; auto-attaches/detaches on construction/destruction.
 
 To add a new category:
-1. Pick a category ID (0x3–0xF for application categories) and add a `constexpr` in the new `*Definitions.hpp`.
-2. Implement `*CategoryServer` and `*CategoryClient` following `categories/foc_motor/` as the reference.
+1. Pick a category ID (0x2–0xF for application categories) and add a `constexpr` in the new `*Definitions.hpp`.
+2. Implement `*CategoryServer` and `*CategoryClient`; use `categories/firmware_upgrade/` or `integration_tests/support/TestCategories.hpp` as the reference.
 3. Register with `server.RegisterCategory(myCategoryServer)` and `client.RegisterCategory(myCategoryClient)`.
+
+Categories link `can_lite.core` only — never `can_lite.client` or `can_lite.server`.
 
 ### WithStorage Pattern (EMIL convention)
 
@@ -171,7 +177,7 @@ After any protocol, structural, or behavioral change, keep these aligned:
 | `documents/design/architecture.md`         | Architecture decisions and patterns |
 | `README.md`                                | Project overview, features          |
 
-Category-specific specs and requirements live alongside the main ones: `documents/spec/foc-motor-control.md`, `documents/spec/firmware-upgrade.md`, `documents/requirements/foc-motor-control.yaml`, `documents/requirements/firmware-upgrade.yaml`.
+Category-specific specs and requirements live alongside the main ones: `documents/spec/firmware-upgrade.md`, `documents/requirements/firmware-upgrade.yaml`. The category authoring guide is `documents/design/extending-categories.md`. Example categories keep their docs under `examples/<name>/documents/`.
 
 ## Build System Notes
 

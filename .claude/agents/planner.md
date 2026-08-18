@@ -14,7 +14,7 @@ You are an expert in CAN bus protocols: UDS (ISO 14229), J1939 (SAE), ISO-TP (IS
 
 Before planning, thoroughly investigate:
 
-- **Existing category patterns**: Study `can-lite/categories/system/` (built-in) and `can-lite/categories/foc_motor/` (extension) for the canonical pattern of server/client pairs, observer interfaces, and message type registration.
+- **Existing category patterns**: Study `can-lite/categories/system/` and `can-lite/categories/firmware_upgrade/` for the canonical pattern of server/client pairs, observer interfaces, and message type registration.
 - **Core interfaces**: `CanCategory.hpp`, `CanMessageType.hpp`, `CanProtocolDefinitions.hpp`.
 - **Transport & encoding**: `CanFrameTransport.hpp`, `CanFrameCodec.hpp`.
 - **Server/client integration**: `CanProtocolServer.hpp` and `CanProtocolClient.hpp` for `RegisterCategory()` and observer patterns.

@@ -1,8 +1,8 @@
-#include "can-lite/categories/foc_motor/FocMotorCategoryServer.hpp"
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameCodec.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "can-lite/core/test/CanMock.hpp"
+#include "examples/foc_motor/FocMotorCategoryServer.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -444,7 +444,7 @@ namespace
     {
         server.SendCategoryError(focSelectControlModeId, FocMotorCategoryError::modeMismatch);
 
-        EXPECT_EQ(ExtractCanMessageType(lastSentId.Get29BitId()), focCategoryErrorResponseId);
+        EXPECT_EQ(ExtractCanMessageType(lastSentId.Get29BitId()), canCategoryErrorResponseMessageTypeId);
         ASSERT_EQ(lastSentData.size(), 2u);
         EXPECT_EQ(lastSentData[0], focSelectControlModeId);
         EXPECT_EQ(lastSentData[1], static_cast<uint8_t>(FocMotorCategoryError::modeMismatch));

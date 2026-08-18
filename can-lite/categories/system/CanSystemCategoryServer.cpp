@@ -2,14 +2,10 @@
 
 namespace services
 {
-    CanSystemCategoryServer::CanSystemCategoryServer()
-        : heartbeat(*this)
-        , statusRequest(*this)
-        , categoryListRequest(*this)
+    CanSystemCategoryServer::CanSystemCategoryServer(CanFrameTransport& transport)
+        : CanCategoryServer(transport)
     {
-        AddMessageType(heartbeat);
-        AddMessageType(statusRequest);
-        AddMessageType(categoryListRequest);
+        AddMessageTypes(heartbeat, statusRequest, categoryListRequest);
     }
 
     uint8_t CanSystemCategoryServer::Id() const
@@ -22,54 +18,27 @@ namespace services
         return false;
     }
 
-    CanSystemCategoryServer::HeartbeatMessageType::HeartbeatMessageType(CanSystemCategoryServer& parent)
-        : parent(parent)
-    {}
-
-    uint8_t CanSystemCategoryServer::HeartbeatMessageType::Id() const
-    {
-        return canHeartbeatMessageTypeId;
-    }
-
-    void CanSystemCategoryServer::HeartbeatMessageType::Handle(const hal::Can::Message& data)
+    void CanSystemCategoryServer::HandleHeartbeat(const hal::Can::Message& data)
     {
         auto version = data.empty() ? uint8_t{ 0 } : data[0];
 
-        parent.NotifyObservers([version](auto& observer)
+        NotifyObservers([version](auto& observer)
             {
                 observer.OnHeartbeatReceived(version);
             });
     }
 
-    CanSystemCategoryServer::StatusRequestMessageType::StatusRequestMessageType(CanSystemCategoryServer& parent)
-        : parent(parent)
-    {}
-
-    uint8_t CanSystemCategoryServer::StatusRequestMessageType::Id() const
+    void CanSystemCategoryServer::HandleStatusRequest(const hal::Can::Message&)
     {
-        return canStatusRequestMessageTypeId;
-    }
-
-    void CanSystemCategoryServer::StatusRequestMessageType::Handle(const hal::Can::Message& data)
-    {
-        parent.NotifyObservers([](auto& observer)
+        NotifyObservers([](auto& observer)
             {
                 observer.OnStatusRequest();
             });
     }
 
-    CanSystemCategoryServer::CategoryListRequestMessageType::CategoryListRequestMessageType(CanSystemCategoryServer& parent)
-        : parent(parent)
-    {}
-
-    uint8_t CanSystemCategoryServer::CategoryListRequestMessageType::Id() const
+    void CanSystemCategoryServer::HandleCategoryListRequest(const hal::Can::Message&)
     {
-        return canCategoryListRequestMessageTypeId;
-    }
-
-    void CanSystemCategoryServer::CategoryListRequestMessageType::Handle(const hal::Can::Message& data)
-    {
-        parent.NotifyObservers([](auto& observer)
+        NotifyObservers([](auto& observer)
             {
                 observer.OnCategoryListRequest();
             });

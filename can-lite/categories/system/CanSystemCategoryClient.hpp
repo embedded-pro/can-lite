@@ -1,7 +1,7 @@
 #pragma once
 
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanMessageType.hpp"
+#include "can-lite/core/CanMessageHandler.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
@@ -25,38 +25,17 @@ namespace services
         , public infra::Subject<CanSystemCategoryClientObserver>
     {
     public:
-        CanSystemCategoryClient();
+        CanSystemCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource);
 
         uint8_t Id() const override;
 
         infra::Function<void(uint8_t category, uint8_t command, CanAckStatus status)> onCommandAck;
 
     private:
-        class CommandAckMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit CommandAckMessageType(CanSystemCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
+        void HandleCommandAck(const hal::Can::Message& data);
+        void HandleCategoryListResponse(const hal::Can::Message& data);
 
-        private:
-            CanSystemCategoryClient& parent;
-        };
-
-        class CategoryListResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit CategoryListResponseMessageType(CanSystemCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            CanSystemCategoryClient& parent;
-        };
-
-        CommandAckMessageType commandAck;
-        CategoryListResponseMessageType categoryListResponse;
+        CanMessageHandler<CanSystemCategoryClient> commandAck{ canCommandAckMessageTypeId, *this, &CanSystemCategoryClient::HandleCommandAck };
+        CanMessageHandler<CanSystemCategoryClient> categoryListResponse{ canCategoryListResponseMessageTypeId, *this, &CanSystemCategoryClient::HandleCategoryListResponse };
     };
 }

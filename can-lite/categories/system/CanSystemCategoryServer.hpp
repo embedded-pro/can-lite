@@ -1,7 +1,7 @@
 #pragma once
 
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanMessageType.hpp"
+#include "can-lite/core/CanMessageHandler.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
@@ -26,50 +26,18 @@ namespace services
         , public infra::Subject<CanSystemCategoryServerObserver>
     {
     public:
-        CanSystemCategoryServer();
+        explicit CanSystemCategoryServer(CanFrameTransport& transport);
 
         uint8_t Id() const override;
         bool RequiresSequenceValidation() const override;
 
     private:
-        class HeartbeatMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit HeartbeatMessageType(CanSystemCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
+        void HandleHeartbeat(const hal::Can::Message& data);
+        void HandleStatusRequest(const hal::Can::Message& data);
+        void HandleCategoryListRequest(const hal::Can::Message& data);
 
-        private:
-            CanSystemCategoryServer& parent;
-        };
-
-        class StatusRequestMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit StatusRequestMessageType(CanSystemCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            CanSystemCategoryServer& parent;
-        };
-
-        class CategoryListRequestMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit CategoryListRequestMessageType(CanSystemCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            CanSystemCategoryServer& parent;
-        };
-
-        HeartbeatMessageType heartbeat;
-        StatusRequestMessageType statusRequest;
-        CategoryListRequestMessageType categoryListRequest;
+        CanMessageHandler<CanSystemCategoryServer> heartbeat{ canHeartbeatMessageTypeId, *this, &CanSystemCategoryServer::HandleHeartbeat };
+        CanMessageHandler<CanSystemCategoryServer> statusRequest{ canStatusRequestMessageTypeId, *this, &CanSystemCategoryServer::HandleStatusRequest };
+        CanMessageHandler<CanSystemCategoryServer> categoryListRequest{ canCategoryListRequestMessageTypeId, *this, &CanSystemCategoryServer::HandleCategoryListRequest };
     };
 }

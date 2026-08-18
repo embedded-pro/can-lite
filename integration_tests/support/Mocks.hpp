@@ -2,51 +2,33 @@
 
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryServer.hpp"
-#include "can-lite/categories/foc_motor/FocMotorCategoryClient.hpp"
-#include "can-lite/categories/foc_motor/FocMotorCategoryServer.hpp"
 #include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/server/CanProtocolServer.hpp"
+#include "support/TestCategories.hpp"
 #include "gmock/gmock.h"
 
 namespace integration
 {
-    class FocMotorServerObserverMock
-        : public services::FocMotorCategoryServerObserver
+    class DemoServerObserverMock
+        : public DemoCategoryServerObserver
     {
     public:
-        using services::FocMotorCategoryServerObserver::FocMotorCategoryServerObserver;
+        using DemoCategoryServerObserver::DemoCategoryServerObserver;
 
-        MOCK_METHOD(void, OnQueryMotorType, (const infra::Function<void(services::FocMotorMode)>& onResult), (override));
-        MOCK_METHOD(void, OnStart, (const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnStop, (const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnSetPidCurrent, (const services::FocPidGains& gains, const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnSetPidSpeed, (const services::FocPidGains& gains, const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnSetPidPosition, (const services::FocPidGains& gains, const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnIdentifyElectrical, (const infra::Function<void(services::FocElectricalParams)>& onResult), (override));
-        MOCK_METHOD(void, OnIdentifyMechanical, (const infra::Function<void(services::FocMechanicalParams)>& onResult), (override));
-        MOCK_METHOD(void, OnRequestTelemetry, (const infra::Function<void(services::FocTelemetryElectrical, services::FocTelemetryStatus)>& onResult), (override));
-        MOCK_METHOD(void, OnSetEncoderResolution, (uint16_t resolution, const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnSelectControlMode, (services::FocMotorMode mode, const infra::Function<void(services::FocMotorMode)>& onActivated), (override));
-        MOCK_METHOD(void, OnSetTorqueSetpoint, (int16_t value, const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnSetSpeedSetpoint, (int16_t value, const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnSetPositionSetpoint, (int16_t value, const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnClearFault, (const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnEmergencyStop, (const infra::Function<void()>& onDone), (override));
-        MOCK_METHOD(void, OnConfigureTelemetryRate, (uint8_t rateHz, const infra::Function<void()>& onDone), (override));
+        MOCK_METHOD(void, OnPing, (const infra::Function<void()>& onDone), (override));
+        MOCK_METHOD(void, OnSetParameters, (const DemoParameters& parameters, const infra::Function<void()>& onDone), (override));
+        MOCK_METHOD(void, OnQueryValue, (const infra::Function<void(int16_t)>& onResult), (override));
+        MOCK_METHOD(void, OnFail, (const infra::Function<void(DemoError)>& onResult), (override));
     };
 
-    class FocMotorClientObserverMock
-        : public services::FocMotorCategoryClientObserver
+    class DemoClientObserverMock
+        : public DemoCategoryClientObserver
     {
     public:
-        using services::FocMotorCategoryClientObserver::FocMotorCategoryClientObserver;
+        using DemoCategoryClientObserver::DemoCategoryClientObserver;
 
-        MOCK_METHOD(void, OnMotorTypeResponse, (services::FocMotorMode mode), (override));
-        MOCK_METHOD(void, OnElectricalParamsResponse, (const services::FocElectricalParams& params), (override));
-        MOCK_METHOD(void, OnMechanicalParamsResponse, (const services::FocMechanicalParams& params), (override));
-        MOCK_METHOD(void, OnTelemetryElectricalResponse, (const services::FocTelemetryElectrical& telemetry), (override));
-        MOCK_METHOD(void, OnTelemetryStatusResponse, (const services::FocTelemetryStatus& status), (override));
-        MOCK_METHOD(void, OnSelectControlModeResponse, (services::FocMotorMode activeMode), (override));
+        MOCK_METHOD(void, OnValueResponse, (int16_t value), (override));
+        MOCK_METHOD(void, OnCategoryError, (uint8_t originatingCommandId, DemoError error), (override));
     };
 
     class ServerObserverMock

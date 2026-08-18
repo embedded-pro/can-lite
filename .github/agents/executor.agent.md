@@ -41,7 +41,7 @@ Follow these rules for EVERY change. Violations are unacceptable in this codebas
 
 ### Naming Conventions
 
-- **Classes**: `PascalCase` — `CanCategoryServer`, `FocMotorCategoryClient`
+- **Classes**: `PascalCase` — `CanCategoryServer`, `FirmwareUpgradeCategoryClient`
 - **Methods**: `PascalCase` — `HandleMessage()`, `SendCommand()`
 - **Member variables**: `camelCase` — `nodeId`, `sequenceNumber`
 - **Enum values**: `camelCase` — `heartbeat`, `commandAck`, `success`
@@ -87,7 +87,7 @@ namespace services
   raw_id = (priority << 24) | (category << 20) | (message_type << 12) | node_id
   ```
   - `[28:24]` Priority (5 bits): Emergency=0, Command=4, Response=8, Telemetry=12, Heartbeat=16
-  - `[23:20]` Category (4 bits): System=0x0, FirmwareUpgrade=0x1, FocMotor=0x2, custom=0x3–0xF
+  - `[23:20]` Category (4 bits): System=0x0, FirmwareUpgrade=0x1, application=0x2–0xF
   - `[19:12]` Message Type (8 bits): commands 0x00–0x7F, responses 0x80–0xFF
   - `[11:0]` Node ID (12 bits): 0x000 = broadcast, 0x001–0xFFF = individual nodes
 - **Maximum payload**: 8 bytes per CAN 2.0 frame
@@ -101,7 +101,7 @@ namespace services
 
 ### Category Implementation Pattern
 
-Follow the established pattern from `categories/system/` and `categories/foc_motor/`:
+Follow the established pattern from `categories/system/` and `categories/firmware_upgrade/`:
 
 **Server-side category:**
 ```cpp
@@ -113,15 +113,11 @@ public:
     explicit MyCategoryServer(CanFrameTransport& transport);
     uint8_t Id() const override;
 
-    // Send response methods
-    void SendMyResponse(uint16_t nodeId, /* params */);
-
 private:
-    // CanMessageType subclasses as nested classes or separate classes
-    class MyCommandHandler : public CanMessageType { /* ... */ };
+    void HandleMyCommand(const hal::Can::Message& data);
+    void SendMyResponse(/* params */);   // uses inherited SendResponse()
 
-    MyCommandHandler myCommandHandler;
-    CanFrameTransport& transport;
+    CanMessageHandler<MyCategoryServer> myCommand{ myCommandId, *this, &MyCategoryServer::HandleMyCommand };
 };
 ```
 
@@ -132,20 +128,23 @@ class MyCategoryClient
     , public infra::Subject<MyCategoryClientObserver>
 {
 public:
-    explicit MyCategoryClient(CanFrameTransport& transport);
+    MyCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource);
     uint8_t Id() const override;
 
-    // Send command methods (with auto-incrementing sequence)
-    void SendMyCommand(uint16_t nodeId, /* params */);
+    bool SendMyCommand(uint16_t nodeId, /* params */);   // uses inherited SendCommand()
 
 private:
-    class MyResponseHandler : public CanMessageType { /* ... */ };
+    void HandleMyResponse(const hal::Can::Message& data);
 
-    MyResponseHandler myResponseHandler;
-    CanFrameTransport& transport;
-    uint8_t sequenceNumber = 0;
+    CanMessageHandler<MyCategoryClient> myResponse{ myResponseId, *this, &MyCategoryClient::HandleMyResponse };
 };
 ```
+
+Register handlers with `AddMessageTypes(...)` in the constructor. Never write a
+nested `CanMessageType` subclass per message, never store your own
+`CanFrameTransport&`, and never write the sequence byte yourself. Parse payloads
+with `CanPayloadReader` / `CanPayloadWriter`. Full guide:
+`documents/design/extending-categories.md`.
 
 **Observer interfaces:**
 ```cpp
@@ -232,7 +231,7 @@ After any protocol, structural, or behavioral change, check:
 1. **Read the plan or task** carefully
 2. **Clarify requirements before writing code**: If any requirement is ambiguous, ask the user to clarify before proceeding — unclear requirements lead to wrong tests and wrong implementations
 3. **Write tests first (TDD)**: Write failing unit tests that capture the requirements, then implement the minimum production code to make them pass (Red → Green → Refactor)
-4. **Search for existing patterns** in the codebase — follow them exactly (start with `categories/system/` and `categories/foc_motor/`)
+4. **Search for existing patterns** in the codebase — follow them exactly (start with `categories/system/` and `categories/firmware_upgrade/`)
 5. **Implement changes** one file at a time, following all rules above
 6. **Create or update tests** for every change
 7. **Update CMakeLists.txt** if new files were added (library naming: `can_lite.<component>`)

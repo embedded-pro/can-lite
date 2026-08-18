@@ -10,6 +10,7 @@ namespace services
     CanProtocolClient::CanProtocolClient(hal::Can& can, const Config& config)
         : config(config)
         , transport(can, 0)
+        , systemCategory(transport, *this)
         , systemObserver(systemCategory, *this)
     {
         categories.push_back(systemCategory);

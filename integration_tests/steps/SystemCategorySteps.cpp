@@ -72,6 +72,8 @@ THEN(R"(the server shall send an acknowledgement with status {string})", (const 
         expectedStatus = CanAckStatus::sequenceError;
     else if (statusStr == "rateLimited")
         expectedStatus = CanAckStatus::rateLimited;
+    else if (statusStr == "categoryError")
+        expectedStatus = CanAckStatus::categoryError;
 
     EXPECT_EQ(static_cast<CanAckStatus>(fixture.serverCan.lastSentData[2]), expectedStatus);
 }

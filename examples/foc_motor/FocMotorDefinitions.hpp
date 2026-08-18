@@ -1,5 +1,6 @@
 #pragma once
 
+#include "can-lite/core/CanProtocolDefinitions.hpp"
 #include <cstdint>
 
 namespace services
@@ -36,7 +37,6 @@ namespace services
     static constexpr uint8_t focTelemetryElectricalResponseId = 0x88;
     static constexpr uint8_t focTelemetryStatusResponseId = 0x89;
     static constexpr uint8_t focSelectControlModeResponseId = 0x8E;
-    static constexpr uint8_t focCategoryErrorResponseId = 0xFE;
 
     enum class FocMotorCategoryError : uint8_t
     {

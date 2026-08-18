@@ -15,3 +15,5 @@ target_sources(can_lite.categories.system PRIVATE
     CanSystemCategoryServer.cpp
     CanSystemCategoryServer.hpp
 )
+
+add_subdirectory(test)

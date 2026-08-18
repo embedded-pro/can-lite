@@ -1,3 +1,4 @@
+#include "can-lite/core/test/CanCategoryStubs.hpp"
 #include "can-lite/core/test/CanMock.hpp"
 #include "can-lite/server/CanProtocolServer.hpp"
 #include "can-lite/transport/IsoTpTransport.hpp"
@@ -230,6 +231,58 @@ namespace
         limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
     }
 
+    // REQ-CAN-006.1: one server serves exactly one client, so a second client's
+    // interleaved stream breaks the shared sequence counter by design.
+    TEST_F(CanProtocolServerTest, SequenceValidation_RejectsInterleavedSecondClient)
+    {
+        class TestMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x01;
+            }
+
+            void Handle(const hal::Can::Message&) override
+            {
+                handleCount++;
+            }
+
+            int handleCount = 0;
+        };
+
+        class TestCategory : public CanCategoryServerStub
+        {
+        public:
+            TestCategory()
+            {
+                AddMessageType(msg);
+            }
+
+            uint8_t Id() const override
+            {
+                return 0x01;
+            }
+
+            TestMessageType msg;
+        };
+
+        TestCategory testCategory;
+        server.RegisterCategory(testCategory);
+
+        auto id = MakeCommandId(0x01, 0x01);
+
+        SimulateRx(id, MakeMessage({ 10 }));
+        SimulateRx(id, MakeMessage({ 11 }));
+        EXPECT_EQ(testCategory.msg.handleCount, 2);
+
+        EXPECT_CALL(canMock, SendData(_, _, _));
+        SimulateRx(id, MakeMessage({ 200 }));
+        EXPECT_EQ(testCategory.msg.handleCount, 2);
+
+        server.UnregisterCategory(testCategory);
+    }
+
     TEST_F(CanProtocolServerTest, SequenceValidation_RejectsDuplicateOnRegisteredCategory)
     {
         class TestMessageType : public CanMessageType
@@ -248,7 +301,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategoryServer
+        class TestCategory : public CanCategoryServerStub
         {
         public:
             TestCategory()
@@ -302,7 +355,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategoryServer
+        class TestCategory : public CanCategoryServerStub
         {
         public:
             TestCategory()
@@ -354,7 +407,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategoryServer
+        class TestCategory : public CanCategoryServerStub
         {
         public:
             TestCategory()
@@ -406,7 +459,7 @@ namespace
             int handleCount = 0;
         };
 
-        class TestCategory : public CanCategoryServer
+        class TestCategory : public CanCategoryServerStub
         {
         public:
             TestCategory()
@@ -470,7 +523,7 @@ namespace
             bool handled = false;
         };
 
-        class TestCategory : public CanCategoryServer
+        class TestCategory : public CanCategoryServerStub
         {
         public:
             TestCategory()
@@ -506,7 +559,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdAsserts)
     {
-        class TestCategory : public CanCategoryServer
+        class TestCategory : public CanCategoryServerStub
         {
         public:
             uint8_t Id() const override
@@ -535,7 +588,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, CategoryListRequest_RespondsWithRegisteredCategories)
     {
-        class TestCategory : public CanCategoryServer
+        class TestCategory : public CanCategoryServerStub
         {
         public:
             explicit TestCategory(uint8_t id)
@@ -661,7 +714,7 @@ namespace
             bool pduReceived = false;
         };
 
-        class PduCategory : public CanCategoryServer
+        class PduCategory : public CanCategoryServerStub
         {
         public:
             PduCategory()
@@ -738,7 +791,7 @@ namespace
             bool pduReceived = false;
         };
 
-        class PduCategory : public CanCategoryServer
+        class PduCategory : public CanCategoryServerStub
         {
         public:
             PduCategory()
@@ -798,7 +851,7 @@ namespace
             bool pduReceived = false;
         };
 
-        class PduCategory : public CanCategoryServer
+        class PduCategory : public CanCategoryServerStub
         {
         public:
             PduCategory()
@@ -837,7 +890,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, DispatchPdu_UnknownMessageType_SendsUnknownCommandAck)
     {
-        class EmptyCategory : public CanCategoryServer
+        class EmptyCategory : public CanCategoryServerStub
         {
         public:
             uint8_t Id() const override

@@ -11,14 +11,14 @@ can-lite is a lightweight CAN bus protocol library implementing a client-server 
 block-beta
     columns 1
     block:app["Application Layer"]
-        columns 3
-        A["FOC Motor Control"] B["Firmware Upgrade"] C["Custom Categories"]
+        columns 2
+        A["Firmware Upgrade"] C["Application Categories"]
     end
     block:cat["Category Layer"]
         columns 3
-        D["System\n(built-in)"]
-        E["FOC Motor\n(0x02)"]
-        F["Custom Category\n(app-defined)"]
+        D["System\n(0x0)"]
+        E["Firmware Upgrade\n(0x1)"]
+        F["Application Category\n(0x2-0xF)"]
     end
     block:proto["Protocol Layer"]
         columns 2
@@ -30,7 +30,7 @@ block-beta
     end
     block:core["Core Layer"]
         columns 3
-        I["CanFrameTransport"] J["CanFrameCodec"] K["CanCategory"]
+        I["CanFrameTransport"] J["CanFrameCodec / CanPayload"] K["CanCategory / CanMessageHandler"]
     end
     block:hal["HAL"]
         columns 1
@@ -52,11 +52,12 @@ block-beta
 | **Type-safe server/client separation** | Prevents accidental registration of a client-side category handler on the server (and vice versa) at compile time. |
 | **Observer pattern over callbacks** | Consistent notification mechanism using `infra::Subject` / `infra::SingleObserver`. Avoids storing `infra::Function` objects for event dispatch; observers auto-attach and auto-detach on construction/destruction. |
 | **Fixed-point encoding** | Floating-point values are transmitted as scaled integers to avoid FPU dependencies and ensure deterministic wire representation. |
-| **Extensible via categories** | New functionality is added by implementing a category handler — no protocol core changes required. |
+| **Domain-neutral library** | can-lite ships only protocol-level categories (System, Firmware Upgrade). Anything application-specific lives in the consuming project as an application category. |
+| **Extensible via categories** | New functionality is added by implementing a category handler — no protocol core changes required. See [Extending can-lite with categories](extending-categories.md). |
 
 ## 3. Category Type Hierarchy
 
-A key architectural decision is the **compile-time separation** of server-side and client-side categories. This prevents a `FocMotorCategoryClient` from being accidentally registered on a `CanProtocolServer`.
+A key architectural decision is the **compile-time separation** of server-side and client-side categories. This prevents a `MyCategoryClient` from being accidentally registered on a `CanProtocolServer`.
 
 ```mermaid
 classDiagram
@@ -65,16 +66,22 @@ classDiagram
         +Id() uint8_t*
         +RequiresSequenceValidation() bool*
         +AddMessageType(CanMessageType&)
+        +AddMessageTypes(...)
         +HandleMessage(messageType, data) bool
     }
 
     class CanCategoryServer {
         +RequiresSequenceValidation() bool
+        #SendResponse(messageType, payload)
+        #SendTelemetry(messageType, payload)
+        #SendCategoryError(commandId, code)
         IntrusiveList~CanCategoryServer~::NodeType
     }
 
     class CanCategoryClient {
         +RequiresSequenceValidation() bool
+        #SendCommand(nodeId, messageType, payload)
+        #SendCommandWithoutSequence(...)
         IntrusiveList~CanCategoryClient~::NodeType
     }
 
@@ -86,13 +93,15 @@ classDiagram
 
 **`CanCategoryServer`** and **`CanCategoryClient`** each carry their own `IntrusiveList` node type, making them incompatible with each other's lists. `CanProtocolServer` holds an `IntrusiveList<CanCategoryServer>` and `CanProtocolClient` holds an `IntrusiveList<CanCategoryClient>`, so type safety is enforced at the compiler level.
 
+Both base classes own the `CanFrameTransport` reference and expose protected send helpers that fill in the category ID and priority, so a concrete category never touches the frame layer directly. Client categories additionally take a `CanSequenceSource`, which supplies the per-server sequence byte — this keeps categories independent of `CanProtocolClient`, so they link `can_lite.core` only.
+
 Default sequence validation:
 - **Server categories** default to `true` — incoming commands carry a sequence byte for replay protection.
 - **Client categories** default to `false` — responses do not require sequence validation.
 
 ## 4. Message Type Dispatch
 
-Each category contains a set of `CanMessageType` subclasses, registered via `AddMessageType()` in the category constructor. When a frame arrives:
+Each category contains a set of `CanMessageType` handlers, registered via `AddMessageType()` / `AddMessageTypes()` in the category constructor. In practice these are `CanMessageHandler<Owner>` instances, which bind a message type ID to a member function of the owning category — an ID, a reference and a member pointer, with no allocation and no nested class per message. When a frame arrives:
 
 1. `CanProtocolServer`/`CanProtocolClient` extracts the category ID and message type from the 29-bit CAN identifier.
 2. The corresponding category's `HandleMessage()` is called.
@@ -124,28 +133,31 @@ All category handlers use `infra::Subject<Observer>` / `infra::SingleObserver<Ob
 - **Auto-attach/detach**: The observer attaches in its constructor and detaches in its destructor — no manual registration needed.
 - **Zero-cost when unobserved**: `NotifyObservers()` checks for a null observer pointer before dispatching, making it safe to call with no observer attached.
 
-**Example — FOC Motor Category (Server side):**
+**Example — an application category (server side):**
 
 ```cpp
 // Observer interface (pure virtual callbacks for each command)
-class FocMotorCategoryServerObserver
-    : public infra::SingleObserver<FocMotorCategoryServerObserver, FocMotorCategoryServer>
-{ ... };
+class MyCategoryServerObserver
+    : public infra::SingleObserver<MyCategoryServerObserver, MyCategoryServer>
+{
+public:
+    virtual void OnSetParameters(int16_t first, const infra::Function<void()>& onDone) = 0;
+};
 
 // Subject (the category handler)
-class FocMotorCategoryServer
+class MyCategoryServer
     : public CanCategoryServer
-    , public infra::Subject<FocMotorCategoryServerObserver>
+    , public infra::Subject<MyCategoryServerObserver>
 { ... };
 
 // Application attaches by constructing an observer
-class MyMotorHandler : public FocMotorCategoryServerObserver
+class MyHandler : public MyCategoryServerObserver
 {
 public:
-    MyMotorHandler(FocMotorCategoryServer& server)
-        : FocMotorCategoryServerObserver(server) {}
-    void OnStart() override { /* start motor */ }
-    ...
+    explicit MyHandler(MyCategoryServer& server)
+        : MyCategoryServerObserver(server) {}
+
+    void OnSetParameters(int16_t first, const infra::Function<void()>& onDone) override { ... }
 };
 ```
 
@@ -185,42 +197,41 @@ Each application category is split into two classes that mirror the client-serve
 
 ```mermaid
 classDiagram
-    class FocMotorCategoryClient {
+    class MyCategoryClient {
         <<CanCategoryClient>>
-        +SendStartCommand()
-        +SendSetPidCommand()
-        +SendRequestTelemetryCommand()
+        +SendSetParameters(nodeId, ...)
+        +SendQueryValue(nodeId)
     }
 
-    class FocMotorClientObserver {
+    class MyCategoryClientObserver {
         <<observer>>
-        +OnMotorTypeResponse()
-        +OnTelemetryResponse()
+        +OnValueResponse()
+        +OnCategoryError()
     }
 
-    class FocMotorCategoryServer {
+    class MyCategoryServer {
         <<CanCategoryServer>>
-        +SendMotorTypeResponse()
-        +SendTelemetryResponse()
+        +SendValueResponse()
     }
 
-    class FocMotorServerObserver {
+    class MyCategoryServerObserver {
         <<observer>>
-        +OnStart()
-        +OnSetPid()
-        +OnRequestTelemetry()
+        +OnSetParameters()
+        +OnQueryValue()
     }
 
-    FocMotorCategoryClient ..> FocMotorCategoryServer : commands over CAN
-    FocMotorCategoryServer ..> FocMotorCategoryClient : responses over CAN
-    FocMotorClientObserver --> FocMotorCategoryClient : observes
-    FocMotorServerObserver --> FocMotorCategoryServer : observes
+    MyCategoryClient ..> MyCategoryServer : commands over CAN
+    MyCategoryServer ..> MyCategoryClient : responses over CAN
+    MyCategoryClientObserver --> MyCategoryClient : observes
+    MyCategoryServerObserver --> MyCategoryServer : observes
 ```
 
-- **Server category**: Registers `CanMessageType` handlers for **commands** (IDs `0x00`–`0x7F`). Provides `Send*Response()` methods that build response frames and send them via `CanFrameTransport`.
-- **Client category**: Registers `CanMessageType` handlers for **responses** (IDs `0x80`–`0xFF`). Provides `Send*Command(uint16_t targetNodeId, ...)` methods. The `targetNodeId` parameter directs each frame to a specific server. Sequence counters are tracked **per server node** via `CanProtocolClient::NextSequence(nodeId)`.
+- **Server category**: Registers handlers for **commands** (IDs `0x00`–`0x7F`). Uses the inherited `SendResponse()` / `SendTelemetry()` / `SendCategoryError()` helpers, which fill in the category ID and priority.
+- **Client category**: Registers handlers for **responses** (IDs `0x80`–`0xFF`). Uses the inherited `SendCommand(uint16_t targetNodeId, ...)` helper, which directs each frame to a specific server and prepends the per-server sequence byte.
 
-Both sides take a `CanFrameTransport&` in their constructor to send frames. Client-side categories additionally take a `CanProtocolClient&` to access the per-server sequence counter.
+Server categories take a `CanFrameTransport&` in their constructor. Client categories take a `CanFrameTransport&` and a `CanSequenceSource&`; `CanProtocolClient` implements the latter, so categories depend only on `can_lite.core`.
+
+See [Extending can-lite with categories](extending-categories.md) for the full authoring guide.
 
 ## 8. CAN Identifier Layout
 
@@ -254,9 +265,14 @@ Server-side categories validate an 8-bit sequence number in `data[0]` of every c
 
 Client-side categories skip sequence validation (responses are stateless).
 
+The server keeps **one** counter, shared by all sequence-validated categories. This
+is deliberate: the supported topology is one client to many servers, and a server
+serves exactly one client (REQ-CAN-006.1). Two clients commanding the same server
+concurrently interleave their counters and are rejected with `sequenceError`.
+
 ## 9.1 Per-Server Sequence Tracking
 
-`CanProtocolClient` maintains **independent sequence counters per server node** in a fixed-size array (`maxServers = 8`). `NextSequence(nodeId)` returns the next sequence byte for the given node, creating a tracking entry on the first call. This ensures that commands directed to different servers do not share or interfere with each other's replay protection state.
+`CanProtocolClient` maintains **independent sequence counters per server node** in a fixed-size array (`maxServers = 8`) and exposes them through the `CanSequenceSource` interface. `PeekSequence(nodeId)` returns the next sequence byte for the given node, and `CommitSequence(nodeId)` advances it once the frame has been accepted by the send queue — so a rejected frame does not burn a sequence number. This ensures that commands directed to different servers do not share or interfere with each other's replay protection state.
 
 ## 9.2 Server Liveness Detection
 
@@ -280,22 +296,21 @@ can-lite/
 ├── core/                          # Protocol primitives
 │   ├── CanCategory.hpp/cpp        # Base class + Server/Client subclasses
 │   ├── CanMessageType.hpp         # Message handler interface
+│   ├── CanMessageHandler.hpp      # Binds a message type ID to a member function
+│   ├── CanPayload.hpp/cpp         # Bounds-checked big-endian payload reader/writer
+│   ├── CanSequenceSource.hpp      # Per-server sequence supply for client categories
 │   ├── CanProtocolDefinitions.hpp # CAN ID layout, constants, enums
 │   ├── CanFrameCodec.hpp/cpp      # Fixed-point encoding helpers
-│   └── CanFrameTransport.hpp/cpp  # Async send queue over hal::Can
+│   ├── CanFrameTransport.hpp/cpp  # Async send queue over hal::Can
+│   └── test/                      # Unit tests + can_lite.test_util doubles
 ├── categories/
 │   ├── system/                    # Built-in System category (0x00)
 │   │   ├── CanSystemCategoryServer.hpp/cpp
 │   │   └── CanSystemCategoryClient.hpp/cpp
-│   ├── firmware_upgrade/          # Firmware Upgrade category (0x01)
-│   │   ├── FirmwareUpgradeDefinitions.hpp
-│   │   ├── FirmwareUpgradeCategoryServer.hpp/cpp
-│   │   ├── FirmwareUpgradeCategoryClient.hpp/cpp
-│   │   └── test/
-│   └── foc_motor/                 # FOC Motor Control category (0x02)
-│       ├── FocMotorDefinitions.hpp
-│       ├── FocMotorCategoryServer.hpp/cpp
-│       ├── FocMotorCategoryClient.hpp/cpp
+│   └── firmware_upgrade/          # Firmware Upgrade category (0x01)
+│       ├── FirmwareUpgradeDefinitions.hpp
+│       ├── FirmwareUpgradeCategoryServer.hpp/cpp
+│       ├── FirmwareUpgradeCategoryClient.hpp/cpp
 │       └── test/
 ├── transport/                     # ISO-TP segmentation layer
 │   ├── IsoTpTransport.hpp         # Abstract interface
@@ -314,7 +329,12 @@ can-lite/
 │   ├── CanProtocolClient.hpp/cpp
 │   └── test/
 └── drivers/                       # Hardware driver adapters
+
+examples/                          # Not built by default (CAN_LITE_BUILD_EXAMPLES)
+└── foc_motor/                     # Reference application category
 ```
+
+Application categories live in the consuming project, not in `can-lite/categories/`.
 
 ## 10.1 ISO-TP Transport Layer
 
@@ -394,8 +414,8 @@ integration_tests/
 
 - A pair of connected `VirtualCan` instances (server-side and client-side).
 - `CanProtocolServer` and `CanProtocolClient` wired to their respective CAN interfaces.
-- `StrictMock` observers for the server and (optionally) FOC motor category.
-- Optional FOC motor components (`CanFrameTransport`, `FocMotorCategoryServer`/`Client`, observers) activated via `RegisterFocMotor()`.
+- `StrictMock` observers for the server and (optionally) the demo category.
+- Optional demo category components (`CanFrameTransport`, `DemoCategoryServer`/`Client`, observers) activated via `RegisterDemoCategory()`. The demo category (`0x3`) is the reference application category used to validate the extension API end to end.
 - Optional Firmware Upgrade components (`FirmwareUpgradeCategoryServer`/`Client`, observers) activated via `RegisterFirmwareUpgrade()`.
 - Dynamic test categories (`SequencedTestCategory`, `SimpleTestCategory`) for sequence and discovery testing.
 

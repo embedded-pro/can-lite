@@ -18,11 +18,11 @@ protocol by registering custom category handlers on the server.
 
 | Term            | Definition                                                          |
 |-----------------|---------------------------------------------------------------------|
-| Server          | A node on the CAN bus that listens for commands, processes them, and sends responses. Each server has a unique node ID. |
+| Server          | A node on the CAN bus that listens for commands, processes them, and sends responses. Each server has a unique node ID and serves exactly one client. |
 | Client          | The initiator of all commands and queries. A single client can communicate with multiple servers. |
 | Broadcast       | A message addressed to all servers (node ID 0x000)                  |
 | Category        | A 4-bit field in the CAN identifier that groups related message types. The built-in System category (0x0) is always available; applications register additional categories. |
-| Category Handler| A component registered on the server that processes all messages for a specific category. |
+| Category Handler| A `CanCategoryServer` or `CanCategoryClient` implementation registered via `RegisterCategory()` that processes all messages for a specific category. |
 | Sequence Number | An 8-bit counter in byte[0] of command frames for replay protection |
 | Scale Factor    | Integer multiplier used to convert floats to fixed-point integers   |
 
@@ -36,6 +36,9 @@ The protocol follows a **client-server** model:
 - The **server** passively listens for incoming frames addressed to its node ID
   (or the broadcast address). It processes commands, dispatches them to the
   appropriate category handler, and sends acknowledgement responses.
+- The topology is **one client to many servers**. A server serves exactly one
+  client and keeps a single sequence counter; addressing one server from two
+  clients concurrently is not supported and is rejected with a sequence error.
 - The server automatically begins transmitting heartbeat messages on startup.
   The client uses the presence or absence of heartbeats to determine whether
   a server is **online** or **offline**, and notifies the application layer
@@ -136,21 +139,36 @@ Lower numerical values have higher CAN bus arbitration priority.
 
 ## 7. Message Categories
 
-| Value | Name              | Description                                                      |
-|-------|-------------------|------------------------------------------------------------------|
-| 0x0   | System            | Heartbeat, command acknowledgement, status request, category discovery |
-| 0x1   | Firmware Upgrade  | Block-based firmware transfer, verification, and activation      |
-| 0x2   | FOC Motor Control | Field-oriented motor control commands and telemetry              |
+| Value     | Name             | Description                                                            |
+|-----------|------------------|------------------------------------------------------------------------|
+| 0x0       | System           | Heartbeat, command acknowledgement, status request, category discovery |
+| 0x1       | Firmware Upgrade | Block-based firmware transfer, verification, and activation            |
+| 0x2 - 0xF | Application      | Reserved for application-defined categories                            |
 
-The System category is always available. Categories 0x1 and 0x2 are
-defined in separate extension specifications:
+The System category is always available. Category 0x1 is defined in a
+separate extension specification:
 
 - [Firmware Upgrade](firmware-upgrade.md)
-- [FOC Motor Control](foc-motor-control.md)
 
-Applications may register additional categories (values 0x3–0xF) by
-providing custom `CanCategoryHandler` implementations to the server at
-construction time.
+Applications register additional categories (values 0x2-0xF) by providing
+`CanCategoryServer` and `CanCategoryClient` implementations to
+`CanProtocolServer::RegisterCategory()` and
+`CanProtocolClient::RegisterCategory()`. See
+[Extending can-lite with categories](../design/extending-categories.md).
+
+### 7.1 Reserved Message Type
+
+Message type `0xFE` is reserved across all categories for a
+**category error response**, carrying a category-specific failure detail
+that the universal acknowledgement status cannot express.
+
+| Byte | Field               | Type  | Description                             |
+|------|---------------------|-------|-----------------------------------------|
+| 0    | Originating Command | uint8 | Message type of the command that failed |
+| 1    | Error Code          | uint8 | Category-defined error code             |
+
+A category error response is normally followed by a command acknowledgement
+with status `categoryError`.
 
 ## 8. Message Catalog
 
