@@ -29,6 +29,8 @@ namespace services
 
         bool RegisterReceiveChannel(uint32_t dataId, uint32_t fcId) override;
 
+        void ReleaseChannel(uint32_t dataId) override;
+
         bool SendPdu(uint32_t dataId, uint32_t fcId,
             infra::ConstByteRange pdu,
             const infra::Function<void()>& onDone) override;
@@ -46,33 +48,33 @@ namespace services
         iso_tp::IsoTpChannel* AllocateFreeChannel();
 
         bool OnRawSend(uint32_t canId, const hal::Can::Message& frame,
-            const infra::Function<void()>& onDone);
+            const infra::Function<void(bool success)>& onDone);
         void OnPduReady(uint32_t dataId, infra::ConstByteRange pdu) const;
         void OnAbort(uint32_t dataId, iso_tp::AbortReason reason) const;
 
-        infra::MemoryRange<iso_tp::IsoTpChannel*> channels_;
-        CanFrameTransport& transport_;
-        infra::Function<void(uint32_t, infra::ConstByteRange)> onPduReceived_;
-        infra::Function<void(uint32_t, iso_tp::AbortReason)> onAbortCallback_;
+        infra::MemoryRange<iso_tp::IsoTpChannel*> channelRange;
+        CanFrameTransport& transport;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> onPduReceived;
+        infra::Function<void(uint32_t, iso_tp::AbortReason)> onAbortCallback;
 
         static constexpr uint8_t maxSupportedChannels = 16u;
-        std::array<iso_tp::IsoTpChannel*, maxSupportedChannels> channelPtrs_{};
-        uint8_t channelCount_ = 0u;
+        std::array<iso_tp::IsoTpChannel*, maxSupportedChannels> channelPtrs{};
+        uint8_t channelCount = 0u;
     };
 
     template<typename ChannelType>
     IsoTpTransportImpl::IsoTpTransportImpl(infra::BoundedVector<ChannelType>& channels, CanFrameTransport& transport)
-        : transport_(transport)
+        : transport(transport)
     {
         while (channels.size() < channels.max_size())
             channels.emplace_back();
 
         really_assert(channels.max_size() <= maxSupportedChannels);
 
-        channelCount_ = static_cast<uint8_t>(channels.size());
-        for (std::size_t i = 0u; i < channelCount_; ++i)
-            channelPtrs_[i] = &channels[i];
+        channelCount = static_cast<uint8_t>(channels.size());
+        for (std::size_t i = 0u; i < channelCount; ++i)
+            channelPtrs[i] = &channels[i];
 
-        channels_ = infra::MemoryRange<iso_tp::IsoTpChannel*>(channelPtrs_.data(), channelPtrs_.data() + channelCount_);
+        channelRange = infra::MemoryRange<iso_tp::IsoTpChannel*>(channelPtrs.data(), channelPtrs.data() + channelCount);
     }
 }

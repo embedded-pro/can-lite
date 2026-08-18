@@ -18,6 +18,8 @@ project(can_lite LANGUAGES C CXX ASM VERSION 0.0.1) # x-release-please-version
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 
+include(GNUInstallDirs)
+
 set_directory_properties(PROPERTY USE_FOLDERS ON)
 
 if (CAN_LITE_STANDALONE)
@@ -55,6 +57,13 @@ if (CAN_LITE_BUILD_TESTS)
 endif()
 
 add_subdirectory(can-lite)
+
+install(DIRECTORY can-lite
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+    PATTERN "test" EXCLUDE
+    PATTERN "test_doubles" EXCLUDE
+)
 
 set(CAN_LITE_FORMAT_DIRECTORIES can-lite)
 

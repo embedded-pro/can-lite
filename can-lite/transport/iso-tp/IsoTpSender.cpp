@@ -31,6 +31,7 @@ namespace services::iso_tp
         blockSize = 0;
         blocksRemaining = 0;
         stMinByte = 0;
+        waitCount = 0;
 
         SendFirstOrSingleFrame();
         return true;
@@ -46,12 +47,29 @@ namespace services::iso_tp
         uint8_t stMin;
         IsoTpFrameCodec::DecodeFlowControl(frame, fs, bs, stMin);
 
-        if (fs == FlowStatus::overflow || fs == FlowStatus::wait)
+        if (fs == FlowStatus::overflow)
         {
-            Abort(AbortReason::unexpectedFrame);
+            Abort(AbortReason::overflow);
             return;
         }
 
+        if (fs == FlowStatus::wait)
+        {
+            if (++waitCount > nWftMax)
+            {
+                Abort(AbortReason::waitLimitExceeded);
+                return;
+            }
+
+            nBsTimer.Cancel();
+            nBsTimer.Start(nBsTimeout, [this]()
+                {
+                    Abort(AbortReason::nBsTimeout);
+                });
+            return;
+        }
+
+        waitCount = 0;
         nBsTimer.Cancel();
         blockSize = bs;
         blocksRemaining = bs;
@@ -73,8 +91,13 @@ namespace services::iso_tp
         {
             IsoTpFrameCodec::EncodeSingleFrame(infra::MakeRange(pduBuffer), frame);
             state = SenderState::sendingSf;
-            sendFrameFunc(frame, [this]()
+            sendFrameFunc(frame, [this](bool success)
                 {
+                    if (!success)
+                    {
+                        Abort(AbortReason::unexpectedFrame);
+                        return;
+                    }
                     state = SenderState::idle;
                     auto done = onDoneCallback;
                     done();
@@ -85,8 +108,13 @@ namespace services::iso_tp
             IsoTpFrameCodec::EncodeFirstFrame(infra::MakeRange(pduBuffer), frame);
             bytesSent = ffFirstDataBytes;
             state = SenderState::waitingForFc;
-            sendFrameFunc(frame, [this]()
+            sendFrameFunc(frame, [this](bool success)
                 {
+                    if (!success)
+                    {
+                        Abort(AbortReason::unexpectedFrame);
+                        return;
+                    }
                     nBsTimer.Start(nBsTimeout, [this]()
                         {
                             Abort(AbortReason::nBsTimeout);
@@ -130,8 +158,13 @@ namespace services::iso_tp
             if (blocksRemaining == 0u)
             {
                 state = SenderState::waitingForFc;
-                sendFrameFunc(frame, [this]()
+                sendFrameFunc(frame, [this](bool success)
                     {
+                        if (!success)
+                        {
+                            Abort(AbortReason::unexpectedFrame);
+                            return;
+                        }
                         nBsTimer.Start(nBsTimeout, [this]()
                             {
                                 Abort(AbortReason::nBsTimeout);
@@ -141,8 +174,13 @@ namespace services::iso_tp
             }
         }
 
-        sendFrameFunc(frame, [this, allSent]()
+        sendFrameFunc(frame, [this, allSent](bool success)
             {
+                if (!success)
+                {
+                    Abort(AbortReason::unexpectedFrame);
+                    return;
+                }
                 if (allSent)
                 {
                     state = SenderState::idle;

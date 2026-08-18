@@ -17,7 +17,7 @@ namespace
 
     struct MockCallbacks
     {
-        MOCK_METHOD(void, SendFc, (const hal::Can::Message&, const infra::Function<void()>&));
+        MOCK_METHOD(void, SendFc, (const hal::Can::Message&, const infra::Function<void(bool)>&));
         MOCK_METHOD(void, OnPduReady, (infra::ConstByteRange));
         MOCK_METHOD(void, OnAbort, (AbortReason));
     };
@@ -34,7 +34,7 @@ protected:
     void SetUp() override
     {
         receiver.Configure(
-            [this](const hal::Can::Message& f, const infra::Function<void()>& d)
+            [this](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 mocks.SendFc(f, d);
             },
@@ -90,7 +90,7 @@ TEST_F(IsoTpReceiverTest, Receive_FirstFrame_SendsFC)
     auto msg = MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 });
 
     EXPECT_CALL(mocks, SendFc(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message& fc, const infra::Function<void()>&)
+        .WillOnce(Invoke([](const hal::Can::Message& fc, const infra::Function<void(bool)>&)
             {
                 EXPECT_EQ(fc[0], 0x30u);
                 EXPECT_EQ(fc[1], 0x00u);
@@ -139,7 +139,7 @@ TEST_F(IsoTpReceiverTest, Receive_PDU_ExceedsMaxSize_SendsOverflowFC)
     auto ff = MakeMessage({ 0x10, 0x64, 1, 2, 3, 4, 5, 6 });
 
     EXPECT_CALL(mocks, SendFc(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message& fc, const infra::Function<void()>&)
+        .WillOnce(Invoke([](const hal::Can::Message& fc, const infra::Function<void(bool)>&)
             {
                 EXPECT_EQ(fc[0], 0x32u);
             }));
@@ -183,7 +183,7 @@ TEST_F(IsoTpReceiverTest, Receive_SingleFrame_ExceedsMaxSize_Aborts)
     StrictMock<MockCallbacks> smallMocks;
     SmallReceiver smallReceiver;
     smallReceiver.Configure(
-        [&](const hal::Can::Message& f, const infra::Function<void()>& d)
+        [&](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
         {
             smallMocks.SendFc(f, d);
         },

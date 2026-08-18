@@ -16,4 +16,10 @@ target_sources(can_lite.categories.system PRIVATE
     CanSystemCategoryServer.hpp
 )
 
+emil_install(can_lite.categories.system
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
 add_subdirectory(test)

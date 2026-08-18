@@ -1,10 +1,12 @@
 #ifdef __linux__
 
-#include "can-lite/drivers/implementation/SocketCan.hpp"
+#include "can-lite/drivers/implementation/SocketCanAdapter.hpp"
+#include "infra/event/EventDispatcher.hpp"
 #include <algorithm>
+#include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <dirent.h>
-#include <fstream>
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <net/if.h>
@@ -32,13 +34,16 @@ namespace services
 
         void ApplyBitrate(const char* iface, uint32_t bitrate)
         {
-            std::string bitrateStr = std::to_string(bitrate);
+            // Note: ExecCommand blocks (waitpid) for the ip-link subprocess.
+            // This is acceptable as it only runs once during Connect(), not on the hot send/receive path.
+            char bitrateStr[12]{};
+            std::snprintf(bitrateStr, sizeof(bitrateStr), "%u", bitrate);
 
             const char* downArgs[] = { "ip", "link", "set", iface, "down", nullptr };
             ExecCommand("ip", downArgs);
 
             const char* configArgs[] = { "ip", "link", "set", iface, "type", "can",
-                "bitrate", bitrateStr.c_str(), nullptr };
+                "bitrate", bitrateStr, nullptr };
             ExecCommand("ip", configArgs);
 
             const char* upArgs[] = { "ip", "link", "set", iface, "up", nullptr };
@@ -56,7 +61,7 @@ namespace services
         if (IsConnected())
             Disconnect();
 
-        socketDescriptor = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+        socketDescriptor = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK, CAN_RAW);
         if (socketDescriptor < 0)
         {
             NotifyObservers([](auto& observer)
@@ -132,7 +137,13 @@ namespace services
     {
         if (!IsConnected())
         {
-            actionOnCompletion(false);
+            ScheduleCompletion(actionOnCompletion, false);
+            return;
+        }
+
+        if (!id.Is29BitId())
+        {
+            ScheduleCompletion(actionOnCompletion, false);
             return;
         }
 
@@ -143,7 +154,8 @@ namespace services
         std::memcpy(frame.data, data.data(), frame.can_dlc);
 
         auto bytesWritten = write(socketDescriptor, &frame, sizeof(frame));
-        bool success = (bytesWritten == sizeof(frame));
+        int savedErrno = errno;
+        bool success = (bytesWritten == static_cast<ssize_t>(sizeof(frame)));
 
         if (success)
         {
@@ -153,7 +165,7 @@ namespace services
                     observer.OnFrameLog(true, rawId, data);
                 });
         }
-        else
+        else if (!(bytesWritten < 0 && (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK)))
         {
             NotifyObservers([](auto& observer)
                 {
@@ -161,7 +173,7 @@ namespace services
                 });
         }
 
-        actionOnCompletion(success);
+        ScheduleCompletion(actionOnCompletion, success);
     }
 
     void SocketCanAdapter::ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction)
@@ -182,24 +194,34 @@ namespace services
         struct can_frame frame;
         auto bytesRead = read(socketDescriptor, &frame, sizeof(frame));
 
-        if (bytesRead == sizeof(frame))
+        if (bytesRead < 0)
         {
-            if (!(frame.can_id & CAN_EFF_FLAG))
-                return;
-
-            uint32_t rawId = frame.can_id & CAN_EFF_MASK;
-            CanFrame data;
-            for (uint8_t i = 0; i < frame.can_dlc && i < 8; ++i)
-                data.push_back(frame.data[i]);
-
-            NotifyObservers([rawId, &data](auto& observer)
-                {
-                    observer.OnFrameLog(false, rawId, data);
-                });
-
-            if (receiveCallback)
-                receiveCallback(hal::Can::Id::Create29BitId(rawId), data);
+            if (errno != EAGAIN && errno != EWOULDBLOCK)
+                NotifyObservers([](auto& observer)
+                    {
+                        observer.OnError("CAN read error");
+                    });
+            return;
         }
+
+        if (bytesRead != static_cast<ssize_t>(sizeof(frame)))
+            return;
+
+        if (!(frame.can_id & CAN_EFF_FLAG))
+            return;
+
+        uint32_t rawId = frame.can_id & CAN_EFF_MASK;
+        CanFrame data;
+        for (uint8_t i = 0; i < frame.can_dlc && i < 8; ++i)
+            data.push_back(frame.data[i]);
+
+        NotifyObservers([rawId, &data](auto& observer)
+            {
+                observer.OnFrameLog(false, rawId, data);
+            });
+
+        if (receiveCallback)
+            receiveCallback(hal::Can::Id::Create29BitId(rawId), data);
     }
 
     bool SocketCanAdapter::IsDriverAvailable() const
@@ -227,13 +249,29 @@ namespace services
             char typePath[280];
             std::snprintf(typePath, sizeof(typePath), "/sys/class/net/%s/type", entry->d_name);
 
-            std::ifstream typeFile(typePath);
-            int type = 0;
-            if (typeFile >> type && type == arphrdCan)
-                callback(entry->d_name);
+            FILE* typeFile = std::fopen(typePath, "r");
+            if (typeFile != nullptr)
+            {
+                int type = 0;
+                bool validRead = (std::fscanf(typeFile, "%d", &type) == 1);
+                std::fclose(typeFile);
+                if (validRead && type == arphrdCan)
+                    callback(entry->d_name);
+            }
         }
 
         closedir(dir);
+    }
+
+    void SocketCanAdapter::ScheduleCompletion(const infra::Function<void(bool)>& action, bool result)
+    {
+        pendingCompletion = action;
+        pendingSuccess = result;
+        infra::EventDispatcher::Instance().Schedule([this]()
+            {
+                if (pendingCompletion)
+                    pendingCompletion(pendingSuccess);
+            });
     }
 }
 

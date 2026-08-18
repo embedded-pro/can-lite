@@ -27,21 +27,26 @@ namespace services
     void FocMotorCategoryServer::SendElectricalParamsResponse(const FocElectricalParams& params)
     {
         CanPayloadWriter payload;
-        payload.WriteInt16(params.resistance).WriteInt16(params.inductance);
+        payload.WriteFixed16(params.resistance, focResistanceScale)
+            .WriteFixed16(params.inductance, focInductanceScale);
         SendResponse(focElectricalParamsResponseId, payload);
     }
 
     void FocMotorCategoryServer::SendMechanicalParamsResponse(const FocMechanicalParams& params)
     {
         CanPayloadWriter payload;
-        payload.WriteInt16(params.inertia).WriteInt16(params.friction);
+        payload.WriteFixed16(params.inertia, focInertiaScale)
+            .WriteFixed16(params.friction, focFrictionScale);
         SendResponse(focMechanicalParamsResponseId, payload);
     }
 
     void FocMotorCategoryServer::SendTelemetryElectricalResponse(const FocTelemetryElectrical& telemetry)
     {
         CanPayloadWriter payload;
-        payload.WriteInt16(telemetry.voltage).WriteInt16(telemetry.maxCurrent).WriteInt16(telemetry.iq).WriteInt16(telemetry.id);
+        payload.WriteFixed16(telemetry.voltage, focVoltageScale)
+            .WriteFixed16(telemetry.maxCurrent, focCurrentScale)
+            .WriteFixed16(telemetry.iq, focCurrentScale)
+            .WriteFixed16(telemetry.id, focCurrentScale);
         SendTelemetry(focTelemetryElectricalResponseId, payload);
     }
 
@@ -50,8 +55,8 @@ namespace services
         CanPayloadWriter payload;
         payload.WriteUInt8(static_cast<uint8_t>(status.state))
             .WriteUInt8(static_cast<uint8_t>(status.fault))
-            .WriteInt16(status.speed)
-            .WriteInt16(status.position);
+            .WriteFixed16(status.speed, focSpeedScale)
+            .WriteFixed16(status.position, focPositionScale);
         SendTelemetry(focTelemetryStatusResponseId, payload);
     }
 
@@ -84,9 +89,9 @@ namespace services
     {
         NotifyObservers([this](auto& observer)
             {
-                observer.OnStart([this]()
+                observer.OnStart([this](CanAckStatus status)
                     {
-                        SendCommandAck(focStartId, CanAckStatus::success);
+                        SendCommandAck(focStartId, status);
                     });
             });
     }
@@ -244,7 +249,7 @@ namespace services
     {
         CanPayloadReader reader{ data };
         reader.Skip(1);
-        auto value = reader.ReadInt16();
+        auto value = reader.ReadFixed16(focCurrentScale);
         if (!reader.Valid())
         {
             SendCommandAck(focSetTorqueSetpointId, CanAckStatus::invalidPayload);
@@ -263,7 +268,7 @@ namespace services
     {
         CanPayloadReader reader{ data };
         reader.Skip(1);
-        auto value = reader.ReadInt16();
+        auto value = reader.ReadFixed16(focSpeedScale);
         if (!reader.Valid())
         {
             SendCommandAck(focSetSpeedSetpointId, CanAckStatus::invalidPayload);
@@ -282,7 +287,7 @@ namespace services
     {
         CanPayloadReader reader{ data };
         reader.Skip(1);
-        auto value = reader.ReadInt16();
+        auto value = reader.ReadFixed16(focPositionScale);
         if (!reader.Valid())
         {
             SendCommandAck(focSetPositionSetpointId, CanAckStatus::invalidPayload);

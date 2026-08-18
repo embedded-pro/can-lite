@@ -9,6 +9,7 @@ namespace services
     static constexpr uint32_t canIdPriorityShift = 24;
     static constexpr uint32_t canIdCategoryShift = 20;
     static constexpr uint32_t canIdMessageTypeShift = 12;
+    static constexpr uint32_t canIdCategoryMask = 0xF;
     static constexpr uint32_t canIdNodeIdMask = 0xFFF;
     static constexpr uint32_t canBroadcastNodeId = 0x000;
 
@@ -76,7 +77,7 @@ namespace services
         uint8_t messageType, uint16_t nodeId)
     {
         return (static_cast<uint32_t>(priority) << canIdPriorityShift) |
-               (static_cast<uint32_t>(category) << canIdCategoryShift) |
+               ((static_cast<uint32_t>(category) & canIdCategoryMask) << canIdCategoryShift) |
                (static_cast<uint32_t>(messageType) << canIdMessageTypeShift) |
                (static_cast<uint32_t>(nodeId) & canIdNodeIdMask);
     }

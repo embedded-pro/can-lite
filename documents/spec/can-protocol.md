@@ -81,25 +81,46 @@ For payloads exceeding the 8-byte CAN frame limit, can-lite provides an optional
 |------|-------|------------------------------------------------------------------------------------------------------------------------------------------------|
 | 0    | PCI   | `0x3S` — Flow Status (0=CTS, 1=Wait, 2=Overflow)                                                                                               |
 | 1    | BS    | Block Size — number of CFs before next FC (0 = unlimited)                                                                                      |
-| 2    | STmin | Minimum separation time: 0x00–0x7F = 0–127 ms; 0xF1–0xF9 = 100–900 µs (ISO-TP sub-ms range); 0x80–0xF0 and 0xFA–0xFF = reserved (treated as 0) |
+| 2    | STmin | Minimum separation time: 0x00–0x7F = 0–127 ms; 0xF1–0xF9 = 100–900 µs (ISO-TP sub-ms range); 0x80–0xF0 and 0xFA–0xFF = reserved (treated as 0x7F / 127 ms per ISO 15765-2) |
 
 ### Timing Parameters
 
-| Parameter | Value   | Description                                      |
-|-----------|---------|--------------------------------------------------|
-| N_Bs      | 1000 ms | Sender timeout waiting for a Flow Control frame  |
-| N_Cr      | 1000 ms | Receiver timeout waiting for a Consecutive Frame |
+| Parameter | Value   | Description                                                      |
+|-----------|---------|-------------------------------------------------------------------|
+| N_Bs      | 1000 ms | Sender timeout waiting for a Flow Control frame                  |
+| N_Cr      | 1000 ms | Receiver timeout waiting for a Consecutive Frame                 |
+| N_WFTmax  | 16      | Maximum consecutive Flow Control `Wait` frames before the sender aborts (implementation-defined per ISO 15765-2) |
+
+On `FS = Wait`, the sender restarts N_Bs and continues waiting rather than
+aborting immediately; only `N_WFTmax` consecutive `Wait` frames (or an N_Bs
+timeout) abort the transfer.
 
 ### Integration
 
-`IsoTpTransportImpl` is attached to `CanProtocolServer` or `CanProtocolClient` via `AttachIsoTpTransport(IsoTpTransport&)`. When attached, incoming frames are first offered to the ISO-TP layer; if no registered channel claims the frame, it falls through to normal category dispatch. PDUs reassembled by the transport layer are delivered via the `SetOnPduReceived` callback.
+`IsoTpTransportImpl` is attached to `CanProtocolServer` or `CanProtocolClient` via `AttachIsoTpTransport(IsoTpTransport&)`. When attached, incoming frames are first offered to the ISO-TP layer; if no registered channel claims the frame, it falls through to normal category dispatch. PDUs reassembled by the transport layer are delivered via the `SetOnPduReceived` callback. Channels are reclaimed via `ReleaseChannel(dataId)`, called automatically on abort and available for the application to call once it is done with a given `dataId`.
 
 The implementation uses `WithStorage` for zero-heap construction. All internal components (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`) are non-template classes that receive their PDU buffer storage via `infra::WithStorage` aliases, following the EMIL convention:
 
 ```cpp
 IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
 protocolServer.AttachIsoTpTransport(isoTp);
+
+isoTp.RegisterReceiveChannel(dataId, fcId);
 ```
+
+**Addressing constraint.** `IsoTpTransportImpl` routes frames to channels purely
+by the literal CAN ID carried in `dataId`/`fcId` — the sender's identity is not
+otherwise encoded. `AttachIsoTpTransport()` alone does not register any
+channel; the application (or a category built on top of it) must explicitly
+call `RegisterReceiveChannel()` for each `dataId`/`fcId` pair it expects
+multi-frame traffic on, using IDs that unambiguously identify a single
+correspondent (e.g. a dedicated node-to-node exchange such as a firmware
+upload session). A `dataId` shared by more than one concurrent sender at a
+time will have their frames interleaved into the same channel; the transport
+layer does not detect or reject this. Because of this, can-lite does not
+provide automatic multi-frame support for arbitrary category command/response
+traffic across many nodes — only the point-to-point case with an
+explicitly-managed channel is supported.
 
 ## 5. CAN Identifier Layout
 
@@ -113,10 +134,10 @@ Bit:  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  12  11  10
 
 ```mermaid
 packet-beta
-  0-4: "Priority (5b)"
-  5-8: "Category (4b)"
-  9-16: "Msg Type (8b)"
-  17-28: "Node ID (12b)"
+  0-11: "Node ID (12b)"
+  12-19: "Msg Type (8b)"
+  20-23: "Category (4b)"
+  24-28: "Priority (5b)"
 ```
 
 **Field Encoding:**
@@ -240,7 +261,12 @@ Sent by the server at CanPriority::response.
 Each byte contains the ID of one registered category handler. The
 System category (0x0) is always included. Categories are listed in
 registration order. The response is limited to 8 category IDs by the
-CAN frame payload size.
+CAN frame payload size: if more than 8 categories are registered, the
+9th and beyond are silently dropped from the response with no
+indication to the client that truncation occurred. Since the category ID
+field is 4 bits (16 possible values), this can only be reached by
+registering all 16 category IDs; applications that need more than 8
+categories discoverable in a single response are not currently supported.
 
 ## 9. Data Encoding
 
@@ -370,9 +396,9 @@ sequenceDiagram
 
 Applications extend can-lite by defining additional categories:
 
-1. **Define an enum value** for the new category (0x1–0xF).
-2. **Implement a `CanCategoryHandler`** subclass that handles the message
-   types within that category.
+1. **Define an enum value** for the new category (0x2–0xF; 0x1 is reserved for Firmware Upgrade).
+2. **Implement `CanCategoryServer` and `CanCategoryClient`** subclasses that
+   handle the message types within that category.
 3. **Register the handler** with the server at construction time.
 
 The server dispatches incoming frames to the matching category handler.
@@ -382,9 +408,17 @@ a registered category but an unknown message type receive an
 
 ## 16. Security Considerations
 
-- **Replay protection:** Sequence number validation prevents replayed commands.
+- **In-order delivery / duplicate detection:** Sequence number validation rejects
+  out-of-order or duplicated commands. This is a best-effort ordering check,
+  not a security mechanism — see §11's caveat: sequence numbers are
+  transmitted in the clear and MUST NOT be relied upon to prevent malicious
+  replay on an untrusted CAN bus.
 - **Bus flooding protection:** Configurable rate limiting discards excess messages.
-- **Input validation:** All payloads are length-checked before parsing; out-of-range
-  enum values are rejected with invalidPayload.
+- **Input validation:** All payloads are length-checked before parsing.
+  Enum-valued fields are decoded via unchecked `static_cast` from the wire
+  byte; an out-of-range value produces a scoped-enum value with no matching
+  enumerator (well-defined per the C++ standard, since these enums have a
+  fixed underlying type) rather than a rejected frame — it is not currently
+  validated against the enum's defined range.
 - **No heap allocation:** Fixed-size buffers prevent memory exhaustion.
 - **Node isolation:** Strict node ID filtering prevents cross-node interference.

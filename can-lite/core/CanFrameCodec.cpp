@@ -21,8 +21,16 @@ namespace services
 
     int32_t CanFrameCodec::FloatToFixed32(float value, int32_t scale)
     {
+        if (std::isnan(value))
+            return 0;
+
         float scaled = std::roundf(value * static_cast<float>(scale));
-        if (scaled > static_cast<float>(std::numeric_limits<int32_t>::max()))
+
+        // static_cast<float>(INT32_MAX) rounds up to 2147483648.0f (2^31), one past
+        // the representable range, so the comparison must use >= here (the int16
+        // path is exact and does not need this, since +/-32768 are exactly
+        // representable as float).
+        if (scaled >= static_cast<float>(std::numeric_limits<int32_t>::max()))
             return std::numeric_limits<int32_t>::max();
         if (scaled < static_cast<float>(std::numeric_limits<int32_t>::min()))
             return std::numeric_limits<int32_t>::min();

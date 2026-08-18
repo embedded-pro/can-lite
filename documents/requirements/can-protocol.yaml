@@ -5,6 +5,17 @@
 #   - Client: initiates all requests, can address multiple servers
 #   - Default category: System (heartbeat, acknowledgement, status request)
 #   - Additional categories are defined by the application layer
+#
+# Known gap: CLAUDE.md states "Each test traces to a requirement in
+# documents/requirements/", but requirement.schema.json's
+# additionalProperties: false currently forbids a tests: field on entries
+# here, and no CI check cross-references test names against requirement
+# IDs (.github/workflows/requirements-validation.yml only validates the
+# YAML schema and renders a PDF). Traceability is therefore aspirational,
+# not enforced, for this file. Fixing this needs a schema change plus a
+# CI step that fails when a requirement has no covering test — tracked
+# as follow-up work, not attempted here to avoid a partial/inaccurate
+# mapping across 35 requirements.
 
 # --- Transport & Framing ---
 
@@ -123,7 +134,11 @@
     processed command, containing the original command's category,
     message type, and a status code indicating success or the
     specific error condition (unknown command, invalid payload,
-    invalid state, sequence error, or rate limited).
+    invalid state, or sequence error). Messages rejected by rate
+    limiting are the exception: per REQ-CAN-022 they are silently
+    discarded and receive no acknowledgement, since sending one would
+    itself add traffic during the overload condition rate limiting
+    exists to shed.
 
 - id: REQ-CAN-012
   title: Status request
@@ -151,8 +166,13 @@
     message categories beyond the built-in System and Firmware
     Upgrade categories by registering custom category handlers on
     the server and client. Category identifiers 0x2 to 0xF shall be
-    available to applications. The maximum number of registered
-    category handlers shall be bounded at compile time.
+    available to applications. Registered category handlers are held
+    in an infra::IntrusiveList, so no separate storage limit applies:
+    the number of registrations is bounded only by how many category
+    objects the application itself statically instantiates (all such
+    objects are heap-free and defined at compile time, per REQ-CAN-024),
+    and by the 4-bit category ID field (16 values, minus the two
+    built-in categories).
 
 # --- Data Encoding ---
 
@@ -251,6 +271,10 @@
     with a category list response containing the IDs of all registered
     category handlers. The response payload shall list one category ID
     per byte, limited to the maximum CAN frame payload size (8 bytes).
+    If more than 8 categories are registered, the server shall include
+    only the first 8 in registration order and shall drop the remainder
+    without an error indication; a server needing to expose more than 8
+    categories is not currently supported.
 
 # --- Multi-Server Client ---
 
@@ -310,7 +334,11 @@
     The sender shall wait for a Flow Control (ContinueToSend) frame from
     the receiver before transmitting Consecutive Frames. The receiver shall
     emit a Flow Control frame after receiving the First Frame. Block size
-    (BS=0) and separation time (STmin) fields shall be honoured.
+    (BS=0) and separation time (STmin) fields shall be honoured. On
+    Flow Status = Wait, the sender shall restart the N_Bs timer and
+    continue waiting rather than aborting, up to N_WFTmax (16) consecutive
+    Wait frames, after which it shall abort. On Flow Status = Overflow,
+    the sender shall abort immediately.
 
 - id: REQ-CAN-032
   title: ISO-TP N_Bs timeout
@@ -342,3 +370,6 @@
     number of simultaneous channels shall be bounded at compile time via
     the MaxChannels template parameter (default 4). Registering a channel
     with a dataId already in use shall return false without modifying state.
+    A channel shall be reclaimable via ReleaseChannel(dataId), allowing its
+    slot to be reused once the application (or the transport itself, on
+    abort) is done with that dataId.

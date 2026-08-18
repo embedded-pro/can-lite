@@ -18,6 +18,7 @@ namespace services
     static constexpr uint8_t focIdentifyMechanicalId = 0x07;
     static constexpr uint8_t focRequestTelemetryId = 0x08;
     static constexpr uint8_t focSetEncoderResolutionId = 0x09;
+    // 0x0A is intentionally reserved (unused in this revision)
     static constexpr uint8_t focClearFaultId = 0x0B;
     static constexpr uint8_t focEmergencyStopId = 0x0C;
     static constexpr uint8_t focConfigureTelemetryRateId = 0x0D;
@@ -55,9 +56,9 @@ namespace services
     static constexpr int32_t focInertiaScale = 10000;
     static constexpr int32_t focFrictionScale = 10000;
     static constexpr int32_t focVoltageScale = 10;
-    static constexpr int32_t focCurrentScale = 100;
-    static constexpr int32_t focSpeedScale = 10;
-    static constexpr int32_t focPositionScale = 1000;
+    static constexpr int32_t focCurrentScale = 10;
+    static constexpr int32_t focSpeedScale = 1;
+    static constexpr int32_t focPositionScale = 100;
 
     enum class FocMotorMode : uint8_t
     {
@@ -93,29 +94,29 @@ namespace services
 
     struct FocElectricalParams
     {
-        int16_t resistance;
-        int16_t inductance;
+        float resistance;
+        float inductance;
     };
 
     struct FocMechanicalParams
     {
-        int16_t inertia;
-        int16_t friction;
+        float inertia;
+        float friction;
     };
 
     struct FocTelemetryElectrical
     {
-        int16_t voltage;
-        int16_t maxCurrent;
-        int16_t iq;
-        int16_t id;
+        float voltage;
+        float maxCurrent;
+        float iq;
+        float id;
     };
 
     struct FocTelemetryStatus
     {
         FocMotorState state;
         FocFaultCode fault;
-        int16_t speed;
-        int16_t position;
+        float speed;
+        float position;
     };
 }

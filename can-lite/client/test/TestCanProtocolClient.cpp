@@ -15,6 +15,7 @@ namespace
     {
     public:
         MOCK_METHOD(bool, RegisterReceiveChannel, (uint32_t, uint32_t), (override));
+        MOCK_METHOD(void, ReleaseChannel, (uint32_t), (override));
         MOCK_METHOD(bool, SendPdu, (uint32_t, uint32_t, infra::ConstByteRange, const infra::Function<void()>&), (override));
         MOCK_METHOD(bool, ProcessFrame, (uint32_t, const hal::Can::Message&), (override));
         MOCK_METHOD(void, SetOnPduReceived, (infra::Function<void(uint32_t, infra::ConstByteRange)>), (override));
@@ -406,6 +407,7 @@ namespace
     {
         StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         client.AttachIsoTpTransport(mockIsoTp);
 
         auto id = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x01, 0x01, 0));
@@ -418,6 +420,7 @@ namespace
     {
         StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         client.AttachIsoTpTransport(mockIsoTp);
 
         auto id = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x0F, 0x01, 0));
@@ -475,6 +478,7 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         client.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, 0);
@@ -490,6 +494,7 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         client.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x0F, 0x01, 0);

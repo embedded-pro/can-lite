@@ -54,12 +54,21 @@ namespace services
         return systemCategory;
     }
 
+    CanFrameTransport& CanProtocolClient::Transport()
+    {
+        return transport;
+    }
+
     void CanProtocolClient::AttachIsoTpTransport(IsoTpTransport& isoTp)
     {
         isoTpTransport = &isoTp;
         isoTp.SetOnPduReceived([this](uint32_t rawId, infra::ConstByteRange pdu)
             {
                 DispatchPdu(rawId, pdu);
+            });
+        isoTp.SetOnAbort([this](uint32_t dataId, iso_tp::AbortReason)
+            {
+                isoTpTransport->ReleaseChannel(dataId);
             });
     }
 
@@ -87,7 +96,7 @@ namespace services
         pendingDiscoveryCallback = onDone;
 
         hal::Can::Message emptyPayload;
-        transport.SendFrame(nodeId, CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, emptyPayload, [] {});
+        transport.SendFrame(nodeId, CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, emptyPayload, [](bool) {});
     }
 
     uint8_t CanProtocolClient::PeekSequence(uint16_t nodeId)
@@ -109,7 +118,14 @@ namespace services
             }
         }
 
-        really_assert(false);
+        // All slots are tracking other servers: evict the oldest tracked slot
+        // (round robin) instead of hard-faulting. The evicted server's sequence
+        // counter restarts at 0 and resynchronizes via the server's sequenceError
+        // response, the same recovery path used for any other counter mismatch.
+        auto& evicted = serverStates[nextSequenceEvictIndex];
+        nextSequenceEvictIndex = static_cast<uint8_t>((nextSequenceEvictIndex + 1) % serverStates.size());
+        evicted.nodeId = nodeId;
+        evicted.sequenceCounter = 0;
         return 0;
     }
 
@@ -195,6 +211,30 @@ namespace services
                 return;
             }
         }
+
+        // All slots are tracking other servers: evict the oldest tracked entry
+        // (round robin) instead of silently dropping the newly observed node.
+        auto& evicted = serverLiveness[nextLivenessEvictIndex];
+        nextLivenessEvictIndex = static_cast<uint8_t>((nextLivenessEvictIndex + 1) % serverLiveness.size());
+        evicted.timeoutTimer.Cancel();
+        if (evicted.online)
+        {
+            auto evictedNodeId = evicted.nodeId;
+            NotifyObservers([evictedNodeId](auto& obs)
+                {
+                    obs.OnServerOffline(evictedNodeId);
+                });
+        }
+        evicted.nodeId = nodeId;
+        evicted.online = true;
+        NotifyObservers([nodeId](auto& obs)
+            {
+                obs.OnServerOnline(nodeId);
+            });
+        evicted.timeoutTimer.Start(config.serverTimeout, [this, nodeId]()
+            {
+                HandleServerTimeout(nodeId);
+            });
     }
 
     void CanProtocolClient::HandleServerTimeout(uint16_t nodeId)
@@ -204,6 +244,7 @@ namespace services
             if (entry.occupied && entry.nodeId == nodeId)
             {
                 entry.online = false;
+                entry.occupied = false;
                 NotifyObservers([nodeId](auto& obs)
                     {
                         obs.OnServerOffline(nodeId);

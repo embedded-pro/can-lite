@@ -38,11 +38,11 @@ namespace
                 .WillOnce(DoAll(SaveArg<0>(&sentId), SaveArg<1>(&sentData), SaveArg<2>(&completion)));
         }
 
-        void CompleteSend()
+        void CompleteSend(bool success = true)
         {
             auto action = completion;
             completion = nullptr;
-            action(true);
+            action(success);
         }
     };
 
@@ -59,7 +59,7 @@ namespace
     {
         ExpectOneSend();
 
-        EXPECT_TRUE(transport.SendFrame(CanPriority::response, 0x2, 0x81, MakeMessage({ 0xAA }), [] {}));
+        EXPECT_TRUE(transport.SendFrame(CanPriority::response, 0x2, 0x81, MakeMessage({ 0xAA }), [](bool) {}));
 
         auto rawId = sentId.Get29BitId();
         EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::response);
@@ -73,7 +73,7 @@ namespace
     {
         ExpectOneSend();
 
-        EXPECT_TRUE(transport.SendFrame(0x321, CanPriority::command, 0x3, 0x04, MakeMessage({}), [] {}));
+        EXPECT_TRUE(transport.SendFrame(0x321, CanPriority::command, 0x3, 0x04, MakeMessage({}), [](bool) {}));
 
         EXPECT_EQ(ExtractCanNodeId(sentId.Get29BitId()), 0x321);
     }
@@ -83,7 +83,7 @@ namespace
         transport.SetNodeId(0x777);
         ExpectOneSend();
 
-        transport.SendFrame(CanPriority::heartbeat, 0x0, 0x01, MakeMessage({}), [] {});
+        transport.SendFrame(CanPriority::heartbeat, 0x0, 0x01, MakeMessage({}), [](bool) {});
 
         EXPECT_EQ(ExtractCanNodeId(sentId.Get29BitId()), 0x777);
     }
@@ -91,16 +91,16 @@ namespace
     TEST_F(CanFrameTransportTest, SecondFrameIsQueuedWhileFirstIsInProgress)
     {
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({ 0x01 }), [] {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({ 0x01 }), [](bool) {});
 
-        EXPECT_TRUE(transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({ 0x02 }), [] {}));
+        EXPECT_TRUE(transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({ 0x02 }), [](bool) {}));
     }
 
     TEST_F(CanFrameTransportTest, CompletingASendDrainsTheNextQueuedFrame)
     {
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({ 0x01 }), [] {});
-        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({ 0x02 }), [] {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({ 0x01 }), [](bool) {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({ 0x02 }), [](bool) {});
 
         ExpectOneSend();
         CompleteSend();
@@ -112,9 +112,9 @@ namespace
     TEST_F(CanFrameTransportTest, QueueDrainsInFifoOrder)
     {
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [] {});
-        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [] {});
-        transport.SendFrame(CanPriority::command, 0x1, 0x03, MakeMessage({}), [] {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [](bool) {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [](bool) {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x03, MakeMessage({}), [](bool) {});
 
         ExpectOneSend();
         CompleteSend();
@@ -128,12 +128,12 @@ namespace
     TEST_F(CanFrameTransportTest, DrainingAnEmptyQueueReleasesTheTransport)
     {
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [] {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [](bool) {});
 
         CompleteSend();
 
         ExpectOneSend();
-        EXPECT_TRUE(transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [] {}));
+        EXPECT_TRUE(transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [](bool) {}));
         EXPECT_EQ(ExtractCanMessageType(sentId.Get29BitId()), 0x02);
     }
 
@@ -141,7 +141,7 @@ namespace
     {
         bool done = false;
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [&done]
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [&done](bool)
             {
                 done = true;
             });
@@ -151,17 +151,33 @@ namespace
         EXPECT_TRUE(done);
     }
 
+    TEST_F(CanFrameTransportTest, OnDoneReportsHalSendFailureInsteadOfSwallowingIt)
+    {
+        bool done = false;
+        bool reportedSuccess = true;
+        ExpectOneSend();
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [&done, &reportedSuccess](bool success)
+            {
+                done = true;
+                reportedSuccess = success;
+            });
+
+        CompleteSend(false);
+        EXPECT_TRUE(done);
+        EXPECT_FALSE(reportedSuccess);
+    }
+
     TEST_F(CanFrameTransportTest, QueuedFrameKeepsItsOwnCompletionCallback)
     {
         bool firstDone = false;
         bool secondDone = false;
 
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [&firstDone]
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [&firstDone](bool)
             {
                 firstDone = true;
             });
-        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [&secondDone]
+        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [&secondDone](bool)
             {
                 secondDone = true;
             });
@@ -178,26 +194,26 @@ namespace
     TEST_F(CanFrameTransportTest, SendIsRejectedOnceTheQueueIsFull)
     {
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x00, MakeMessage({}), [] {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x00, MakeMessage({}), [](bool) {});
 
         for (uint8_t i = 0; i != 8; ++i)
-            EXPECT_TRUE(transport.SendFrame(CanPriority::command, 0x1, i, MakeMessage({}), [] {}));
+            EXPECT_TRUE(transport.SendFrame(CanPriority::command, 0x1, i, MakeMessage({}), [](bool) {}));
 
-        EXPECT_FALSE(transport.SendFrame(CanPriority::command, 0x1, 0x09, MakeMessage({}), [] {}));
+        EXPECT_FALSE(transport.SendFrame(CanPriority::command, 0x1, 0x09, MakeMessage({}), [](bool) {}));
     }
 
     TEST_F(CanFrameTransportTest, SpaceBecomesAvailableAgainAfterDraining)
     {
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x00, MakeMessage({}), [] {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x00, MakeMessage({}), [](bool) {});
         for (uint8_t i = 0; i != 8; ++i)
-            transport.SendFrame(CanPriority::command, 0x1, i, MakeMessage({}), [] {});
-        ASSERT_FALSE(transport.SendFrame(CanPriority::command, 0x1, 0x09, MakeMessage({}), [] {}));
+            transport.SendFrame(CanPriority::command, 0x1, i, MakeMessage({}), [](bool) {});
+        ASSERT_FALSE(transport.SendFrame(CanPriority::command, 0x1, 0x09, MakeMessage({}), [](bool) {}));
 
         ExpectOneSend();
         CompleteSend();
 
-        EXPECT_TRUE(transport.SendFrame(CanPriority::command, 0x1, 0x09, MakeMessage({}), [] {}));
+        EXPECT_TRUE(transport.SendFrame(CanPriority::command, 0x1, 0x09, MakeMessage({}), [](bool) {}));
     }
 
     TEST_F(CanFrameTransportTest, SendNotificationFiresForAnImmediateSend)
@@ -209,7 +225,7 @@ namespace
             });
 
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [] {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [](bool) {});
 
         EXPECT_EQ(notifications, 1);
     }
@@ -223,8 +239,8 @@ namespace
             });
 
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [] {});
-        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [] {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [](bool) {});
+        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [](bool) {});
 
         EXPECT_EQ(notifications, 2);
     }
@@ -234,7 +250,7 @@ namespace
         auto id = hal::Can::Id::Create29BitId(0x0ABCDEF);
 
         ExpectOneSend();
-        EXPECT_TRUE(transport.SendRawFrame(id, MakeMessage({ 0x01 }), [] {}));
+        EXPECT_TRUE(transport.SendRawFrame(id, MakeMessage({ 0x01 }), [](bool) {}));
 
         EXPECT_EQ(sentId.Get29BitId(), 0x0ABCDEFu);
     }

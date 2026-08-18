@@ -11,5 +11,5 @@ target_link_libraries(can_lite.drivers.interface INTERFACE
 )
 
 target_sources(can_lite.drivers.interface INTERFACE
-    CanAdapter.hpp
+    CanBusAdapter.hpp
 )

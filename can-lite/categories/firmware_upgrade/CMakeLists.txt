@@ -18,4 +18,10 @@ target_sources(can_lite.categories.firmware_upgrade PRIVATE
     FirmwareUpgradeCategoryClient.cpp
 )
 
+emil_install(can_lite.categories.firmware_upgrade
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
 add_subdirectory(test)

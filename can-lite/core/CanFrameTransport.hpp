@@ -19,20 +19,20 @@ namespace services
         void SetOnSendNotification(infra::Function<void()> callback);
 
         bool SendFrame(CanPriority priority, uint8_t category, uint8_t messageType,
-            const hal::Can::Message& data, const infra::Function<void()>& onDone);
+            const hal::Can::Message& data, const infra::Function<void(bool success)>& onDone);
         bool SendFrame(uint16_t targetNodeId, CanPriority priority, uint8_t category, uint8_t messageType,
-            const hal::Can::Message& data, const infra::Function<void()>& onDone);
+            const hal::Can::Message& data, const infra::Function<void(bool success)>& onDone);
         bool SendRawFrame(hal::Can::Id id, const hal::Can::Message& data,
-            const infra::Function<void()>& onDone);
+            const infra::Function<void(bool success)>& onDone);
 
     private:
         struct PendingFrame
         {
             hal::Can::Id id;
             hal::Can::Message data;
-            infra::Function<void()> onDone;
+            infra::Function<void(bool success)> onDone;
 
-            PendingFrame(hal::Can::Id id, const hal::Can::Message& data, const infra::Function<void()>& onDone)
+            PendingFrame(hal::Can::Id id, const hal::Can::Message& data, const infra::Function<void(bool success)>& onDone)
                 : id(id)
                 , data(data)
                 , onDone(onDone)
@@ -49,7 +49,7 @@ namespace services
         hal::Can& can;
         uint16_t nodeId;
         bool sendInProgress = false;
-        infra::Function<void()> currentOnDone;
+        infra::Function<void(bool success)> currentOnDone;
         infra::Function<void()> onSendNotification;
         infra::BoundedDeque<PendingFrame>::WithMaxSize<8> sendQueue;
     };

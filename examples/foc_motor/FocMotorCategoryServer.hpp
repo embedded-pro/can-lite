@@ -18,7 +18,7 @@ namespace services
         using infra::SingleObserver<FocMotorCategoryServerObserver, FocMotorCategoryServer>::SingleObserver;
 
         virtual void OnQueryMotorType(const infra::Function<void(FocMotorMode)>& onResult) = 0;
-        virtual void OnStart(const infra::Function<void()>& onDone) = 0;
+        virtual void OnStart(const infra::Function<void(CanAckStatus)>& onDone) = 0;
         virtual void OnStop(const infra::Function<void()>& onDone) = 0;
         virtual void OnSetPidCurrent(const FocPidGains& gains, const infra::Function<void()>& onDone) = 0;
         virtual void OnSetPidSpeed(const FocPidGains& gains, const infra::Function<void()>& onDone) = 0;
@@ -28,9 +28,9 @@ namespace services
         virtual void OnRequestTelemetry(const infra::Function<void(FocTelemetryElectrical, FocTelemetryStatus)>& onResult) = 0;
         virtual void OnSetEncoderResolution(uint16_t resolution, const infra::Function<void()>& onDone) = 0;
         virtual void OnSelectControlMode(FocMotorMode requestedMode, const infra::Function<void(FocMotorMode)>& onActivated) = 0;
-        virtual void OnSetTorqueSetpoint(int16_t value, const infra::Function<void()>& onDone) = 0;
-        virtual void OnSetSpeedSetpoint(int16_t value, const infra::Function<void()>& onDone) = 0;
-        virtual void OnSetPositionSetpoint(int16_t value, const infra::Function<void()>& onDone) = 0;
+        virtual void OnSetTorqueSetpoint(float value, const infra::Function<void()>& onDone) = 0;
+        virtual void OnSetSpeedSetpoint(float value, const infra::Function<void()>& onDone) = 0;
+        virtual void OnSetPositionSetpoint(float value, const infra::Function<void()>& onDone) = 0;
         virtual void OnClearFault(const infra::Function<void()>& onDone) = 0;
         virtual void OnEmergencyStop(const infra::Function<void()>& onDone) = 0;
         virtual void OnConfigureTelemetryRate(uint8_t rateHz, const infra::Function<void()>& onDone) = 0;

@@ -376,15 +376,17 @@ namespace
         EXPECT_EQ(msgPdu.handlePduCallCount, 0);
     }
 
-    TEST(CanCategoryTest, HandlePduMessage_DefaultHandlePdu_Asserts)
+    TEST(CanCategoryTest, HandlePduMessage_DefaultHandlePdu_RejectsRatherThanCrashing)
     {
-        // StubMessageType does NOT override HandlePdu — the loud default asserts
+        // StubMessageType does NOT override HandlePdu — the default must reject
+        // the PDU (message type doesn't support multi-frame payloads) instead
+        // of crashing the application.
         StubCategoryServer category(0x01);
         StubMessageType msgDefault(0x20);
         category.AddMessageType(msgDefault);
 
         uint8_t data[] = { 0xAB };
 
-        EXPECT_DEATH(category.HandlePduMessage(0x20, infra::MakeRange(data)), "");
+        EXPECT_FALSE(category.HandlePduMessage(0x20, infra::MakeRange(data)));
     }
 }

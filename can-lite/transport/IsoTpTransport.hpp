@@ -13,6 +13,8 @@ namespace services
     public:
         virtual bool RegisterReceiveChannel(uint32_t dataId, uint32_t fcId) = 0;
 
+        virtual void ReleaseChannel(uint32_t dataId) = 0;
+
         virtual bool SendPdu(uint32_t dataId, uint32_t fcId,
             infra::ConstByteRange pdu,
             const infra::Function<void()>& onDone) = 0;

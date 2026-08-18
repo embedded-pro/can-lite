@@ -135,14 +135,16 @@ TEST(CanMessageHandlerTest, FrameAndPduHandlersAreIndependent)
     EXPECT_EQ(owner.pduCount, 1);
 }
 
-TEST(CanMessageHandlerTest, HandlerWithoutPduSupportAbortsOnPdu)
+TEST(CanMessageHandlerTest, HandlerWithoutPduSupportRejectsPdu)
 {
     Owner owner;
     CanMessageHandler<Owner> handler{ 0x01, owner, &Owner::HandleFrame };
 
     auto pdu = MakeMessage({ 0x01 });
 
-    EXPECT_DEATH(handler.HandlePdu(infra::MakeRange(pdu)), "");
+    // A message type registered via the 3-argument constructor doesn't opt in
+    // to PDU (ISO-TP) handling; it must reject rather than crash.
+    EXPECT_FALSE(handler.HandlePdu(infra::MakeRange(pdu)));
 }
 
 TEST(CanMessageHandlerTest, AddMessageTypesRegistersEveryHandler)

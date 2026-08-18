@@ -1,5 +1,4 @@
 #include "can-lite/categories/system/CanSystemCategoryClient.hpp"
-#include "can-lite/core/CanPayload.hpp"
 
 namespace services
 {
@@ -14,18 +13,11 @@ namespace services
         return canSystemCategoryId;
     }
 
-    void CanSystemCategoryClient::HandleCommandAck(const hal::Can::Message& data)
+    void CanSystemCategoryClient::HandleCommandAck(const hal::Can::Message&)
     {
-        CanPayloadReader reader{ data };
-        auto category = reader.ReadUInt8();
-        auto command = reader.ReadUInt8();
-        auto status = static_cast<CanAckStatus>(reader.ReadUInt8());
-
-        if (!reader.Valid())
-            return;
-
-        if (onCommandAck)
-            onCommandAck(category, command, status);
+        // Acknowledged but currently not surfaced to observers; command
+        // completion is tracked application-side via each category's own
+        // response/telemetry frames.
     }
 
     void CanSystemCategoryClient::HandleCategoryListResponse(const hal::Can::Message& data)

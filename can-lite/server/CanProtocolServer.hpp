@@ -32,8 +32,8 @@ namespace services
     public:
         struct Config
         {
-            uint16_t nodeId;
-            uint16_t maxMessagesPerSecond;
+            uint16_t nodeId{ 0 };
+            uint16_t maxMessagesPerSecond{ 500 };
             infra::Duration heartbeatInterval = std::chrono::seconds(1);
         };
 

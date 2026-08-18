@@ -16,7 +16,7 @@ namespace
 
     struct MockCallbacks
     {
-        MOCK_METHOD(void, SendFrame, (const hal::Can::Message&, const infra::Function<void()>&));
+        MOCK_METHOD(void, SendFrame, (const hal::Can::Message&, const infra::Function<void(bool)>&));
         MOCK_METHOD(void, OnAbort, (AbortReason));
     };
 }
@@ -32,7 +32,7 @@ protected:
     void SetUp() override
     {
         sender.Configure(
-            [this](const hal::Can::Message& f, const infra::Function<void()>& d)
+            [this](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 mocks.SendFrame(f, d);
             },
@@ -42,9 +42,9 @@ protected:
             });
     }
 
-    void InvokeOnDone(const hal::Can::Message&, const infra::Function<void()>& d)
+    void InvokeOnDone(const hal::Can::Message&, const infra::Function<void(bool)>& d)
     {
-        d();
+        d(true);
     }
 };
 
@@ -54,11 +54,11 @@ TEST_F(IsoTpSenderTest, Send_SingleFrame_1Byte)
     bool doneCalled = false;
 
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([&](const hal::Can::Message& f, const infra::Function<void()>& d)
+        .WillOnce(Invoke([&](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0], 0x01u);
                 EXPECT_EQ(f[1], 0xABu);
-                d();
+                d(true);
             }));
 
     ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [&]
@@ -75,7 +75,7 @@ TEST_F(IsoTpSenderTest, Send_SingleFrame_7Bytes)
     bool doneCalled = false;
 
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([this, &doneCalled](const hal::Can::Message& f, const infra::Function<void()>& d)
+        .WillOnce(Invoke([this, &doneCalled](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 InvokeOnDone(f, d);
                 doneCalled = true;
@@ -109,6 +109,21 @@ TEST_F(IsoTpSenderTest, Send_ExceedsMaxPduSize_ReturnsFalse)
     EXPECT_TRUE(sender.IsIdle());
 }
 
+TEST_F(IsoTpSenderTest, Send_RawSendFails_Aborts)
+{
+    uint8_t pdu[] = { 0xAB };
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(false);
+            }));
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+    EXPECT_TRUE(sender.IsIdle());
+}
+
 TEST_F(IsoTpSenderTest, Send_MultiFrame_HappyPath_BS0)
 {
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -117,10 +132,11 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_HappyPath_BS0)
     testing::InSequence seq;
 
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([&](const hal::Can::Message& f, const infra::Function<void()>&)
+        .WillOnce(Invoke([&](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0], 0x10u);
                 EXPECT_EQ(f[1], 0x08u);
+                d(true);
             }));
 
     ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [&]
@@ -133,12 +149,12 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_HappyPath_BS0)
     IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
 
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([&](const hal::Can::Message& f, const infra::Function<void()>& d)
+        .WillOnce(Invoke([&](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0], 0x21u);
                 EXPECT_EQ(f[1], 7u);
                 EXPECT_EQ(f[2], 8u);
-                d();
+                d(true);
             }));
 
     sender.ProcessFlowControl(fc);
@@ -151,33 +167,111 @@ TEST_F(IsoTpSenderTest, ProcessFlowControl_FCOverflow_Aborts)
 {
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 
-    EXPECT_CALL(mocks, SendFrame(_, _));
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
 
     sender.Send(infra::MakeRange(pdu), [] {});
 
     hal::Can::Message fc;
     IsoTpFrameCodec::EncodeFlowControl(FlowStatus::overflow, 0u, 0u, fc);
 
-    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+    EXPECT_CALL(mocks, OnAbort(AbortReason::overflow));
     sender.ProcessFlowControl(fc);
 
     EXPECT_TRUE(sender.IsIdle());
 }
 
-TEST_F(IsoTpSenderTest, ProcessFlowControl_FCWait_Aborts)
+TEST_F(IsoTpSenderTest, ProcessFlowControl_FCWait_RestartsNBsAndKeepsWaiting)
 {
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 
-    EXPECT_CALL(mocks, SendFrame(_, _));
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
 
     sender.Send(infra::MakeRange(pdu), [] {});
 
     hal::Can::Message fc;
     IsoTpFrameCodec::EncodeFlowControl(FlowStatus::wait, 0u, 0u, fc);
 
-    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+    // A single Wait frame must not abort: ISO 15765-2 requires the sender to
+    // restart N_Bs and keep waiting, up to N_WFTmax consecutive Wait frames.
     sender.ProcessFlowControl(fc);
 
+    EXPECT_FALSE(sender.IsIdle());
+
+    // Still waiting after almost a full nBs timeout, since the wait frame
+    // restarted the timer.
+    ForwardTime(std::chrono::milliseconds(999));
+    EXPECT_FALSE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, ProcessFlowControl_FCWait_ExceedingLimitAborts)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
+
+    sender.Send(infra::MakeRange(pdu), [] {});
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::wait, 0u, 0u, fc);
+
+    for (int i = 0; i != nWftMax; ++i)
+        sender.ProcessFlowControl(fc);
+    EXPECT_FALSE(sender.IsIdle());
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::waitLimitExceeded));
+    sender.ProcessFlowControl(fc);
+
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, ProcessFlowControl_FCWait_ThenContinueToSend_ProceedsNormally)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    bool doneCalled = false;
+
+    testing::InSequence seq;
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
+
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [&doneCalled]
+        {
+            doneCalled = true;
+        }));
+
+    hal::Can::Message waitFc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::wait, 0u, 0u, waitFc);
+    sender.ProcessFlowControl(waitFc);
+    EXPECT_FALSE(sender.IsIdle());
+
+    hal::Can::Message ctsFc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, ctsFc);
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
+            {
+                EXPECT_EQ(f[0], 0x21u);
+                d(true);
+            }));
+
+    sender.ProcessFlowControl(ctsFc);
+
+    EXPECT_TRUE(doneCalled);
     EXPECT_TRUE(sender.IsIdle());
 }
 
@@ -194,9 +288,9 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_nBsTimeout_Aborts)
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void()>& d)
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
             {
-                d();
+                d(true);
             }));
 
     ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
@@ -218,9 +312,10 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_WithBlockSize_WaitsForFC)
 
     // FF
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void()>&)
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0], 0x10u);
+                d(true);
             }));
 
     ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [&doneCalled]
@@ -234,10 +329,10 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_WithBlockSize_WaitsForFC)
 
     // CF1 — invoke callback to trigger nBsTimer start (then sender waits for another FC)
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void()>& d)
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0] & 0xF0u, 0x20u);
-                d();
+                d(true);
             }));
 
     sender.ProcessFlowControl(fc);
@@ -255,9 +350,10 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_StMinDelay_DelaysNextCF)
 
     // FF
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void()>&)
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0], 0x10u);
+                d(true);
             }));
 
     ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [&doneCalled]
@@ -274,10 +370,10 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_StMinDelay_DelaysNextCF)
 
     // Advance 1ms — stMinTimer fires, CF sent
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([&doneCalled](const hal::Can::Message& f, const infra::Function<void()>& d)
+        .WillOnce(Invoke([&doneCalled](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0] & 0xF0u, 0x20u);
-                d();
+                d(true);
                 doneCalled = true;
             }));
 

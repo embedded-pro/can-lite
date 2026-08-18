@@ -1,10 +1,11 @@
 #pragma once
 
-#include "can-lite/drivers/interface/CanAdapter.hpp"
+#include "can-lite/drivers/interface/CanBusAdapter.hpp"
 
 #ifdef _WIN32
 
 #include <canlib.h>
+#include <optional>
 
 namespace services
 {
@@ -29,10 +30,13 @@ namespace services
         bool IsDriverAvailable() const override;
 
     private:
-        static canBitrate_t BitrateToCanlib(uint32_t bitrate);
+        static std::optional<canBitrate_t> BitrateToCanlib(uint32_t bitrate);
+        void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
-        canHandle handle = canINVALID_HANDLE;
+        canHandle handle{ canINVALID_HANDLE };
         infra::Function<void(Id, const Message&)> receiveCallback;
+        infra::Function<void(bool)> pendingCompletion;
+        bool pendingSuccess{};
     };
 }
 

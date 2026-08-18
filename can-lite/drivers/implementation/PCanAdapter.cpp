@@ -1,9 +1,10 @@
 #ifdef _WIN32
 
-#include "can-lite/drivers/implementation/Pcan.hpp"
+#include "can-lite/drivers/implementation/PCanAdapter.hpp"
+#include "infra/event/EventDispatcher.hpp"
 #include <algorithm>
-#include <charconv>
 #include <cstring>
+#include <optional>
 
 namespace services
 {
@@ -27,8 +28,18 @@ namespace services
             return false;
         }
 
-        TPCANBaudrate pcanBitrate = BitrateToPcan(bitrate);
-        TPCANStatus status = CAN_Initialize(channel, pcanBitrate, 0, 0, 0);
+        auto pcanBitrate = BitrateToPcan(bitrate);
+        if (!pcanBitrate)
+        {
+            channel = PCAN_NONEBUS;
+            NotifyObservers([](auto& observer)
+                {
+                    observer.OnError("Unsupported bitrate for PCAN");
+                });
+            return false;
+        }
+
+        TPCANStatus status = CAN_Initialize(channel, *pcanBitrate, 0, 0, 0);
         if (status != PCAN_ERROR_OK)
         {
             channel = PCAN_NONEBUS;
@@ -40,7 +51,7 @@ namespace services
         }
 
         readEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-        if (readEvent != INVALID_HANDLE_VALUE)
+        if (readEvent != nullptr)
             CAN_SetValue(channel, PCAN_RECEIVE_EVENT, &readEvent, sizeof(readEvent));
 
         connected = true;
@@ -58,10 +69,10 @@ namespace services
             CAN_Uninitialize(channel);
             channel = PCAN_NONEBUS;
 
-            if (readEvent != INVALID_HANDLE_VALUE)
+            if (readEvent != nullptr)
             {
                 CloseHandle(readEvent);
-                readEvent = INVALID_HANDLE_VALUE;
+                readEvent = nullptr;
             }
 
             connected = false;
@@ -82,7 +93,13 @@ namespace services
     {
         if (!IsConnected())
         {
-            actionOnCompletion(false);
+            ScheduleCompletion(actionOnCompletion, false);
+            return;
+        }
+
+        if (!id.Is29BitId())
+        {
+            ScheduleCompletion(actionOnCompletion, false);
             return;
         }
 
@@ -112,7 +129,7 @@ namespace services
                 });
         }
 
-        actionOnCompletion(success);
+        ScheduleCompletion(actionOnCompletion, success);
     }
 
     void PCanAdapter::ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction)
@@ -156,14 +173,10 @@ namespace services
 
     bool PCanAdapter::IsDriverAvailable() const
     {
-        TPCANStatus status = CAN_Initialize(PCAN_USBBUS1, PCAN_BAUD_500K, 0, 0, 0);
-        if (status == PCAN_ERROR_OK)
-        {
-            CAN_Uninitialize(PCAN_USBBUS1);
-            return true;
-        }
-
-        return status != PCAN_ERROR_NODRIVER;
+        // Use a non-destructive channel condition query to check PCAN driver availability.
+        // CAN_Initialize/Uninitialize would disrupt any channel another process holds open.
+        DWORD condition = 0;
+        return CAN_GetValue(PCAN_USBBUS1, PCAN_CHANNEL_CONDITION, &condition, sizeof(condition)) == PCAN_ERROR_OK;
     }
 
     void PCanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
@@ -189,7 +202,7 @@ namespace services
         }
     }
 
-    TPCANBaudrate PCanAdapter::BitrateToPcan(uint32_t bitrate)
+    std::optional<TPCANBaudrate> PCanAdapter::BitrateToPcan(uint32_t bitrate)
     {
         switch (bitrate)
         {
@@ -212,7 +225,7 @@ namespace services
             case 10000:
                 return PCAN_BAUD_10K;
             default:
-                return PCAN_BAUD_500K;
+                return std::nullopt;
         }
     }
 
@@ -235,6 +248,17 @@ namespace services
         if (name == "USBBUS8")
             return PCAN_USBBUS8;
         return PCAN_NONEBUS;
+    }
+
+    void PCanAdapter::ScheduleCompletion(const infra::Function<void(bool)>& action, bool result)
+    {
+        pendingCompletion = action;
+        pendingSuccess = result;
+        infra::EventDispatcher::Instance().Schedule([this]()
+            {
+                if (pendingCompletion)
+                    pendingCompletion(pendingSuccess);
+            });
     }
 }
 

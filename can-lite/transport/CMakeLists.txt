@@ -18,4 +18,10 @@ target_sources(can_lite.transport PRIVATE
     IsoTpTransportImpl.cpp
 )
 
+emil_install(can_lite.transport
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
 add_subdirectory(test)

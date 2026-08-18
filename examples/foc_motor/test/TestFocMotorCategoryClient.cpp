@@ -27,6 +27,7 @@ namespace
         MOCK_METHOD(void, OnTelemetryElectricalResponse, (const FocTelemetryElectrical& telemetry), (override));
         MOCK_METHOD(void, OnTelemetryStatusResponse, (const FocTelemetryStatus& status), (override));
         MOCK_METHOD(void, OnSelectControlModeResponse, (FocMotorMode activeMode), (override));
+        MOCK_METHOD(void, OnCategoryError, (uint8_t originCommandId, FocMotorCategoryError errorCode), (override));
     };
 
     class TestFocMotorCategoryClient
@@ -99,8 +100,8 @@ namespace
     {
         EXPECT_CALL(observer, OnElectricalParamsResponse(_)).WillOnce([](const FocElectricalParams& params)
             {
-                EXPECT_EQ(params.resistance, 1500);
-                EXPECT_EQ(params.inductance, 800);
+                EXPECT_FLOAT_EQ(params.resistance, 1.5f);
+                EXPECT_FLOAT_EQ(params.inductance, 0.8f);
             });
 
         hal::Can::Message data;
@@ -121,8 +122,8 @@ namespace
     {
         EXPECT_CALL(observer, OnMechanicalParamsResponse(_)).WillOnce([](const FocMechanicalParams& params)
             {
-                EXPECT_EQ(params.inertia, 5000);
-                EXPECT_EQ(params.friction, 2000);
+                EXPECT_FLOAT_EQ(params.inertia, 0.5f);
+                EXPECT_FLOAT_EQ(params.friction, 0.2f);
             });
 
         hal::Can::Message data;
@@ -143,10 +144,10 @@ namespace
     {
         EXPECT_CALL(observer, OnTelemetryElectricalResponse(_)).WillOnce([](const FocTelemetryElectrical& t)
             {
-                EXPECT_EQ(t.voltage, 240);
-                EXPECT_EQ(t.maxCurrent, 100);
-                EXPECT_EQ(t.iq, -50);
-                EXPECT_EQ(t.id, 25);
+                EXPECT_FLOAT_EQ(t.voltage, 24.0f);
+                EXPECT_FLOAT_EQ(t.maxCurrent, 10.0f);
+                EXPECT_FLOAT_EQ(t.iq, -5.0f);
+                EXPECT_FLOAT_EQ(t.id, 2.5f);
             });
 
         hal::Can::Message data;
@@ -171,8 +172,8 @@ namespace
             {
                 EXPECT_EQ(s.state, FocMotorState::running);
                 EXPECT_EQ(s.fault, FocFaultCode::none);
-                EXPECT_EQ(s.speed, 3000);
-                EXPECT_EQ(s.position, 1800);
+                EXPECT_FLOAT_EQ(s.speed, 3000.0f);
+                EXPECT_FLOAT_EQ(s.position, 18.0f);
             });
 
         hal::Can::Message data;
@@ -191,9 +192,26 @@ namespace
         client.HandleMessage(focTelemetryStatusResponseId, data);
     }
 
+    TEST_F(TestFocMotorCategoryClientWithObserver, CategoryError_DecodesAndNotifiesObserver)
+    {
+        EXPECT_CALL(observer, OnCategoryError(focSelectControlModeId, FocMotorCategoryError::modeMismatch));
+
+        hal::Can::Message data;
+        data.push_back(focSelectControlModeId);
+        data.push_back(static_cast<uint8_t>(FocMotorCategoryError::modeMismatch));
+        client.HandleMessage(canCategoryErrorResponseMessageTypeId, data);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, CategoryError_TooShortIgnored)
+    {
+        hal::Can::Message data;
+        data.push_back(focSelectControlModeId);
+        client.HandleMessage(canCategoryErrorResponseMessageTypeId, data);
+    }
+
     TEST_F(TestFocMotorCategoryClient, UnknownMessageType_ReturnsFalse)
     {
-        EXPECT_FALSE(client.HandleMessage(0xFE, hal::Can::Message{}));
+        EXPECT_FALSE(client.HandleMessage(0x81, hal::Can::Message{}));
     }
 
     // --- Command sending ---
@@ -494,6 +512,23 @@ namespace
         EXPECT_EQ(blockedProtocolClient.PeekSequence(1), 9u);
     }
 
+    TEST_F(TestFocMotorCategoryClient, SendSetTorqueSetpoint_SendsCorrectFrame)
+    {
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
+            {
+                auto rawId = id.Get29BitId();
+                EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
+                EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
+                EXPECT_EQ(ExtractCanMessageType(rawId), focSetTorqueSetpointId);
+                ASSERT_EQ(data.size(), 3u);
+                // 50.0f A * scale 10 = raw 500
+                EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), 500);
+                cb(true);
+            });
+
+        client.SendSetTorqueSetpoint(1, 50.0f);
+    }
+
     TEST_F(TestFocMotorCategoryClient, SendSetSpeedSetpoint_SendsCorrectFrame)
     {
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id id, const hal::Can::Message& data, const auto& cb)
@@ -503,11 +538,26 @@ namespace
                 EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
                 EXPECT_EQ(ExtractCanMessageType(rawId), focSetSpeedSetpointId);
                 ASSERT_EQ(data.size(), 3u);
+                // 3000.0f RPM * scale 1 = raw 3000
                 EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), 3000);
                 cb(true);
             });
 
-        client.SendSetSpeedSetpoint(1, 3000);
+        client.SendSetSpeedSetpoint(1, 3000.0f);
+    }
+
+    TEST_F(TestFocMotorCategoryClient, SendSetSpeedSetpoint_32000RpmRoundTrips)
+    {
+        // Regression: old focSpeedScale=10 would saturate 32000*10=320000 to 32767.
+        // Corrected focSpeedScale=1 encodes 32000.0f RPM as raw 32000 with no saturation.
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
+            {
+                ASSERT_EQ(data.size(), 3u);
+                EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), 32000);
+                cb(true);
+            });
+
+        client.SendSetSpeedSetpoint(1, 32000.0f);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendSetPositionSetpoint_SendsCorrectFrame)
@@ -519,11 +569,12 @@ namespace
                 EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
                 EXPECT_EQ(ExtractCanMessageType(rawId), focSetPositionSetpointId);
                 ASSERT_EQ(data.size(), 3u);
+                // -180.0f rad * scale 100 = raw -18000
                 EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), -18000);
                 cb(true);
             });
 
-        client.SendSetPositionSetpoint(1, -18000);
+        client.SendSetPositionSetpoint(1, -180.0f);
     }
 
     TEST_F(TestFocMotorCategoryClientWithObserver, SelectControlModeResponse_ParsesResponse)

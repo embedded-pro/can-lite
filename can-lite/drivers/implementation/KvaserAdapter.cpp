@@ -1,9 +1,13 @@
 #ifdef _WIN32
 
-#include "can-lite/drivers/implementation/Kvaser.hpp"
+#include "can-lite/drivers/implementation/KvaserAdapter.hpp"
+#include "infra/event/EventDispatcher.hpp"
 #include "infra/stream/StringOutputStream.hpp"
 #include <algorithm>
+#include <charconv>
 #include <cstring>
+#include <optional>
+#include <system_error>
 
 namespace services
 {
@@ -44,8 +48,19 @@ namespace services
             return false;
         }
 
-        canBitrate_t canlibBitrate = BitrateToCanlib(bitrate);
-        if (canSetBusParams(handle, canlibBitrate, 0, 0, 0, 0, 0) != canOK)
+        auto canlibBitrate = BitrateToCanlib(bitrate);
+        if (!canlibBitrate)
+        {
+            canClose(handle);
+            handle = canINVALID_HANDLE;
+            NotifyObservers([](auto& observer)
+                {
+                    observer.OnError("Unsupported bitrate for Kvaser");
+                });
+            return false;
+        }
+
+        if (canSetBusParams(handle, *canlibBitrate, 0, 0, 0, 0, 0) != canOK)
         {
             canClose(handle);
             handle = canINVALID_HANDLE;
@@ -98,7 +113,13 @@ namespace services
     {
         if (!IsConnected())
         {
-            actionOnCompletion(false);
+            ScheduleCompletion(actionOnCompletion, false);
+            return;
+        }
+
+        if (!id.Is29BitId())
+        {
+            ScheduleCompletion(actionOnCompletion, false);
             return;
         }
 
@@ -127,7 +148,7 @@ namespace services
                 });
         }
 
-        actionOnCompletion(success);
+        ScheduleCompletion(actionOnCompletion, success);
     }
 
     void KvaserAdapter::ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction)
@@ -187,14 +208,14 @@ namespace services
 
         for (int i = 0; i < channelCount; ++i)
         {
-            infra::BoundedString::WithMaxSize<16> name;
+            infra::BoundedString::WithStorage<16> name;
             infra::StringOutputStream stream(name);
             stream << i;
             callback(name);
         }
     }
 
-    canBitrate_t KvaserAdapter::BitrateToCanlib(uint32_t bitrate)
+    std::optional<canBitrate_t> KvaserAdapter::BitrateToCanlib(uint32_t bitrate)
     {
         switch (bitrate)
         {
@@ -213,8 +234,19 @@ namespace services
             case 10000:
                 return canBITRATE_10K;
             default:
-                return canBITRATE_500K;
+                return std::nullopt;
         }
+    }
+
+    void KvaserAdapter::ScheduleCompletion(const infra::Function<void(bool)>& action, bool result)
+    {
+        pendingCompletion = action;
+        pendingSuccess = result;
+        infra::EventDispatcher::Instance().Schedule([this]()
+            {
+                if (pendingCompletion)
+                    pendingCompletion(pendingSuccess);
+            });
     }
 }
 

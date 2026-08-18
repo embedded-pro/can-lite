@@ -22,6 +22,7 @@ namespace services
         virtual void OnTelemetryElectricalResponse(const FocTelemetryElectrical& telemetry) = 0;
         virtual void OnTelemetryStatusResponse(const FocTelemetryStatus& status) = 0;
         virtual void OnSelectControlModeResponse(FocMotorMode activeMode) = 0;
+        virtual void OnCategoryError(uint8_t originCommandId, FocMotorCategoryError errorCode) = 0;
     };
 
     class FocMotorCategoryClient
@@ -44,9 +45,9 @@ namespace services
         bool SendRequestTelemetry(uint16_t targetNodeId);
         bool SendSetEncoderResolution(uint16_t targetNodeId, uint16_t resolution);
         bool SendSelectControlMode(uint16_t targetNodeId, FocMotorMode mode);
-        bool SendSetTorqueSetpoint(uint16_t targetNodeId, int16_t value);
-        bool SendSetSpeedSetpoint(uint16_t targetNodeId, int16_t value);
-        bool SendSetPositionSetpoint(uint16_t targetNodeId, int16_t value);
+        bool SendSetTorqueSetpoint(uint16_t targetNodeId, float value);
+        bool SendSetSpeedSetpoint(uint16_t targetNodeId, float value);
+        bool SendSetPositionSetpoint(uint16_t targetNodeId, float value);
         bool SendClearFault(uint16_t targetNodeId);
         bool SendEmergencyStop(uint16_t targetNodeId);
         bool SendConfigureTelemetryRate(uint16_t targetNodeId, uint8_t rateHz);
@@ -58,6 +59,7 @@ namespace services
         void HandleTelemetryElectricalResponse(const hal::Can::Message& data);
         void HandleTelemetryStatusResponse(const hal::Can::Message& data);
         void HandleSelectControlModeResponse(const hal::Can::Message& data);
+        void HandleCategoryError(const hal::Can::Message& data);
 
         CanMessageHandler<FocMotorCategoryClient> motorTypeResponse{ focMotorTypeResponseId, *this, &FocMotorCategoryClient::HandleMotorTypeResponse };
         CanMessageHandler<FocMotorCategoryClient> electricalParamsResponse{ focElectricalParamsResponseId, *this, &FocMotorCategoryClient::HandleElectricalParamsResponse };
@@ -65,5 +67,6 @@ namespace services
         CanMessageHandler<FocMotorCategoryClient> telemetryElectricalResponse{ focTelemetryElectricalResponseId, *this, &FocMotorCategoryClient::HandleTelemetryElectricalResponse };
         CanMessageHandler<FocMotorCategoryClient> telemetryStatusResponse{ focTelemetryStatusResponseId, *this, &FocMotorCategoryClient::HandleTelemetryStatusResponse };
         CanMessageHandler<FocMotorCategoryClient> selectControlModeResponse{ focSelectControlModeResponseId, *this, &FocMotorCategoryClient::HandleSelectControlModeResponse };
+        CanMessageHandler<FocMotorCategoryClient> categoryError{ canCategoryErrorResponseMessageTypeId, *this, &FocMotorCategoryClient::HandleCategoryError };
     };
 }

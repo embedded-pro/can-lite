@@ -37,7 +37,7 @@ transfers (thousands of blocks).
   image.
 - The server's bootloader or application can swap to the newly written
   image upon activation.
-- Maximum firmware size per transfer: **393 210 bytes** (65 536 blocks
+- Maximum firmware size per transfer: **393 216 bytes** (65 536 blocks
   × 6 data bytes). For larger images, a page-based extension can be
   added in a future revision.
 

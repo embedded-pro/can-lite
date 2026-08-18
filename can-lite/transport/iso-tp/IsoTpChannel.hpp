@@ -12,7 +12,7 @@ namespace services::iso_tp
     {
     public:
         using RawSendFunc = infra::Function<bool(uint32_t canId, const hal::Can::Message& frame,
-            const infra::Function<void()>& onDone)>;
+            const infra::Function<void(bool success)>& onDone)>;
         using PduReadyFunc = infra::Function<void(uint32_t dataId, infra::ConstByteRange pdu)>;
         using AbortFunc = infra::Function<void(uint32_t dataId, AbortReason reason)>;
 

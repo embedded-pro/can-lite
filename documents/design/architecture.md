@@ -377,7 +377,7 @@ IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
 protocolServer.AttachIsoTpTransport(isoTp);
 ```
 
-`CanProtocolServer::ProcessReceivedMessage` offers each incoming frame to the ISO-TP layer first (`isoTpTransport_->ProcessFrame(canId, frame)`). If the transport claims it (a registered channel matches), normal category dispatch is skipped. This keeps the transport layer transparent to existing category handlers.
+`CanProtocolServer::ProcessReceivedMessage` offers each incoming frame to the ISO-TP layer first (`isoTpTransport->ProcessFrame(canId, frame)`). If the transport claims it (a registered channel matches), normal category dispatch is skipped. This keeps the transport layer transparent to existing category handlers.
 
 ## 11. Build System
 

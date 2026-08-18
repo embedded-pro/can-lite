@@ -29,6 +29,17 @@ TEST(IsoTpFrameCodec, DecodeFrameType_FlowControl)
     EXPECT_EQ(IsoTpFrameCodec::DecodeFrameType(msg), FrameType::flowControl);
 }
 
+TEST(IsoTpFrameCodec, DecodeFrameType_InvalidPciNibble_IsUnknown)
+{
+    // PCI nibbles 0x4-0xF are not defined by ISO 15765-2; they must decode as
+    // unknown so callers can abort instead of silently ignoring the frame.
+    for (uint8_t nibble = 0x4; nibble <= 0xF; ++nibble)
+    {
+        auto msg = MakeMessage({ static_cast<uint8_t>(nibble << 4), 0x00 });
+        EXPECT_EQ(IsoTpFrameCodec::DecodeFrameType(msg), FrameType::unknown);
+    }
+}
+
 TEST(IsoTpFrameCodec, EncodeSingleFrame_1Byte)
 {
     uint8_t data[] = { 0xAB };
@@ -150,6 +161,9 @@ TEST(IsoTpFrameCodec, StMinToDuration_Microseconds)
 
 TEST(IsoTpFrameCodec, StMinToDuration_Reserved)
 {
-    EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0x80), infra::Duration::zero());
-    EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xFF), infra::Duration::zero());
+    // ISO 15765-2: reserved values shall be treated as 0x7F (127 ms).
+    EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0x80), std::chrono::milliseconds(0x7F));
+    EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xF0), std::chrono::milliseconds(0x7F));
+    EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xFA), std::chrono::milliseconds(0x7F));
+    EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xFF), std::chrono::milliseconds(0x7F));
 }

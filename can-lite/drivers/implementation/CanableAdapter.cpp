@@ -1,16 +1,17 @@
 #ifdef _WIN32
 
-#include "can-lite/drivers/implementation/Canable.hpp"
+#include "can-lite/drivers/implementation/CanableAdapter.hpp"
+#include "infra/event/EventDispatcher.hpp"
 #include <algorithm>
-#include <charconv>
 #include <cstdio>
 #include <cstring>
+#include <optional>
 
 namespace services
 {
     namespace
     {
-        uint8_t HexCharToNibble(char c)
+        std::optional<uint8_t> HexCharToNibble(char c)
         {
             if (c >= '0' && c <= '9')
                 return static_cast<uint8_t>(c - '0');
@@ -18,7 +19,7 @@ namespace services
                 return static_cast<uint8_t>(c - 'A' + 10);
             if (c >= 'a' && c <= 'f')
                 return static_cast<uint8_t>(c - 'a' + 10);
-            return 0;
+            return std::nullopt;
         }
 
         char NibbleToHex(uint8_t nibble)
@@ -86,10 +87,12 @@ namespace services
             return false;
         }
 
+        // MAXDWORD interval timeout with zero totals: ReadFile returns immediately
+        // with whatever bytes are available, making ProcessReadEvent non-blocking.
         COMMTIMEOUTS timeouts = {};
-        timeouts.ReadIntervalTimeout = 1;
+        timeouts.ReadIntervalTimeout = MAXDWORD;
         timeouts.ReadTotalTimeoutMultiplier = 0;
-        timeouts.ReadTotalTimeoutConstant = 1;
+        timeouts.ReadTotalTimeoutConstant = 0;
         SetCommTimeouts(serialHandle, &timeouts);
 
         SendSlcanCommand("C\r", 2);
@@ -162,7 +165,13 @@ namespace services
     {
         if (!IsConnected())
         {
-            actionOnCompletion(false);
+            ScheduleCompletion(actionOnCompletion, false);
+            return;
+        }
+
+        if (!id.Is29BitId())
+        {
+            ScheduleCompletion(actionOnCompletion, false);
             return;
         }
 
@@ -204,7 +213,7 @@ namespace services
                 });
         }
 
-        actionOnCompletion(success);
+        ScheduleCompletion(actionOnCompletion, success);
     }
 
     void CanableAdapter::ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction)
@@ -259,7 +268,12 @@ namespace services
 
         uint32_t rawId = 0;
         for (std::size_t i = 1; i <= 8; ++i)
-            rawId = (rawId << 4) | HexCharToNibble(buffer[i]);
+        {
+            auto nibble = HexCharToNibble(buffer[i]);
+            if (!nibble)
+                return false;
+            rawId = (rawId << 4) | *nibble;
+        }
 
         rawId &= 0x1FFFFFFF;
 
@@ -273,9 +287,11 @@ namespace services
         CanFrame data;
         for (uint8_t i = 0; i < dlc; ++i)
         {
-            uint8_t hi = HexCharToNibble(buffer[10 + i * 2]);
-            uint8_t lo = HexCharToNibble(buffer[11 + i * 2]);
-            data.push_back(static_cast<uint8_t>((hi << 4) | lo));
+            auto hi = HexCharToNibble(buffer[10 + i * 2]);
+            auto lo = HexCharToNibble(buffer[11 + i * 2]);
+            if (!hi || !lo)
+                return false;
+            data.push_back(static_cast<uint8_t>((*hi << 4) | *lo));
         }
 
         NotifyObservers([rawId, &data](auto& observer)
@@ -296,7 +312,7 @@ namespace services
             char portName[16];
             std::snprintf(portName, sizeof(portName), "\\\\.\\COM%d", i);
             HANDLE h = CreateFileA(portName, GENERIC_READ | GENERIC_WRITE,
-                0, nullptr, OPEN_EXISTING, 0, nullptr);
+                FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
             if (h != INVALID_HANDLE_VALUE)
             {
                 CloseHandle(h);
@@ -314,7 +330,7 @@ namespace services
             char portName[16];
             std::snprintf(portName, sizeof(portName), "\\\\.\\COM%d", i);
             HANDLE h = CreateFileA(portName, GENERIC_READ | GENERIC_WRITE,
-                0, nullptr, OPEN_EXISTING, 0, nullptr);
+                FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
             if (h != INVALID_HANDLE_VALUE)
             {
                 CloseHandle(h);
@@ -350,6 +366,17 @@ namespace services
             default:
                 return nullptr;
         }
+    }
+
+    void CanableAdapter::ScheduleCompletion(const infra::Function<void(bool)>& action, bool result)
+    {
+        pendingCompletion = action;
+        pendingSuccess = result;
+        infra::EventDispatcher::Instance().Schedule([this]()
+            {
+                if (pendingCompletion)
+                    pendingCompletion(pendingSuccess);
+            });
     }
 }
 

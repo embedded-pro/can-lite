@@ -35,6 +35,7 @@ namespace services
     {
     public:
         explicit CanPayloadReader(const hal::Can::Message& message);
+        CanPayloadReader(hal::Can::Message&&) = delete;
 
         uint8_t ReadUInt8();
         int16_t ReadInt16();
