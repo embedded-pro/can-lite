@@ -94,13 +94,12 @@ namespace services
 
         ResetSessionTimer();
 
-        auto& server = *this;
-        NotifyObservers([&server, firmwareSize](auto& observer)
+        NotifyObservers([this, firmwareSize](auto& observer)
             {
-                observer.OnBeginUpgrade(firmwareSize, [&server](FwuError status, uint16_t pageSize)
+                observer.OnBeginUpgrade(firmwareSize, [this](FwuError status, uint16_t pageSize)
                     {
-                        server.SendBeginResponse(status, pageSize);
-                        server.SendCommandAck(fwuBeginUpgradeId, CanAckStatus::success);
+                        SendBeginResponse(status, pageSize);
+                        SendCommandAck(fwuBeginUpgradeId, CanAckStatus::success);
                     });
             });
     }
@@ -122,13 +121,12 @@ namespace services
         for (auto byte : reader.ReadRemaining())
             payload.push_back(byte);
 
-        auto& server = *this;
-        NotifyObservers([&server, blockIndex, payload](auto& observer)
+        NotifyObservers([this, blockIndex, payload](auto& observer)
             {
-                observer.OnDataBlock(blockIndex, payload, [&server, blockIndex](FwuError status)
+                observer.OnDataBlock(blockIndex, payload, [this, blockIndex](FwuError status)
                     {
-                        server.SendDataBlockAck(status, blockIndex);
-                        server.SendCommandAck(fwuDataBlockId, CanAckStatus::success);
+                        SendDataBlockAck(status, blockIndex);
+                        SendCommandAck(fwuDataBlockId, CanAckStatus::success);
                     });
             });
     }
@@ -146,13 +144,12 @@ namespace services
 
         StopSessionTimer();
 
-        auto& server = *this;
-        NotifyObservers([&server, expectedCrc32](auto& observer)
+        NotifyObservers([this, expectedCrc32](auto& observer)
             {
-                observer.OnVerify(expectedCrc32, [&server](FwuError status)
+                observer.OnVerify(expectedCrc32, [this](FwuError status)
                     {
-                        server.SendVerifyResponse(status);
-                        server.SendCommandAck(fwuVerifyId, CanAckStatus::success);
+                        SendVerifyResponse(status);
+                        SendCommandAck(fwuVerifyId, CanAckStatus::success);
                     });
             });
     }
@@ -161,13 +158,12 @@ namespace services
     {
         StopSessionTimer();
 
-        auto& server = *this;
-        NotifyObservers([&server](auto& observer)
+        NotifyObservers([this](auto& observer)
             {
-                observer.OnActivate([&server](FwuError status)
+                observer.OnActivate([this](FwuError status)
                     {
-                        server.SendActivateResponse(status);
-                        server.SendCommandAck(fwuActivateId, CanAckStatus::success);
+                        SendActivateResponse(status);
+                        SendCommandAck(fwuActivateId, CanAckStatus::success);
                     });
             });
     }
@@ -176,25 +172,23 @@ namespace services
     {
         StopSessionTimer();
 
-        auto& server = *this;
-        NotifyObservers([&server](auto& observer)
+        NotifyObservers([this](auto& observer)
             {
-                observer.OnAbort([&server]()
+                observer.OnAbort([this]()
                     {
-                        server.SendCommandAck(fwuAbortId, CanAckStatus::success);
+                        SendCommandAck(fwuAbortId, CanAckStatus::success);
                     });
             });
     }
 
     void FirmwareUpgradeCategoryServer::HandleQueryProgress(const hal::Can::Message&)
     {
-        auto& server = *this;
-        NotifyObservers([&server](auto& observer)
+        NotifyObservers([this](auto& observer)
             {
-                observer.OnQueryProgress([&server](FwuState state, uint16_t blocksReceived, uint16_t totalBlocks)
+                observer.OnQueryProgress([this](FwuState state, uint16_t blocksReceived, uint16_t totalBlocks)
                     {
-                        server.SendProgressResponse(state, blocksReceived, totalBlocks);
-                        server.SendCommandAck(fwuQueryProgressId, CanAckStatus::success);
+                        SendProgressResponse(state, blocksReceived, totalBlocks);
+                        SendCommandAck(fwuQueryProgressId, CanAckStatus::success);
                     });
             });
     }

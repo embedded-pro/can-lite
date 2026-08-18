@@ -16,12 +16,11 @@ namespace integration
 
     void DemoCategoryServer::HandlePing(const hal::Can::Message&)
     {
-        auto& server = *this;
-        NotifyObservers([&server](auto& observer)
+        NotifyObservers([this](auto& observer)
             {
-                observer.OnPing([&server]()
+                observer.OnPing([this]()
                     {
-                        server.SendCommandAck(demoPingId, services::CanAckStatus::success);
+                        SendCommandAck(demoPingId, services::CanAckStatus::success);
                     });
             });
     }
@@ -38,38 +37,35 @@ namespace integration
             return;
         }
 
-        auto& server = *this;
-        NotifyObservers([&server, parameters](auto& observer)
+        NotifyObservers([this, parameters](auto& observer)
             {
-                observer.OnSetParameters(parameters, [&server]()
+                observer.OnSetParameters(parameters, [this]()
                     {
-                        server.SendCommandAck(demoSetParametersId, services::CanAckStatus::success);
+                        SendCommandAck(demoSetParametersId, services::CanAckStatus::success);
                     });
             });
     }
 
     void DemoCategoryServer::HandleQueryValue(const hal::Can::Message&)
     {
-        auto& server = *this;
-        NotifyObservers([&server](auto& observer)
+        NotifyObservers([this](auto& observer)
             {
-                observer.OnQueryValue([&server](int16_t value)
+                observer.OnQueryValue([this](int16_t value)
                     {
-                        server.SendValueResponse(value);
-                        server.SendCommandAck(demoQueryValueId, services::CanAckStatus::success);
+                        SendValueResponse(value);
+                        SendCommandAck(demoQueryValueId, services::CanAckStatus::success);
                     });
             });
     }
 
     void DemoCategoryServer::HandleFail(const hal::Can::Message&)
     {
-        auto& server = *this;
-        NotifyObservers([&server](auto& observer)
+        NotifyObservers([this](auto& observer)
             {
-                observer.OnFail([&server](DemoError error)
+                observer.OnFail([this](DemoError error)
                     {
-                        server.SendCategoryError(demoFailId, static_cast<uint8_t>(error));
-                        server.SendCommandAck(demoFailId, services::CanAckStatus::categoryError);
+                        SendCategoryError(demoFailId, static_cast<uint8_t>(error));
+                        SendCommandAck(demoFailId, services::CanAckStatus::categoryError);
                     });
             });
     }
