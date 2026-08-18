@@ -40,11 +40,17 @@ namespace services::iso_tp
         nBsTimeout,
         nCrTimeout,
         overflow,
-        unexpectedFrame
+        unexpectedFrame,
+        waitLimitExceeded
     };
 
     static constexpr infra::Duration nBsTimeout = std::chrono::milliseconds(1000);
     static constexpr infra::Duration nCrTimeout = std::chrono::milliseconds(1000);
+
+    // ISO 15765-2: maximum number of consecutive Flow Control "Wait" frames a
+    // sender tolerates before giving up (the standard leaves N_WFTmax as an
+    // implementation-defined limit).
+    static constexpr uint8_t nWftMax = 16u;
 
     static constexpr uint8_t sfMaxPayloadBytes = 7u;
     static constexpr uint8_t ffFirstDataOffset = 2u;

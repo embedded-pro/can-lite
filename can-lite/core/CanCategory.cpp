@@ -61,7 +61,7 @@ namespace services
 
     bool CanCategoryServer::SendResponse(uint8_t messageType, const hal::Can::Message& data)
     {
-        return transport.SendFrame(CanPriority::response, Id(), messageType, data, [] {});
+        return transport.SendFrame(CanPriority::response, Id(), messageType, data, [](bool) {});
     }
 
     bool CanCategoryServer::SendResponse(uint8_t messageType, const CanPayloadWriter& payload)
@@ -71,7 +71,7 @@ namespace services
 
     bool CanCategoryServer::SendTelemetry(uint8_t messageType, const hal::Can::Message& data)
     {
-        return transport.SendFrame(CanPriority::telemetry, Id(), messageType, data, [] {});
+        return transport.SendFrame(CanPriority::telemetry, Id(), messageType, data, [](bool) {});
     }
 
     bool CanCategoryServer::SendTelemetry(uint8_t messageType, const CanPayloadWriter& payload)
@@ -131,7 +131,7 @@ namespace services
 
     bool CanCategoryClient::SendCommandWithoutSequence(uint16_t targetNodeId, uint8_t messageType, const hal::Can::Message& payload, CanPriority priority)
     {
-        return transport.SendFrame(targetNodeId, priority, Id(), messageType, payload, [] {});
+        return transport.SendFrame(targetNodeId, priority, Id(), messageType, payload, [](bool) {});
     }
 
     bool CanCategoryClient::SendCommandWithoutSequence(uint16_t targetNodeId, uint8_t messageType, const CanPayloadWriter& payload, CanPriority priority)

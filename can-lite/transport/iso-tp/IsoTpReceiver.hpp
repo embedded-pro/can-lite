@@ -19,7 +19,7 @@ namespace services::iso_tp
             typename infra::BoundedVector<uint8_t>::template WithMaxSize<MaxPduSize>>;
 
         using SendFcFunc = infra::Function<void(const hal::Can::Message& frame,
-            const infra::Function<void()>& onDone)>;
+            const infra::Function<void(bool success)>& onDone)>;
         using PduReadyFunc = infra::Function<void(infra::ConstByteRange pdu)>;
         using AbortFunc = infra::Function<void(AbortReason reason)>;
 
@@ -33,7 +33,7 @@ namespace services::iso_tp
         void HandleSingleFrame(const hal::Can::Message& frame);
         void HandleFirstFrame(const hal::Can::Message& frame);
         void HandleConsecutiveFrame(const hal::Can::Message& frame);
-        void SendCtsFlowControl() const;
+        void SendCtsFlowControl();
         void Abort(AbortReason reason);
 
         SendFcFunc sendFcFunc;

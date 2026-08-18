@@ -219,13 +219,19 @@ MyCategoryServer myCategory{ server.Transport() };
 server.RegisterCategory(myCategory);
 
 CanProtocolClient client{ can };
-CanFrameTransport clientTransport{ can, serverNodeId };
-MyCategoryClient myCategoryClient{ clientTransport, client };
+MyCategoryClient myCategoryClient{ client.Transport(), client };
 client.RegisterCategory(myCategoryClient);
 ```
 
 `CanProtocolClient` implements `CanSequenceSource`, which is all a client
 category needs — categories never depend on `CanProtocolClient` itself.
+
+Always use `client.Transport()` for a category's `CanFrameTransport&`, rather
+than constructing a second, independent `CanFrameTransport` over the same
+`hal::Can`. Each `CanFrameTransport` owns its own `sendInProgress` flag and
+send queue; two independent transports wrapping the same `hal::Can` would
+each believe they alone own the outstanding transmission, and concurrent
+sends from both could overlap on the HAL.
 
 Registering two categories with the same ID asserts at runtime. Registered
 category IDs are reported automatically by category discovery.

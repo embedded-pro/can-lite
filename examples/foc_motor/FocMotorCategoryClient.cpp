@@ -7,7 +7,7 @@ namespace services
         : CanCategoryClient(transport, sequenceSource)
     {
         AddMessageTypes(motorTypeResponse, electricalParamsResponse, mechanicalParamsResponse,
-            telemetryElectricalResponse, telemetryStatusResponse, selectControlModeResponse);
+            telemetryElectricalResponse, telemetryStatusResponse, selectControlModeResponse, categoryError);
     }
 
     uint8_t FocMotorCategoryClient::Id() const
@@ -80,24 +80,24 @@ namespace services
         return SendCommand(targetNodeId, focSelectControlModeId, payload);
     }
 
-    bool FocMotorCategoryClient::SendSetTorqueSetpoint(uint16_t targetNodeId, int16_t value)
+    bool FocMotorCategoryClient::SendSetTorqueSetpoint(uint16_t targetNodeId, float value)
     {
         CanPayloadWriter payload;
-        payload.WriteInt16(value);
+        payload.WriteFixed16(value, focCurrentScale);
         return SendCommand(targetNodeId, focSetTorqueSetpointId, payload);
     }
 
-    bool FocMotorCategoryClient::SendSetSpeedSetpoint(uint16_t targetNodeId, int16_t value)
+    bool FocMotorCategoryClient::SendSetSpeedSetpoint(uint16_t targetNodeId, float value)
     {
         CanPayloadWriter payload;
-        payload.WriteInt16(value);
+        payload.WriteFixed16(value, focSpeedScale);
         return SendCommand(targetNodeId, focSetSpeedSetpointId, payload);
     }
 
-    bool FocMotorCategoryClient::SendSetPositionSetpoint(uint16_t targetNodeId, int16_t value)
+    bool FocMotorCategoryClient::SendSetPositionSetpoint(uint16_t targetNodeId, float value)
     {
         CanPayloadWriter payload;
-        payload.WriteInt16(value);
+        payload.WriteFixed16(value, focPositionScale);
         return SendCommand(targetNodeId, focSetPositionSetpointId, payload);
     }
 
@@ -133,7 +133,7 @@ namespace services
     void FocMotorCategoryClient::HandleElectricalParamsResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
-        FocElectricalParams params{ reader.ReadInt16(), reader.ReadInt16() };
+        FocElectricalParams params{ reader.ReadFixed16(focResistanceScale), reader.ReadFixed16(focInductanceScale) };
         if (!reader.Valid())
             return;
         NotifyObservers([&params](auto& observer)
@@ -145,7 +145,7 @@ namespace services
     void FocMotorCategoryClient::HandleMechanicalParamsResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
-        FocMechanicalParams params{ reader.ReadInt16(), reader.ReadInt16() };
+        FocMechanicalParams params{ reader.ReadFixed16(focInertiaScale), reader.ReadFixed16(focFrictionScale) };
         if (!reader.Valid())
             return;
         NotifyObservers([&params](auto& observer)
@@ -157,7 +157,12 @@ namespace services
     void FocMotorCategoryClient::HandleTelemetryElectricalResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
-        FocTelemetryElectrical telemetry{ reader.ReadInt16(), reader.ReadInt16(), reader.ReadInt16(), reader.ReadInt16() };
+        FocTelemetryElectrical telemetry{
+            reader.ReadFixed16(focVoltageScale),
+            reader.ReadFixed16(focCurrentScale),
+            reader.ReadFixed16(focCurrentScale),
+            reader.ReadFixed16(focCurrentScale)
+        };
         if (!reader.Valid())
             return;
         NotifyObservers([&telemetry](auto& observer)
@@ -171,14 +176,27 @@ namespace services
         CanPayloadReader reader{ data };
         auto state = static_cast<FocMotorState>(reader.ReadUInt8());
         auto fault = static_cast<FocFaultCode>(reader.ReadUInt8());
-        auto speed = reader.ReadInt16();
-        auto position = reader.ReadInt16();
+        auto speed = reader.ReadFixed16(focSpeedScale);
+        auto position = reader.ReadFixed16(focPositionScale);
         if (!reader.Valid())
             return;
         FocTelemetryStatus status{ state, fault, speed, position };
         NotifyObservers([&status](auto& observer)
             {
                 observer.OnTelemetryStatusResponse(status);
+            });
+    }
+
+    void FocMotorCategoryClient::HandleCategoryError(const hal::Can::Message& data)
+    {
+        CanPayloadReader reader{ data };
+        auto originCommandId = reader.ReadUInt8();
+        auto errorCode = static_cast<FocMotorCategoryError>(reader.ReadUInt8());
+        if (!reader.Valid())
+            return;
+        NotifyObservers([originCommandId, errorCode](auto& observer)
+            {
+                observer.OnCategoryError(originCommandId, errorCode);
             });
     }
 

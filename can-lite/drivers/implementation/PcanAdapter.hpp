@@ -1,19 +1,27 @@
 #pragma once
 
-#include "can-lite/drivers/interface/CanAdapter.hpp"
+#include "can-lite/drivers/interface/CanBusAdapter.hpp"
 
 #ifdef _WIN32
 
-#include <canlib.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <PCANBasic.h>
+#include <optional>
+#include <windows.h>
 
 namespace services
 {
-    class KvaserAdapter
+    class PcanAdapter
         : public CanBusAdapter
     {
     public:
-        KvaserAdapter();
-        ~KvaserAdapter() override;
+        PcanAdapter() = default;
+        ~PcanAdapter() override;
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;
@@ -29,10 +37,16 @@ namespace services
         bool IsDriverAvailable() const override;
 
     private:
-        static canBitrate_t BitrateToCanlib(uint32_t bitrate);
+        static std::optional<TPCANBaudrate> BitrateToPcan(uint32_t bitrate);
+        static TPCANHandle ChannelFromName(infra::BoundedConstString name);
+        void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
-        canHandle handle = canINVALID_HANDLE;
+        TPCANHandle channel{ PCAN_NONEBUS };
+        bool connected{};
+        HANDLE readEvent{ nullptr };
         infra::Function<void(Id, const Message&)> receiveCallback;
+        infra::Function<void(bool)> pendingCompletion;
+        bool pendingSuccess{};
     };
 }
 

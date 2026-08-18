@@ -15,6 +15,11 @@
     The client shall be able to query the server's configured motor
     control mode. The server shall respond with a Motor Type Response
     (0x80) containing one of: torque (0), speed (1), or position (2).
+  tests:
+    - TestFocMotorCategoryServerWithObserver.QueryMotorType_CallbackSendsResponseAndAck
+    - TestFocMotorCategoryClientWithObserver.MotorTypeResponse_ParsesMode
+    - TestFocMotorCategoryClient.SendQueryMotorType_SendsCorrectFrame
+    - TestFocMotorCategoryClient.MotorTypeResponse_EmptyIgnored
 
 # --- Motor Start / Stop ---
 
@@ -26,6 +31,10 @@
     from Idle to Running state and respond with a command
     acknowledgement. If the motor is already running or in a fault
     state, the server shall respond with an invalidState error.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.Start_CallbackSendsAck
+    - TestFocMotorCategoryServerWithObserver.Start_CallbackCanReturnInvalidState
+    - TestFocMotorCategoryClient.SendStart_SendsCorrectFrame
 
 - id: REQ-FOC-003
   title: Motor stop command
@@ -33,6 +42,9 @@
     The client shall be able to send a Stop command to de-energize the
     motor. The server shall transition from Running to Idle state and
     respond with a command acknowledgement.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.Stop_CallbackSendsAck
+    - TestFocMotorCategoryClient.SendStop_SendsCorrectFrame
 
 # --- PID Configuration ---
 
@@ -44,6 +56,10 @@
     Set PID Current command. Gains shall be encoded as big-endian
     int16 values with a scale factor of 1 (integer resolution,
     valid range -10 000 to 10 000).
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SetPidCurrent_ParsesGains
+    - TestFocMotorCategoryServer.SetPidCurrent_TooShortRejected
+    - TestFocMotorCategoryClient.SendSetPidCurrent_SendsCorrectFrame
 
 - id: REQ-FOC-005
   title: Speed loop PID configuration
@@ -52,6 +68,10 @@
     control loop using a Set PID Speed command. Gains shall be
     encoded as big-endian int16 values with a scale factor of 1
     (integer resolution, valid range -10 000 to 10 000).
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SetPidSpeed_ParsesGains
+    - TestFocMotorCategoryServer.SetPidSpeed_TooShortRejected
+    - TestFocMotorCategoryClient.SendSetPidSpeed_SendsCorrectFrame
 
 - id: REQ-FOC-006
   title: Position loop PID configuration
@@ -60,6 +80,10 @@
     control loop using a Set PID Position command. Gains shall be
     encoded as big-endian int16 values with a scale factor of 1
     (integer resolution, valid range -10 000 to 10 000).
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SetPidPosition_ParsesGains
+    - TestFocMotorCategoryServer.SetPidPosition_TooShortRejected
+    - TestFocMotorCategoryClient.SendSetPidPosition_SendsCorrectFrame
 
 # --- Parameter Identification ---
 
@@ -71,8 +95,13 @@
     report the phase resistance (scale 1000, unit Ω, positive
     only, valid range 0.001–10 Ω) and phase inductance (scale
     1000, unit H, positive only, valid range 0.001–10 H) as
-    big-endian int16 values in an Electrical Parameters Response
-    (0x86). Negative values shall be rejected.
+    big-endian fixed-point int16 values in an Electrical Parameters
+    Response (0x86). Negative values shall be rejected.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.IdentifyElectrical_CallbackSendsResponse
+    - TestFocMotorCategoryClient.SendIdentifyElectrical_SendsCorrectFrame
+    - TestFocMotorCategoryClientWithObserver.ElectricalParamsResponse_ParsesParams
+    - TestFocMotorCategoryClient.ElectricalParamsResponse_TooShortIgnored
 
 - id: REQ-FOC-008
   title: Mechanical parameter identification
@@ -81,8 +110,14 @@
     motor's mechanical parameters. The server shall measure or
     report the rotor inertia (scale 10000, unit kg·m², positive
     only) and viscous friction (scale 10000, unit N·m·s/rad,
-    positive only) as big-endian int16 values in a Mechanical
-    Parameters Response (0x87). Negative values shall be rejected.
+    positive only) as big-endian fixed-point int16 values in a
+    Mechanical Parameters Response (0x87). Negative values shall be
+    rejected.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.IdentifyMechanical_CallbackSendsResponse
+    - TestFocMotorCategoryClient.SendIdentifyMechanical_SendsCorrectFrame
+    - TestFocMotorCategoryClientWithObserver.MechanicalParamsResponse_ParsesParams
+    - TestFocMotorCategoryClient.MechanicalParamsResponse_TooShortIgnored
 
 # --- Telemetry ---
 
@@ -94,6 +129,9 @@
     Electrical Response (0x88) containing DC bus voltage, maximum
     current, Iq, and Id; and a Telemetry Status Response (0x89)
     containing motor state, fault code, speed, and position.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.RequestTelemetry_CallbackSendsBothFrames
+    - TestFocMotorCategoryClient.SendRequestTelemetry_SendsCorrectFrame
 
 - id: REQ-FOC-010
   title: Telemetry scale factors
@@ -104,6 +142,11 @@
     big-endian int16. These scale factors support motors from
     12 V / 0.5 A (small BLDC) up to 800 V / 500 A (high-end
     industrial drives) and speeds up to 32 767 RPM.
+  tests:
+    - TestFocMotorCategoryClientWithObserver.TelemetryElectricalResponse_ParsesTelemetry
+    - TestFocMotorCategoryClientWithObserver.TelemetryStatusResponse_ParsesStatus
+    - TestFocMotorCategoryClient.SendSetSpeedSetpoint_32000RpmRoundTrips
+    - TestFocMotorCategoryServerWithObserver.SetSpeedSetpoint_32000RpmDecodesCorrectly
 
 # --- Encoder Configuration ---
 
@@ -114,6 +157,10 @@
     (counts per mechanical revolution) using a Set Encoder Resolution
     command. The resolution shall be encoded as a big-endian uint16
     value (range 0–65535).
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SetEncoderResolution_ParsesResolution
+    - TestFocMotorCategoryServer.SetEncoderResolution_TooShortRejected
+    - TestFocMotorCategoryClient.SendSetEncoderResolution_SendsCorrectFrame
 
 # --- Fault Handling ---
 
@@ -125,6 +172,8 @@
     voltage (2), under voltage (3), over temperature (4), and sensor
     fault (5). When a fault is detected, the server shall transition
     to the Fault state and de-energize the motor.
+  tests:
+    - TestFocMotorCategoryClientWithObserver.TelemetryStatusResponse_ParsesStatus
 
 # --- Sequence Validation ---
 
@@ -135,18 +184,30 @@
     on all command frames. Byte 0 of every command payload shall be
     the sequence counter as defined by the base protocol's sequence
     number protocol (REQ-CAN-017, REQ-CAN-018).
+  tests:
+    - TestFocMotorCategoryServer.RequiresSequenceValidation
+    - TestFocMotorCategoryClient.RequiresSequenceValidation
+    - TestFocMotorCategoryClient.SequenceCounterIncrements
+    - TestFocMotorCategoryClient.Send_QueueFull_ReturnsFalseAndDoesNotAdvanceSequence
 
 # --- Response Convention ---
 
 - id: REQ-FOC-014
   title: Response message type IDs
   shall: >
-    Solicited response message types within the FOC category shall generally
-    use IDs formed by adding 0x80 to the corresponding command message type
-    ID, reserving 0x00–0x7F for commands and 0x80–0xFE for paired responses.
-    The Command Rejected Response shall use the fixed well-known ID 0xFF,
-    which is outside the 0x80 + command_id mapping range and serves as a
-    generic cross-cutting error frame.
+    Solicited response message types within the FOC category shall
+    generally use IDs formed by adding 0x80 to the corresponding
+    command message type ID, reserving 0x00–0x7F for commands and
+    0x80–0xFD for paired responses. When a command is rejected for a
+    category-specific reason the FOC category reuses the base
+    protocol's shared Category Error frame (message type 0xFE,
+    canCategoryErrorResponseMessageTypeId) via
+    CanCategoryServer::SendCategoryError(), carrying the
+    FOC-specific FocMotorCategoryError reason code. The FOC category
+    does not define its own separate rejection frame ID.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.QueryMotorType_CallbackSendsResponseAndAck
+    - TestFocMotorCategoryServer.SendCategoryError_EmitsFrameAndAck
 
 # --- Setpoint Control ---
 
@@ -159,36 +220,93 @@
     The server shall reject payloads shorter than 2 bytes or with an invalid
     mode byte (> 2) without notifying the observer. On success the server
     shall respond with a Select Control Mode Response (0x8E).
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SelectControlMode_CallbackSendsResponseAndAck
+    - TestFocMotorCategoryServer.SelectControlMode_InvalidModeRejected
+    - TestFocMotorCategoryServer.SelectControlMode_TooShortRejected
+    - TestFocMotorCategoryClient.SendSelectControlMode_SendsCorrectFrame
+
+# --- Fault Recovery ---
+
+- id: REQ-FOC-016
+  title: Fault clear command
+  shall: >
+    The client shall be able to send a Clear Fault command (0x0B) to
+    clear an active fault condition on the server and return it to the
+    Idle state. The server's observer shall be notified via
+    OnClearFault().
+  tests:
+    - TestFocMotorCategoryServerWithObserver.ClearFault_CallbackSendsAck
+    - TestFocMotorCategoryClient.SendClearFault_SendsCorrectFrame
+
+- id: REQ-FOC-017
+  title: Emergency stop command
+  shall: >
+    The client shall be able to send an Emergency Stop command (0x0C)
+    at CanPriority::emergency to immediately de-energize the motor.
+    The server's observer shall be notified via OnEmergencyStop().
+  tests:
+    - TestFocMotorCategoryServerWithObserver.EmergencyStop_CallbackSendsAck
+    - TestFocMotorCategoryClient.SendEmergencyStop_SendsCorrectFrame
+
+# --- Push Telemetry Rate ---
+
+- id: REQ-FOC-018
+  title: Telemetry rate configuration
+  shall: >
+    The client shall be able to send a Configure Telemetry Rate command
+    (0x0D) containing a uint8 rate value in bytes 1 (0 = disabled).
+    The server's observer shall be notified via
+    OnConfigureTelemetryRate(rateHz). Payloads shorter than 2 bytes
+    shall be silently rejected.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.ConfigureTelemetryRate_ParsesRate
+    - TestFocMotorCategoryServer.ConfigureTelemetryRate_TooShortRejected
+    - TestFocMotorCategoryClient.SendConfigureTelemetryRate_SendsCorrectFrame
 
 - id: REQ-FOC-019
   title: Set torque setpoint command
   shall: >
     The client shall be able to send a Set Torque Setpoint command (0x0F)
     to set the quadrature current setpoint. The command payload shall
-    contain: sequence byte (byte 0) and a big-endian int16 value (bytes 1–2,
-    scale 10, unit A). The server shall notify the observer via
-    OnSetTorqueSetpoint(value) after decoding. Payloads shorter than 3 bytes
-    shall be silently rejected.
+    contain: sequence byte (byte 0) and a big-endian fixed-point int16
+    value (bytes 1–2, scale 10, unit A). The server shall notify the
+    observer via OnSetTorqueSetpoint(value) after decoding. Payloads
+    shorter than 3 bytes shall be silently rejected.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SetTorqueSetpoint_CallbackSendsAck
+    - TestFocMotorCategoryServer.SetTorqueSetpoint_TooShortRejected
+    - TestFocMotorCategoryClient.SendSetTorqueSetpoint_SendsCorrectFrame
 
 - id: REQ-FOC-020
   title: Set speed setpoint command
   shall: >
     The client shall be able to send a Set Speed Setpoint command (0x10)
     to set the speed closed-loop target. The command payload shall contain:
-    sequence byte (byte 0) and a big-endian int16 value (bytes 1–2,
-    scale 1, unit RPM). The server shall notify the observer via
+    sequence byte (byte 0) and a big-endian fixed-point int16 value (bytes
+    1–2, scale 1, unit RPM). The server shall notify the observer via
     OnSetSpeedSetpoint(value) after decoding. Payloads shorter than 3 bytes
     shall be silently rejected.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SetSpeedSetpoint_CallbackSendsAck
+    - TestFocMotorCategoryServer.SetSpeedSetpoint_TooShortRejected
+    - TestFocMotorCategoryClient.SendSetSpeedSetpoint_SendsCorrectFrame
+    - TestFocMotorCategoryClient.SendSetSpeedSetpoint_32000RpmRoundTrips
+    - TestFocMotorCategoryServerWithObserver.SetSpeedSetpoint_32000RpmDecodesCorrectly
 
 - id: REQ-FOC-021
   title: Set position setpoint command
   shall: >
     The client shall be able to send a Set Position Setpoint command (0x11)
     to set the position closed-loop target. The command payload shall contain:
-    sequence byte (byte 0) and a big-endian int16 value (bytes 1–2,
-    scale 100, unit rad). The server shall notify the observer via
-    OnSetPositionSetpoint(value) after decoding. Payloads shorter than 3 bytes
-    shall be silently rejected.
+    sequence byte (byte 0) and a big-endian fixed-point int16 value (bytes
+    1–2, scale 100, unit rad). The server shall notify the observer via
+    OnSetPositionSetpoint(value) after decoding. Payloads shorter than 3
+    bytes shall be silently rejected.
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SetPositionSetpoint_CallbackSendsAck
+    - TestFocMotorCategoryServer.SetPositionSetpoint_TooShortRejected
+    - TestFocMotorCategoryClient.SendSetPositionSetpoint_SendsCorrectFrame
 
 - id: REQ-FOC-022
   title: Select control mode response
@@ -201,40 +319,24 @@
     shall be silently ignored by the client. Failure outcomes are reported
     solely via the universal commandAck frame (see can-protocol
     REQ-CAN-011).
+  tests:
+    - TestFocMotorCategoryServerWithObserver.SelectControlMode_CallbackSendsResponseAndAck
+    - TestFocMotorCategoryClientWithObserver.SelectControlModeResponse_ParsesResponse
+    - TestFocMotorCategoryClient.SelectControlModeResponse_TooShortIgnored
 
 - id: REQ-FOC-023
-  title: Command rejection via universal ACK
+  title: Command rejection via shared Category Error frame
   shall: >
-    Command rejections (including cross-cutting reasons such as control
-    mode mismatch, busy, persistence failure, or invalid payload) shall be
-    reported via the universal commandAck frame defined by the System
-    category, carrying the appropriate CanAckStatus value. The FOC motor
-    category shall not define a dedicated rejection frame.
-
-# --- Fault Recovery ---
-
-- id: REQ-FOC-016
-  title: Fault clear command
-  shall: >
-    The client shall be able to send a Clear Fault command (0x0B) to
-    clear an active fault condition on the server and return it to the
-    Idle state. The server's observer shall be notified via
-    OnClearFault().
-
-- id: REQ-FOC-017
-  title: Emergency stop command
-  shall: >
-    The client shall be able to send an Emergency Stop command (0x0C)
-    at CanPriority::emergency to immediately de-energize the motor.
-    The server's observer shall be notified via OnEmergencyStop().
-
-# --- Push Telemetry Rate ---
-
-- id: REQ-FOC-018
-  title: Telemetry rate configuration
-  shall: >
-    The client shall be able to send a Configure Telemetry Rate command
-    (0x0D) containing a uint8 rate value in bytes 1 (0 = disabled).
-    The server's observer shall be notified via
-    OnConfigureTelemetryRate(rateHz). Payloads shorter than 2 bytes
-    shall be silently rejected.
+    Category-specific command rejections shall be reported via the base
+    protocol's shared Category Error frame (message type 0xFE,
+    canCategoryErrorResponseMessageTypeId), which every category server
+    inherits through CanCategoryServer::SendCategoryError(). The FOC
+    category shall not define its own separate rejection frame ID; it
+    reuses the universal Category Error frame (0xFE) with the FOC-specific
+    FocMotorCategoryError detail code. Cross-cutting rejections (invalid
+    payload, unknown command, etc.) continue to use the universal
+    commandAck frame defined by the System category.
+  tests:
+    - TestFocMotorCategoryServer.SendCategoryError_EmitsFrameAndAck
+    - TestFocMotorCategoryClientWithObserver.CategoryError_DecodesAndNotifiesObserver
+    - TestFocMotorCategoryClient.CategoryError_TooShortIgnored

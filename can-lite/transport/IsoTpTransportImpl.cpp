@@ -12,7 +12,7 @@ namespace services
         if (slot == nullptr)
             return false;
 
-        slot->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d)
+        slot->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 return OnRawSend(cid, f, d);
             },
@@ -27,16 +27,24 @@ namespace services
         return true;
     }
 
+    void IsoTpTransportImpl::ReleaseChannel(uint32_t dataId)
+    {
+        auto* ch = FindChannel(dataId);
+        if (ch != nullptr)
+            ch->Release();
+    }
+
     bool IsoTpTransportImpl::SendPdu(uint32_t dataId, uint32_t fcId,
         infra::ConstByteRange pdu, const infra::Function<void()>& onDone)
     {
         auto* ch = FindChannel(dataId);
+
         if (ch == nullptr)
         {
             ch = AllocateFreeChannel();
             if (ch == nullptr)
                 return false;
-            ch->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d)
+            ch->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
                 {
                     return OnRawSend(cid, f, d);
                 },
@@ -49,12 +57,17 @@ namespace services
                     OnAbort(did, r);
                 });
         }
+
+        // The channel stays occupied (and reusable for a subsequent send/receive
+        // to the same dataId/fcId pair) once this transfer completes; it is
+        // reclaimed via ReleaseChannel(), called on abort (see AttachIsoTpTransport)
+        // or explicitly by the application once it's done with a dataId.
         return ch->SendPdu(pdu, onDone);
     }
 
     bool IsoTpTransportImpl::ProcessFrame(uint32_t canId, const hal::Can::Message& frame)
     {
-        for (auto* ch : channels_)
+        for (auto* ch : channelRange)
         {
             if (ch->IsOccupied() && ch->ProcessFrame(canId, frame))
                 return true;
@@ -65,18 +78,18 @@ namespace services
     void IsoTpTransportImpl::SetOnPduReceived(
         infra::Function<void(uint32_t dataId, infra::ConstByteRange pdu)> callback)
     {
-        onPduReceived_ = callback;
+        onPduReceived = callback;
     }
 
     void IsoTpTransportImpl::SetOnAbort(
         infra::Function<void(uint32_t dataId, iso_tp::AbortReason reason)> callback)
     {
-        onAbortCallback_ = callback;
+        onAbortCallback = callback;
     }
 
     iso_tp::IsoTpChannel* IsoTpTransportImpl::FindChannel(uint32_t canId)
     {
-        for (auto* ch : channels_)
+        for (auto* ch : channelRange)
         {
             if (ch->IsOccupied() && (ch->DataId() == canId || ch->FcId() == canId))
                 return ch;
@@ -86,7 +99,7 @@ namespace services
 
     iso_tp::IsoTpChannel* IsoTpTransportImpl::AllocateFreeChannel()
     {
-        for (auto* ch : channels_)
+        for (auto* ch : channelRange)
         {
             if (!ch->IsOccupied())
                 return ch;
@@ -95,20 +108,20 @@ namespace services
     }
 
     bool IsoTpTransportImpl::OnRawSend(uint32_t canId,
-        const hal::Can::Message& frame, const infra::Function<void()>& onDone)
+        const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone)
     {
-        return transport_.SendRawFrame(hal::Can::Id::Create29BitId(canId), frame, onDone);
+        return transport.SendRawFrame(hal::Can::Id::Create29BitId(canId), frame, onDone);
     }
 
     void IsoTpTransportImpl::OnPduReady(uint32_t dataId, infra::ConstByteRange pdu) const
     {
-        if (onPduReceived_)
-            onPduReceived_(dataId, pdu);
+        if (onPduReceived)
+            onPduReceived(dataId, pdu);
     }
 
     void IsoTpTransportImpl::OnAbort(uint32_t dataId, iso_tp::AbortReason reason) const
     {
-        if (onAbortCallback_)
-            onAbortCallback_(dataId, reason);
+        if (onAbortCallback)
+            onAbortCallback(dataId, reason);
     }
 }

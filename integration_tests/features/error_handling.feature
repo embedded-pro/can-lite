@@ -23,8 +23,13 @@ Feature: Error Handling
 
   @REQ-CAN-021
   Scenario: Unknown message type in registered category triggers error
-    When a frame is received with system category and unknown message type 255
+    When a frame is received with system category and unknown message type 126
     Then the server shall send an acknowledgement with status "unknownCommand"
+
+  @REQ-CAN-021
+  Scenario: Response-range message type is silently discarded rather than acked as unknown
+    When a frame is received with system category and unknown message type 255
+    Then the server shall silently discard the frame
 
   @REQ-CAN-016
   Scenario: Short payload on a custom category command is rejected

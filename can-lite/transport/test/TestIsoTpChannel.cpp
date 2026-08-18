@@ -22,7 +22,7 @@ namespace
 
     struct MockCallbacks
     {
-        MOCK_METHOD(bool, RawSend, (uint32_t canId, const hal::Can::Message&, const infra::Function<void()>&));
+        MOCK_METHOD(bool, RawSend, (uint32_t canId, const hal::Can::Message&, const infra::Function<void(bool)>&));
         MOCK_METHOD(void, OnPduReady, (uint32_t did, infra::ConstByteRange));
         MOCK_METHOD(void, OnAbort, (uint32_t did, AbortReason));
     };
@@ -38,7 +38,7 @@ protected:
 
     void Configure()
     {
-        channel.Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void()>& d) -> bool
+        channel.Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void(bool)>& d) -> bool
             {
                 return mocks.RawSend(cid, f, d);
             },
@@ -83,10 +83,10 @@ TEST_F(IsoTpChannelTest, SendPdu_SingleFrame_CallsRawSendOnDataId)
     bool done = false;
 
     EXPECT_CALL(mocks, RawSend(dataId, _, _))
-        .WillOnce(Invoke([](uint32_t, const hal::Can::Message& f, const infra::Function<void()>& d)
+        .WillOnce(Invoke([](uint32_t, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0], 0x03u);
-                d();
+                d(true);
                 return true;
             }));
 
@@ -108,6 +108,40 @@ TEST_F(IsoTpChannelTest, SendPdu_WhenBusy_ReturnsFalse)
 
     ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
     EXPECT_FALSE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
+}
+
+TEST_F(IsoTpChannelTest, SendPdu_RawSendRejectsSynchronously_AbortsInsteadOfWedging)
+{
+    Configure();
+
+    uint8_t pdu[] = { 0x01u };
+
+    // rawSend_ returning false (e.g. CanFrameTransport's queue is full) must
+    // still unstick the sender's FSM rather than leaving it permanently busy.
+    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+        .WillOnce(Return(false));
+    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::unexpectedFrame));
+
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
+    EXPECT_TRUE(channel.IsSenderIdle());
+
+    // The channel must accept a new send afterwards instead of staying wedged.
+    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+        .WillOnce(Return(true));
+    EXPECT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
+}
+
+TEST_F(IsoTpChannelTest, ProcessFrame_FirstFrame_RawSendOfFlowControlFails_Aborts)
+{
+    Configure();
+
+    EXPECT_CALL(mocks, RawSend(fcId, _, _))
+        .WillOnce(Return(false));
+    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::unexpectedFrame));
+
+    auto ff = MakeMessage({ 0x10u, 0x08u, 1u, 2u, 3u, 4u, 5u, 6u });
+    EXPECT_TRUE(channel.ProcessFrame(dataId, ff));
+    EXPECT_TRUE(channel.IsReceiverIdle());
 }
 
 TEST_F(IsoTpChannelTest, ProcessFrame_DataFrameRouted_ToReceiver)
@@ -139,18 +173,18 @@ TEST_F(IsoTpChannelTest, ProcessFrame_FcFrameRouted_ToSender)
         testing::InSequence seq;
 
         EXPECT_CALL(mocks, RawSend(dataId, _, _))
-            .WillOnce(Invoke([](uint32_t, const hal::Can::Message&, const infra::Function<void()>& d)
+            .WillOnce(Invoke([](uint32_t, const hal::Can::Message&, const infra::Function<void(bool)>& d)
                 {
-                    d();
+                    d(true);
                     return true;
                 }));
 
         EXPECT_CALL(mocks, RawSend(dataId, _, _))
-            .WillOnce(Invoke([](uint32_t, const hal::Can::Message& f, const infra::Function<void()>& d)
+            .WillOnce(Invoke([](uint32_t, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
                 {
                     EXPECT_EQ(f[0] & 0xF0u, 0x20u);
                     EXPECT_EQ(f[0] & 0x0Fu, 0x01u);
-                    d();
+                    d(true);
                     return true;
                 }));
     }

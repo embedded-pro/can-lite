@@ -24,7 +24,7 @@ Feature: System Category
 
   @REQ-CAN-011
   Scenario: Server acknowledges unknown command with error
-    When the client sends a command with category 0 and unknown message type 255 to the server
+    When the client sends a command with category 0 and unknown message type 126 to the server
     Then the server shall send an acknowledgement with status "unknownCommand"
 
   @REQ-CAN-012

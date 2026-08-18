@@ -57,7 +57,7 @@ cmake --build --preset host-Debug
 
 3. Run tests
 ```bash
-ctest --preset host-Debug
+ctest --preset host
 ```
 
 ### Using as a Library
@@ -130,7 +130,7 @@ Application-specific categories belong in the consuming project, not in
 ### Architecture
 - **Dependency Injection**: `hal::Can` and category handlers injected via constructor
 - **Observer Pattern**: Decouples protocol events from application logic using `infra::Subject` / `infra::SingleObserver`
-- **Interface-Driven Design**: Pure virtual interfaces (`CanProtocolServer`, `CanProtocolClient`) enable mocking and testing
+- **Interface-Driven Design**: Pure virtual interfaces (e.g. `IsoTpTransport`, `hal::Can`) enable mocking dependencies of `CanProtocolServer` / `CanProtocolClient`, which are themselves concrete, non-virtual classes
 - **Type-Safe Categories**: Compile-time separation via `CanCategoryServer` / `CanCategoryClient` prevents cross-registration
 - **Category Extensibility**: Register custom category implementations (server/client pairs) for application-specific messages
 

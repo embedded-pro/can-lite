@@ -99,7 +99,7 @@ namespace services
                 observer.OnBeginUpgrade(firmwareSize, [this](FwuError status, uint16_t pageSize)
                     {
                         SendBeginResponse(status, pageSize);
-                        SendCommandAck(fwuBeginUpgradeId, CanAckStatus::success);
+                        SendCommandAck(fwuBeginUpgradeId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
                     });
             });
     }
@@ -126,7 +126,7 @@ namespace services
                 observer.OnDataBlock(blockIndex, payload, [this, blockIndex](FwuError status)
                     {
                         SendDataBlockAck(status, blockIndex);
-                        SendCommandAck(fwuDataBlockId, CanAckStatus::success);
+                        SendCommandAck(fwuDataBlockId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
                     });
             });
     }
@@ -149,7 +149,7 @@ namespace services
                 observer.OnVerify(expectedCrc32, [this](FwuError status)
                     {
                         SendVerifyResponse(status);
-                        SendCommandAck(fwuVerifyId, CanAckStatus::success);
+                        SendCommandAck(fwuVerifyId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
                     });
             });
     }
@@ -163,7 +163,7 @@ namespace services
                 observer.OnActivate([this](FwuError status)
                     {
                         SendActivateResponse(status);
-                        SendCommandAck(fwuActivateId, CanAckStatus::success);
+                        SendCommandAck(fwuActivateId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
                     });
             });
     }

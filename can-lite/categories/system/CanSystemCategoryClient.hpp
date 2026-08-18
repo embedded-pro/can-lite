@@ -3,7 +3,6 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanMessageHandler.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
-#include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
 
@@ -28,8 +27,6 @@ namespace services
         CanSystemCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource);
 
         uint8_t Id() const override;
-
-        infra::Function<void(uint8_t category, uint8_t command, CanAckStatus status)> onCommandAck;
 
     private:
         void HandleCommandAck(const hal::Can::Message& data);

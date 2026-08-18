@@ -152,6 +152,121 @@ TEST_F(IsoTpTransportImplTest, SendPdu_AllChannelsFull_ReturnsFalse)
     EXPECT_FALSE(isoTp.SendPdu(0x608u, 0x609u, infra::MakeRange(pdu2), [] {}));
 }
 
+TEST_F(IsoTpTransportImplTest, ReleaseChannel_FreesOccupiedChannel)
+{
+    EXPECT_TRUE(isoTp.RegisterReceiveChannel(dataId, fcId));
+    ASSERT_FALSE(isoTp.RegisterReceiveChannel(dataId, fcId));
+
+    isoTp.ReleaseChannel(dataId);
+
+    EXPECT_TRUE(isoTp.RegisterReceiveChannel(dataId, fcId));
+}
+
+TEST_F(IsoTpTransportImplTest, ReleaseChannel_UnknownDataId_IsNoOp)
+{
+    isoTp.ReleaseChannel(dataId);
+
+    EXPECT_TRUE(isoTp.RegisterReceiveChannel(dataId, fcId));
+}
+
+TEST_F(IsoTpTransportImplTest, SetOnAbort_CalledWhenChannelAborts)
+{
+    struct AbortInfo
+    {
+        bool aborted = false;
+        uint32_t dataId = 0;
+        iso_tp::AbortReason reason{};
+    } info;
+
+    isoTp.RegisterReceiveChannel(dataId, fcId);
+    isoTp.SetOnAbort([&info](uint32_t did, iso_tp::AbortReason reason)
+        {
+            info.aborted = true;
+            info.dataId = did;
+            info.reason = reason;
+        });
+
+    EXPECT_CALL(canMock, SendData(_, _, _))
+        .WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
+
+    hal::Can::Message ff;
+    for (auto b : { 0x10u, 0x08u, 1u, 2u, 3u, 4u, 5u, 6u })
+        ff.push_back(static_cast<uint8_t>(b));
+    isoTp.ProcessFrame(dataId, ff);
+
+    hal::Can::Message badCf;
+    for (auto b : { 0x22u, 7u, 8u })
+        badCf.push_back(static_cast<uint8_t>(b));
+    isoTp.ProcessFrame(dataId, badCf);
+
+    EXPECT_TRUE(info.aborted);
+    EXPECT_EQ(info.dataId, dataId);
+    EXPECT_EQ(info.reason, iso_tp::AbortReason::unexpectedFrame);
+}
+
+TEST_F(IsoTpTransportImplTest, SendPdu_NewChannel_ThenReceivesPdu_DispatchesViaCallback)
+{
+    uint8_t pduData[] = { 0xAAu };
+    EXPECT_CALL(canMock, SendData(_, _, _))
+        .WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
+    EXPECT_TRUE(isoTp.SendPdu(dataId, fcId, infra::MakeRange(pduData), [] {}));
+
+    bool called = false;
+    isoTp.SetOnPduReceived([&](uint32_t receivedDataId, infra::ConstByteRange pdu)
+        {
+            called = true;
+            EXPECT_EQ(receivedDataId, dataId);
+            ASSERT_EQ(pdu.size(), 1u);
+            EXPECT_EQ(pdu[0], 0xABu);
+        });
+
+    hal::Can::Message sf;
+    sf.push_back(0x01u);
+    sf.push_back(0xABu);
+    EXPECT_TRUE(isoTp.ProcessFrame(dataId, sf));
+    EXPECT_TRUE(called);
+}
+
+TEST_F(IsoTpTransportImplTest, SendPdu_NewChannel_AbortPropagatesViaCallback)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    EXPECT_CALL(canMock, SendData(_, _, _))
+        .WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
+    EXPECT_TRUE(isoTp.SendPdu(dataId, fcId, infra::MakeRange(pdu), [] {}));
+
+    struct AbortInfo
+    {
+        bool aborted = false;
+        uint32_t dataId = 0;
+        iso_tp::AbortReason reason{};
+    } info;
+    isoTp.SetOnAbort([&info](uint32_t did, iso_tp::AbortReason reason)
+        {
+            info.aborted = true;
+            info.dataId = did;
+            info.reason = reason;
+        });
+
+    hal::Can::Message overflowFc;
+    overflowFc.push_back(0x32u);
+    overflowFc.push_back(0x00u);
+    overflowFc.push_back(0x00u);
+    EXPECT_TRUE(isoTp.ProcessFrame(fcId, overflowFc));
+
+    EXPECT_TRUE(info.aborted);
+    EXPECT_EQ(info.dataId, dataId);
+    EXPECT_EQ(info.reason, iso_tp::AbortReason::overflow);
+}
+
 TEST_F(IsoTpTransportImplTest, SendPdu_DispatchesPduToCallback)
 {
     bool callbackInvoked = false;

@@ -1,7 +1,7 @@
 # FOC Motor Control — Category Extension Specification
 
 **Category ID:** 0x2  
-**Extends:** [can-protocol.md](can-protocol.md)  
+**Extends:** [can-protocol.md](../../../documents/spec/can-protocol.md)  
 **Version:** 1.0  
 **Status:** Draft  
 **Date:** 2026
@@ -282,8 +282,10 @@ Payload shorter than 3 bytes is silently rejected.
 ## 7. Message Types — Responses (Server → Client)
 
 Solicited responses follow the `0x80 + command_id` convention where a
-paired response is defined. All responses are sent at
-`CanPriority::response`.
+paired response is defined. Solicited command responses are sent at
+`CanPriority::response`; the two telemetry responses (§7.4, §7.5) are
+sent at `CanPriority::telemetry` since they represent lower-priority
+periodic/on-demand status data rather than direct command outcomes.
 
 Command acknowledgement (success / failure with reason) is delivered via
 the universal `commandAck` frame defined by the System category — not by

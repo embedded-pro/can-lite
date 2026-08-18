@@ -23,3 +23,9 @@ target_sources(can_lite.iso_tp PRIVATE
     IsoTpChannelImpl.hpp
     IsoTpChannelImpl.cpp
 )
+
+emil_install(can_lite.iso_tp
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)

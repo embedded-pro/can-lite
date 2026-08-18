@@ -26,10 +26,10 @@ namespace services::iso_tp
         template<uint16_t MaxPduSize>
         using WithStorage = infra::WithStorage<IsoTpChannelImpl, Storage<MaxPduSize>>;
 
-        template<typename StorageType>
-        explicit IsoTpChannelImpl(StorageType& storage);
+        template<uint16_t MaxPduSize>
+        explicit IsoTpChannelImpl(Storage<MaxPduSize>& storage);
 
-        void Configure(uint32_t dataId, uint32_t fcId,
+        void Configure(uint32_t newDataId, uint32_t newFcId,
             RawSendFunc rawSend, PduReadyFunc onPduReady, AbortFunc onAbort) override;
 
         void Release() override;
@@ -45,26 +45,26 @@ namespace services::iso_tp
         bool IsReceiverIdle() const override;
 
     private:
-        void SendToDataId(const hal::Can::Message& frame, const infra::Function<void()>& onDone);
-        void SendToFcId(const hal::Can::Message& frame, const infra::Function<void()>& onDone);
+        void SendToDataId(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone);
+        void SendToFcId(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone);
         void NotifyPduReady(infra::ConstByteRange pdu) const;
         void NotifyAbort(AbortReason reason) const;
 
-        uint32_t dataId_ = 0u;
-        uint32_t fcId_ = 0u;
-        bool occupied_ = false;
+        uint32_t dataId{ 0u };
+        uint32_t fcId{ 0u };
+        bool occupied{ false };
 
-        RawSendFunc rawSend_;
-        PduReadyFunc onPduReady_;
-        AbortFunc onAbort_;
+        RawSendFunc rawSendFunc;
+        PduReadyFunc onPduReadyFunc;
+        AbortFunc onAbortFunc;
 
-        IsoTpSender& sender_;
-        IsoTpReceiver& receiver_;
+        IsoTpSender& sender;
+        IsoTpReceiver& receiver;
     };
 
-    template<typename StorageType>
-    IsoTpChannelImpl::IsoTpChannelImpl(StorageType& storage)
-        : sender_(storage.sender)
-        , receiver_(storage.receiver)
+    template<uint16_t MaxPduSize>
+    IsoTpChannelImpl::IsoTpChannelImpl(Storage<MaxPduSize>& storage)
+        : sender(storage.sender)
+        , receiver(storage.receiver)
     {}
 }

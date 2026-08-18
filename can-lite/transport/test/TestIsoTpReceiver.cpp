@@ -17,7 +17,7 @@ namespace
 
     struct MockCallbacks
     {
-        MOCK_METHOD(void, SendFc, (const hal::Can::Message&, const infra::Function<void()>&));
+        MOCK_METHOD(void, SendFc, (const hal::Can::Message&, const infra::Function<void(bool)>&));
         MOCK_METHOD(void, OnPduReady, (infra::ConstByteRange));
         MOCK_METHOD(void, OnAbort, (AbortReason));
     };
@@ -34,7 +34,7 @@ protected:
     void SetUp() override
     {
         receiver.Configure(
-            [this](const hal::Can::Message& f, const infra::Function<void()>& d)
+            [this](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 mocks.SendFc(f, d);
             },
@@ -90,7 +90,7 @@ TEST_F(IsoTpReceiverTest, Receive_FirstFrame_SendsFC)
     auto msg = MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 });
 
     EXPECT_CALL(mocks, SendFc(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message& fc, const infra::Function<void()>&)
+        .WillOnce(Invoke([](const hal::Can::Message& fc, const infra::Function<void(bool)>&)
             {
                 EXPECT_EQ(fc[0], 0x30u);
                 EXPECT_EQ(fc[1], 0x00u);
@@ -139,7 +139,7 @@ TEST_F(IsoTpReceiverTest, Receive_PDU_ExceedsMaxSize_SendsOverflowFC)
     auto ff = MakeMessage({ 0x10, 0x64, 1, 2, 3, 4, 5, 6 });
 
     EXPECT_CALL(mocks, SendFc(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message& fc, const infra::Function<void()>&)
+        .WillOnce(Invoke([](const hal::Can::Message& fc, const infra::Function<void(bool)>&)
             {
                 EXPECT_EQ(fc[0], 0x32u);
             }));
@@ -183,7 +183,7 @@ TEST_F(IsoTpReceiverTest, Receive_SingleFrame_ExceedsMaxSize_Aborts)
     StrictMock<MockCallbacks> smallMocks;
     SmallReceiver smallReceiver;
     smallReceiver.Configure(
-        [&](const hal::Can::Message& f, const infra::Function<void()>& d)
+        [&](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
         {
             smallMocks.SendFc(f, d);
         },
@@ -230,6 +230,51 @@ TEST_F(IsoTpReceiverTest, Receive_nCrTimeout_Aborts)
 
     EXPECT_CALL(mocks, OnAbort(AbortReason::nCrTimeout));
     ForwardTime(std::chrono::milliseconds(1000));
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, ProcessFrame_UnknownFrameType_Aborts)
+{
+    auto msg = MakeMessage({ 0x40, 0x00 });
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+    receiver.ProcessFrame(msg);
+}
+
+TEST_F(IsoTpReceiverTest, Receive_MultiFrame_nCrTimeoutAfterValidCf_Aborts)
+{
+    auto ff = MakeMessage({ 0x10, 0x0F, 1, 2, 3, 4, 5, 6 });
+    auto cf1 = MakeMessage({ 0x21, 7, 8, 9, 10, 11, 12, 13 });
+
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(ff);
+    EXPECT_FALSE(receiver.IsIdle());
+
+    receiver.ProcessFrame(cf1);
+    EXPECT_FALSE(receiver.IsIdle());
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nCrTimeout));
+    ForwardTime(std::chrono::milliseconds(1000));
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, Receive_MultiFrame_PaddedFinalCf_StopsAtExpectedLength)
+{
+    auto ff = MakeMessage({ 0x10, 0x09, 1, 2, 3, 4, 5, 6 });
+    auto cf1 = MakeMessage({ 0x21, 7, 8, 9, 0xFF, 0xFF, 0xFF, 0xFF });
+
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(ff);
+
+    EXPECT_CALL(mocks, OnPduReady(_))
+        .WillOnce(Invoke([](infra::ConstByteRange pdu)
+            {
+                ASSERT_EQ(pdu.size(), 9u);
+                EXPECT_EQ(pdu[6], 7u);
+                EXPECT_EQ(pdu[7], 8u);
+                EXPECT_EQ(pdu[8], 9u);
+            }));
+    receiver.ProcessFrame(cf1);
     EXPECT_TRUE(receiver.IsIdle());
 }
 

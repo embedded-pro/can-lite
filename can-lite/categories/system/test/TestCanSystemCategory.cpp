@@ -125,50 +125,16 @@ namespace
         EXPECT_FALSE(client.RequiresSequenceValidation());
     }
 
-    TEST_F(SystemCategoryClientTest, CommandAckInvokesTheAckCallback)
+    TEST_F(SystemCategoryClientTest, CommandAckMessageTypeIsHandled)
     {
-        struct Ack
-        {
-            uint8_t category{};
-            uint8_t command{};
-            CanAckStatus status{ CanAckStatus::success };
-            int calls{};
-        } ack;
-
-        client.onCommandAck = [&ack](uint8_t category, uint8_t command, CanAckStatus status)
-        {
-            ack.category = category;
-            ack.command = command;
-            ack.status = status;
-            ++ack.calls;
-        };
-
         EXPECT_TRUE(client.HandleMessage(canCommandAckMessageTypeId,
             MakeMessage({ 0x01, 0x02, static_cast<uint8_t>(CanAckStatus::sequenceError) })));
-
-        EXPECT_EQ(ack.calls, 1);
-        EXPECT_EQ(ack.category, 0x01);
-        EXPECT_EQ(ack.command, 0x02);
-        EXPECT_EQ(ack.status, CanAckStatus::sequenceError);
     }
 
-    TEST_F(SystemCategoryClientTest, CommandAckIsIgnoredWhenNoCallbackIsSet)
+    TEST_F(SystemCategoryClientTest, ShortCommandAckDoesNotCrash)
     {
-        EXPECT_TRUE(client.HandleMessage(canCommandAckMessageTypeId,
-            MakeMessage({ 0x01, 0x02, static_cast<uint8_t>(CanAckStatus::success) })));
-    }
-
-    TEST_F(SystemCategoryClientTest, ShortCommandAckIsRejected)
-    {
-        int calls = 0;
-        client.onCommandAck = [&calls](uint8_t, uint8_t, CanAckStatus)
-        {
-            ++calls;
-        };
-
         EXPECT_TRUE(client.HandleMessage(canCommandAckMessageTypeId, MakeMessage({ 0x01, 0x02 })));
-
-        EXPECT_EQ(calls, 0);
+        EXPECT_TRUE(client.HandleMessage(canCommandAckMessageTypeId, hal::Can::Message{}));
     }
 
     TEST_F(SystemCategoryClientTest, UnknownMessageTypeIsNotHandled)

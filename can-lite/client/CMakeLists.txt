@@ -17,4 +17,10 @@ target_link_libraries(can_lite.client PUBLIC
     infra.timer
 )
 
+emil_install(can_lite.client
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
 add_subdirectory(test)

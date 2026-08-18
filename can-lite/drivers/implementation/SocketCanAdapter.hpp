@@ -1,26 +1,17 @@
 #pragma once
 
-#include "can-lite/drivers/interface/CanAdapter.hpp"
+#include "can-lite/drivers/interface/CanBusAdapter.hpp"
 
-#ifdef _WIN32
-
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <PCANBasic.h>
-#include <windows.h>
+#ifdef __linux__
 
 namespace services
 {
-    class PCanAdapter
+    class SocketCanAdapter
         : public CanBusAdapter
     {
     public:
-        PCanAdapter() = default;
-        ~PCanAdapter() override;
+        SocketCanAdapter() = default;
+        ~SocketCanAdapter() override;
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;
@@ -36,13 +27,12 @@ namespace services
         bool IsDriverAvailable() const override;
 
     private:
-        static TPCANBaudrate BitrateToPcan(uint32_t bitrate);
-        static TPCANHandle ChannelFromName(infra::BoundedConstString name);
+        void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
-        TPCANHandle channel = PCAN_NONEBUS;
-        bool connected = false;
-        HANDLE readEvent = INVALID_HANDLE_VALUE;
+        int socketDescriptor{ -1 };
         infra::Function<void(Id, const Message&)> receiveCallback;
+        infra::Function<void(bool)> pendingCompletion;
+        bool pendingSuccess{};
     };
 }
 

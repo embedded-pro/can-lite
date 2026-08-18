@@ -8,11 +8,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
     target_link_libraries(can_lite.drivers.socketcan PUBLIC
         can_lite.drivers.interface
+        infra.event
     )
 
     target_sources(can_lite.drivers.socketcan PRIVATE
-        SocketCan.cpp
-        SocketCan.hpp
+        SocketCanAdapter.cpp
+        SocketCanAdapter.hpp
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     option(CAN_LITE_DRIVER_KVASER "Build Kvaser CANlib driver (requires Kvaser CANlib SDK)" OFF)
@@ -37,12 +38,13 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 
             target_link_libraries(can_lite.drivers.kvaser PUBLIC
                 can_lite.drivers.interface
+                infra.event
                 ${KVASER_LIBRARY}
             )
 
             target_sources(can_lite.drivers.kvaser PRIVATE
-                Kvaser.cpp
-                Kvaser.hpp
+                KvaserAdapter.cpp
+                KvaserAdapter.hpp
             )
         else()
             message(WARNING "CAN_LITE_DRIVER_KVASER is ON but Kvaser CANlib SDK not found")
@@ -67,12 +69,13 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 
             target_link_libraries(can_lite.drivers.pcan PUBLIC
                 can_lite.drivers.interface
+                infra.event
                 ${PCAN_LIBRARY}
             )
 
             target_sources(can_lite.drivers.pcan PRIVATE
-                Pcan.cpp
-                Pcan.hpp
+                PcanAdapter.cpp
+                PcanAdapter.hpp
             )
         else()
             message(WARNING "CAN_LITE_DRIVER_PCAN is ON but PCAN-Basic SDK not found")
@@ -89,11 +92,12 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 
         target_link_libraries(can_lite.drivers.canable PUBLIC
             can_lite.drivers.interface
+            infra.event
         )
 
         target_sources(can_lite.drivers.canable PRIVATE
-            Canable.cpp
-            Canable.hpp
+            CanableAdapter.cpp
+            CanableAdapter.hpp
         )
     endif()
 endif()

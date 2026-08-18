@@ -55,6 +55,8 @@ namespace services
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
 
+        CanFrameTransport& Transport();
+
         // CanSequenceSource
         uint8_t PeekSequence(uint16_t nodeId) override;
         void CommitSequence(uint16_t nodeId) override;
@@ -87,7 +89,6 @@ namespace services
         struct ServerLiveness
         {
             uint16_t nodeId = 0;
-            bool online = false;
             bool occupied = false;
             infra::TimerSingleShot timeoutTimer;
         };
@@ -102,6 +103,8 @@ namespace services
         infra::Function<void(const hal::Can::Message&)> pendingDiscoveryCallback;
         std::array<PerServerState, maxServers> serverStates;
         std::array<ServerLiveness, maxServers> serverLiveness;
+        uint8_t nextSequenceEvictIndex = 0;
+        uint8_t nextLivenessEvictIndex = 0;
         IsoTpTransport* isoTpTransport = nullptr;
     };
 }

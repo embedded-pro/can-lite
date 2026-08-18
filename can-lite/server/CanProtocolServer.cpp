@@ -13,6 +13,8 @@ namespace services
         , systemCategory(transport)
         , systemObserver(systemCategory, *this)
     {
+        really_assert(config.nodeId != canBroadcastNodeId);
+
         systemCategory.SetAcknowledger(*this);
         categories.push_back(systemCategory);
 
@@ -73,6 +75,10 @@ namespace services
             {
                 DispatchPdu(rawId, pdu);
             });
+        isoTp.SetOnAbort([this](uint32_t dataId, iso_tp::AbortReason)
+            {
+                isoTpTransport->ReleaseChannel(dataId);
+            });
     }
 
     void CanProtocolServer::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
@@ -86,6 +92,9 @@ namespace services
 
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
+
+        if (!IsCommandMessageType(messageType))
+            return;
 
         CanCategoryServer* category = FindCategory(categoryId);
         if (category == nullptr)
@@ -136,6 +145,9 @@ namespace services
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
 
+        if (!IsCommandMessageType(messageType))
+            return;
+
         CanCategoryServer* category = FindCategory(categoryId);
         if (category == nullptr)
             return;
@@ -181,7 +193,7 @@ namespace services
         msg.push_back(commandType);
         msg.push_back(static_cast<uint8_t>(status));
 
-        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCommandAckMessageTypeId, msg, [] {});
+        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCommandAckMessageTypeId, msg, [](bool) {});
     }
 
     void CanProtocolServer::SendHeartbeat()
@@ -189,7 +201,7 @@ namespace services
         hal::Can::Message msg;
         msg.push_back(canProtocolVersion);
 
-        transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [] {});
+        transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [](bool) {});
     }
 
     void CanProtocolServer::ResetHeartbeatTimer()
@@ -208,7 +220,7 @@ namespace services
             if (!msg.full())
                 msg.push_back(category.Id());
 
-        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCategoryListResponseMessageTypeId, msg, [] {});
+        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCategoryListResponseMessageTypeId, msg, [](bool) {});
     }
 
     void CanProtocolServer::ResetRateCounter()

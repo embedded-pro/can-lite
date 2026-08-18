@@ -19,7 +19,7 @@ namespace services::iso_tp
             typename infra::BoundedVector<uint8_t>::template WithMaxSize<MaxPduSize>>;
 
         using SendFrameFunc = infra::Function<void(const hal::Can::Message& frame,
-            const infra::Function<void()>& onDone)>;
+            const infra::Function<void(bool success)>& onDone)>;
         using AbortFunc = infra::Function<void(AbortReason reason)>;
 
         explicit IsoTpSender(infra::BoundedVector<uint8_t>& pduBuffer);
@@ -45,6 +45,7 @@ namespace services::iso_tp
         uint8_t blockSize = 0;
         uint8_t blocksRemaining = 0;
         uint8_t stMinByte = 0;
+        uint8_t waitCount = 0;
 
         infra::Function<void()> onDoneCallback;
 

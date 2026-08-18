@@ -6,7 +6,12 @@ namespace services::iso_tp
     {
         if (frame.empty())
             return FrameType::unknown;
-        return static_cast<FrameType>((frame[0] >> 4u) & 0x0Fu);
+
+        uint8_t nibble = (frame[0] >> 4u) & 0x0Fu;
+        if (nibble > static_cast<uint8_t>(FrameType::flowControl))
+            return FrameType::unknown;
+
+        return static_cast<FrameType>(nibble);
     }
 
     bool IsoTpFrameCodec::EncodeSingleFrame(infra::ConstByteRange pdu, hal::Can::Message& out)
@@ -94,6 +99,8 @@ namespace services::iso_tp
             return std::chrono::milliseconds(stMin);
         if (stMin >= 0xF1u && stMin <= 0xF9u)
             return std::chrono::microseconds((stMin - 0xF0u) * 100);
-        return infra::Duration{};
+
+        // ISO 15765-2: reserved values (0x80-0xF0, 0xFA-0xFF) shall be treated as 0x7F (127 ms).
+        return std::chrono::milliseconds(0x7Fu);
     }
 }

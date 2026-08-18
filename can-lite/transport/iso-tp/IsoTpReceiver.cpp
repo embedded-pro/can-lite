@@ -87,7 +87,7 @@ namespace services::iso_tp
             hal::Can::Message fc;
             IsoTpFrameCodec::EncodeFlowControl(FlowStatus::overflow, 0u, 0u, fc);
             if (sendFcFunc)
-                sendFcFunc(fc, []() {});
+                sendFcFunc(fc, [](bool) {});
             Abort(AbortReason::overflow);
             return;
         }
@@ -143,12 +143,16 @@ namespace services::iso_tp
         }
     }
 
-    void IsoTpReceiver::SendCtsFlowControl() const
+    void IsoTpReceiver::SendCtsFlowControl()
     {
         hal::Can::Message fc;
         IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
         if (sendFcFunc)
-            sendFcFunc(fc, []() {});
+            sendFcFunc(fc, [this](bool success)
+                {
+                    if (!success)
+                        Abort(AbortReason::unexpectedFrame);
+                });
     }
 
     void IsoTpReceiver::Abort(AbortReason reason)

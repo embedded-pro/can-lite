@@ -1,17 +1,20 @@
 #pragma once
 
-#include "can-lite/drivers/interface/CanAdapter.hpp"
+#include "can-lite/drivers/interface/CanBusAdapter.hpp"
 
-#ifdef __linux__
+#ifdef _WIN32
+
+#include <canlib.h>
+#include <optional>
 
 namespace services
 {
-    class SocketCanAdapter
+    class KvaserAdapter
         : public CanBusAdapter
     {
     public:
-        SocketCanAdapter() = default;
-        ~SocketCanAdapter() override;
+        KvaserAdapter();
+        ~KvaserAdapter() override;
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;
@@ -27,8 +30,13 @@ namespace services
         bool IsDriverAvailable() const override;
 
     private:
-        int socketDescriptor = -1;
+        static std::optional<canBitrate_t> BitrateToCanlib(uint32_t bitrate);
+        void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
+
+        canHandle handle{ canINVALID_HANDLE };
         infra::Function<void(Id, const Message&)> receiveCallback;
+        infra::Function<void(bool)> pendingCompletion;
+        bool pendingSuccess{};
     };
 }
 
