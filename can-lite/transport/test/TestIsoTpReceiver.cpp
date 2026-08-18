@@ -233,6 +233,51 @@ TEST_F(IsoTpReceiverTest, Receive_nCrTimeout_Aborts)
     EXPECT_TRUE(receiver.IsIdle());
 }
 
+TEST_F(IsoTpReceiverTest, ProcessFrame_UnknownFrameType_Aborts)
+{
+    auto msg = MakeMessage({ 0x40, 0x00 });
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+    receiver.ProcessFrame(msg);
+}
+
+TEST_F(IsoTpReceiverTest, Receive_MultiFrame_nCrTimeoutAfterValidCf_Aborts)
+{
+    auto ff = MakeMessage({ 0x10, 0x0F, 1, 2, 3, 4, 5, 6 });
+    auto cf1 = MakeMessage({ 0x21, 7, 8, 9, 10, 11, 12, 13 });
+
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(ff);
+    EXPECT_FALSE(receiver.IsIdle());
+
+    receiver.ProcessFrame(cf1);
+    EXPECT_FALSE(receiver.IsIdle());
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nCrTimeout));
+    ForwardTime(std::chrono::milliseconds(1000));
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, Receive_MultiFrame_PaddedFinalCf_StopsAtExpectedLength)
+{
+    auto ff = MakeMessage({ 0x10, 0x09, 1, 2, 3, 4, 5, 6 });
+    auto cf1 = MakeMessage({ 0x21, 7, 8, 9, 0xFF, 0xFF, 0xFF, 0xFF });
+
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(ff);
+
+    EXPECT_CALL(mocks, OnPduReady(_))
+        .WillOnce(Invoke([](infra::ConstByteRange pdu)
+            {
+                ASSERT_EQ(pdu.size(), 9u);
+                EXPECT_EQ(pdu[6], 7u);
+                EXPECT_EQ(pdu[7], 8u);
+                EXPECT_EQ(pdu[8], 9u);
+            }));
+    receiver.ProcessFrame(cf1);
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
 TEST_F(IsoTpReceiverTest, Receive_ConsecutiveFrame_WhileIdle_Ignored)
 {
     auto cf = MakeMessage({ 0x21, 0x01, 0x02 });

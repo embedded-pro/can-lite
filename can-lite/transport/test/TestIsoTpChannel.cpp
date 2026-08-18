@@ -131,6 +131,19 @@ TEST_F(IsoTpChannelTest, SendPdu_RawSendRejectsSynchronously_AbortsInsteadOfWedg
     EXPECT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
 }
 
+TEST_F(IsoTpChannelTest, ProcessFrame_FirstFrame_RawSendOfFlowControlFails_Aborts)
+{
+    Configure();
+
+    EXPECT_CALL(mocks, RawSend(fcId, _, _))
+        .WillOnce(Return(false));
+    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::unexpectedFrame));
+
+    auto ff = MakeMessage({ 0x10u, 0x08u, 1u, 2u, 3u, 4u, 5u, 6u });
+    EXPECT_TRUE(channel.ProcessFrame(dataId, ff));
+    EXPECT_TRUE(channel.IsReceiverIdle());
+}
+
 TEST_F(IsoTpChannelTest, ProcessFrame_DataFrameRouted_ToReceiver)
 {
     Configure();

@@ -319,6 +319,39 @@ namespace
         EXPECT_EQ(client.PeekSequence(2), 1u);
     }
 
+    TEST_F(CanProtocolClientTest, CommitSequence_UntrackedNodeAsserts)
+    {
+        EXPECT_DEATH(client.CommitSequence(42), "");
+    }
+
+    TEST_F(CanProtocolClientTest, PeekSequence_AllSlotsFull_EvictsOldestRoundRobin)
+    {
+        for (uint16_t node = 1; node <= 8; ++node)
+        {
+            client.PeekSequence(node);
+            client.CommitSequence(node);
+        }
+
+        EXPECT_EQ(client.PeekSequence(9), 0u);
+        client.CommitSequence(9);
+        EXPECT_EQ(client.PeekSequence(9), 1u);
+
+        EXPECT_EQ(client.PeekSequence(8), 1u);
+
+        EXPECT_EQ(client.PeekSequence(1), 0u);
+    }
+
+    TEST_F(CanProtocolClientTest, SystemCategory_ReturnsSystemCategoryRef)
+    {
+        EXPECT_EQ(client.SystemCategory().Id(), canSystemCategoryId);
+        EXPECT_EQ(&client.SystemCategory(), &client.SystemCategory());
+    }
+
+    TEST_F(CanProtocolClientTest, Transport_ReturnsTransportRef)
+    {
+        EXPECT_EQ(&client.Transport(), &client.Transport());
+    }
+
     // === Server liveness ===
 
     class CanProtocolClientObserverMock
@@ -401,6 +434,41 @@ namespace
         ForwardTime(std::chrono::seconds(1));
     }
 
+    TEST_F(CanProtocolClientLivenessTest, ServerAfterTimeout_ReconnectIsTreatedAsFreshOnline)
+    {
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        SimulateServerFrame(5);
+
+        EXPECT_CALL(observer, OnServerOffline(5u));
+        ForwardTime(std::chrono::seconds(3));
+
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        SimulateServerFrame(5);
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, AllSlotsFull_EvictsOldestRoundRobin)
+    {
+        for (uint16_t node = 1; node <= 8; ++node)
+        {
+            EXPECT_CALL(observer, OnServerOnline(node));
+            SimulateServerFrame(node);
+        }
+
+        {
+            InSequence seq;
+            EXPECT_CALL(observer, OnServerOffline(1u));
+            EXPECT_CALL(observer, OnServerOnline(9u));
+        }
+        SimulateServerFrame(9);
+
+        ForwardTime(std::chrono::seconds(2));
+        for (uint16_t node = 2; node <= 8; ++node)
+            SimulateServerFrame(node);
+
+        EXPECT_CALL(observer, OnServerOffline(9u));
+        ForwardTime(std::chrono::seconds(1));
+    }
+
     // === ISO-TP transport integration ===
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameInterceptsMessage)
@@ -414,6 +482,18 @@ namespace
         EXPECT_CALL(mockIsoTp, ProcessFrame(_, _)).WillOnce(Return(true));
 
         SimulateRx(id, MakeMessage({ 0x01 }));
+    }
+
+    TEST_F(CanProtocolClientTest, AttachIsoTpTransport_OnAbort_ReleasesChannel)
+    {
+        StrictMock<MockIsoTpTransport> mockIsoTp;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
+        infra::Function<void(uint32_t, iso_tp::AbortReason)> capturedOnAbort;
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_)).WillOnce(SaveArg<0>(&capturedOnAbort));
+        client.AttachIsoTpTransport(mockIsoTp);
+
+        EXPECT_CALL(mockIsoTp, ReleaseChannel(0x123u));
+        capturedOnAbort(0x123u, iso_tp::AbortReason::nBsTimeout);
     }
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameReturnsFalse_ContinuesNormalDispatch)
@@ -487,6 +567,19 @@ namespace
 
         EXPECT_TRUE(pduCategory.msg.pduReceived);
         client.UnregisterCategory(pduCategory);
+    }
+
+    TEST_F(CanProtocolClientTest, AttachIsoTpTransport_DispatchPdu_NonzeroSourceNodeMarksServerAlive)
+    {
+        StrictMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
+        client.AttachIsoTpTransport(mockIsoTp);
+
+        uint32_t rawId = MakeCanId(CanPriority::response, canSystemCategoryId, canCategoryListResponseMessageTypeId, 7);
+        uint8_t pduData[] = { 0x00 };
+        capturedPduCallback(rawId, infra::MakeRange(pduData));
     }
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_DispatchPdu_UnknownCategory_Ignored)

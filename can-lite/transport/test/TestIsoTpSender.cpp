@@ -341,6 +341,179 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_WithBlockSize_WaitsForFC)
     EXPECT_FALSE(sender.IsIdle());
 }
 
+TEST_F(IsoTpSenderTest, Send_EmptyPdu_ReturnsFalse)
+{
+    EXPECT_FALSE(sender.Send(infra::ConstByteRange{}, [] {}));
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_PduExceeds4095Bytes_ReturnsFalse)
+{
+    std::array<uint8_t, 0x1000u> pdu;
+    pdu.fill(0);
+    EXPECT_FALSE(sender.Send(infra::MakeRange(pdu), [] {}));
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, ProcessFlowControl_FCWait_TimeoutAfterRestart_Aborts)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
+
+    sender.Send(infra::MakeRange(pdu), [] {});
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::wait, 0u, 0u, fc);
+    sender.ProcessFlowControl(fc);
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nBsTimeout));
+    ForwardTime(std::chrono::milliseconds(1000));
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_MultiFrame_RawSendOfFirstFrameFails_Aborts)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(false);
+            }));
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_MultiFrame_WithBlockSize_RawSendOfLastCfInBlockFails_Aborts)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
+
+    testing::InSequence seq;
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 1u, 0u, fc);
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(false);
+            }));
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+
+    sender.ProcessFlowControl(fc);
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_MultiFrame_WithBlockSize_NBsTimeoutAfterLastCfInBlock_Aborts)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
+
+    testing::InSequence seq;
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 1u, 0u, fc);
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
+
+    sender.ProcessFlowControl(fc);
+    EXPECT_FALSE(sender.IsIdle());
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nBsTimeout));
+    ForwardTime(std::chrono::milliseconds(1000));
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_MultiFrame_BS0_RawSendOfCfFails_Aborts)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+    testing::InSequence seq;
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(false);
+            }));
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+
+    sender.ProcessFlowControl(fc);
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_MultiFrame_BS0_MultipleCFs_ContinuesWithoutWaiting)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+    bool doneCalled = false;
+
+    testing::InSequence seq;
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>& d)
+            {
+                d(true);
+            }));
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [&doneCalled]
+        {
+            doneCalled = true;
+        }));
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
+
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
+            {
+                EXPECT_EQ(f[0] & 0x0Fu, 1u);
+                d(true);
+            }));
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
+            {
+                EXPECT_EQ(f[0] & 0x0Fu, 2u);
+                d(true);
+            }));
+
+    sender.ProcessFlowControl(fc);
+
+    EXPECT_TRUE(doneCalled);
+    EXPECT_TRUE(sender.IsIdle());
+}
+
 TEST_F(IsoTpSenderTest, Send_MultiFrame_StMinDelay_DelaysNextCF)
 {
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };

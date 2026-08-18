@@ -16,12 +16,12 @@
 
 namespace services
 {
-    class PCanAdapter
+    class PcanAdapter
         : public CanBusAdapter
     {
     public:
-        PCanAdapter() = default;
-        ~PCanAdapter() override;
+        PcanAdapter() = default;
+        ~PcanAdapter() override;
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;

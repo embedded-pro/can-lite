@@ -1,6 +1,6 @@
 #ifdef _WIN32
 
-#include "can-lite/drivers/implementation/PCanAdapter.hpp"
+#include "can-lite/drivers/implementation/PcanAdapter.hpp"
 #include "infra/event/EventDispatcher.hpp"
 #include <algorithm>
 #include <cstring>
@@ -8,12 +8,12 @@
 
 namespace services
 {
-    PCanAdapter::~PCanAdapter()
+    PcanAdapter::~PcanAdapter()
     {
         Disconnect();
     }
 
-    bool PCanAdapter::Connect(infra::BoundedConstString interfaceName, uint32_t bitrate)
+    bool PcanAdapter::Connect(infra::BoundedConstString interfaceName, uint32_t bitrate)
     {
         if (IsConnected())
             Disconnect();
@@ -62,7 +62,7 @@ namespace services
         return true;
     }
 
-    void PCanAdapter::Disconnect()
+    void PcanAdapter::Disconnect()
     {
         if (connected)
         {
@@ -84,12 +84,12 @@ namespace services
         }
     }
 
-    bool PCanAdapter::IsConnected() const
+    bool PcanAdapter::IsConnected() const
     {
         return connected;
     }
 
-    void PCanAdapter::SendData(Id id, const Message& data, const infra::Function<void(bool success)>& actionOnCompletion)
+    void PcanAdapter::SendData(Id id, const Message& data, const infra::Function<void(bool success)>& actionOnCompletion)
     {
         if (!IsConnected())
         {
@@ -132,17 +132,17 @@ namespace services
         ScheduleCompletion(actionOnCompletion, success);
     }
 
-    void PCanAdapter::ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction)
+    void PcanAdapter::ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction)
     {
         receiveCallback = receivedAction;
     }
 
-    intptr_t PCanAdapter::FileDescriptor() const
+    intptr_t PcanAdapter::FileDescriptor() const
     {
         return reinterpret_cast<intptr_t>(readEvent);
     }
 
-    void PCanAdapter::ProcessReadEvent()
+    void PcanAdapter::ProcessReadEvent()
     {
         if (!IsConnected())
             return;
@@ -171,7 +171,7 @@ namespace services
             receiveCallback(hal::Can::Id::Create29BitId(rawId), data);
     }
 
-    bool PCanAdapter::IsDriverAvailable() const
+    bool PcanAdapter::IsDriverAvailable() const
     {
         // Use a non-destructive channel condition query to check PCAN driver availability.
         // CAN_Initialize/Uninitialize would disrupt any channel another process holds open.
@@ -179,7 +179,7 @@ namespace services
         return CAN_GetValue(PCAN_USBBUS1, PCAN_CHANNEL_CONDITION, &condition, sizeof(condition)) == PCAN_ERROR_OK;
     }
 
-    void PCanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
+    void PcanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
         static constexpr TPCANHandle usbChannels[] = {
             PCAN_USBBUS1, PCAN_USBBUS2, PCAN_USBBUS3, PCAN_USBBUS4,
@@ -202,7 +202,7 @@ namespace services
         }
     }
 
-    std::optional<TPCANBaudrate> PCanAdapter::BitrateToPcan(uint32_t bitrate)
+    std::optional<TPCANBaudrate> PcanAdapter::BitrateToPcan(uint32_t bitrate)
     {
         switch (bitrate)
         {
@@ -229,7 +229,7 @@ namespace services
         }
     }
 
-    TPCANHandle PCanAdapter::ChannelFromName(infra::BoundedConstString name)
+    TPCANHandle PcanAdapter::ChannelFromName(infra::BoundedConstString name)
     {
         if (name == "USBBUS1")
             return PCAN_USBBUS1;
@@ -250,7 +250,7 @@ namespace services
         return PCAN_NONEBUS;
     }
 
-    void PCanAdapter::ScheduleCompletion(const infra::Function<void(bool)>& action, bool result)
+    void PcanAdapter::ScheduleCompletion(const infra::Function<void(bool)>& action, bool result)
     {
         pendingCompletion = action;
         pendingSuccess = result;

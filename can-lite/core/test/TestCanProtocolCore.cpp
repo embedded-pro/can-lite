@@ -267,6 +267,18 @@ namespace
         EXPECT_EQ(result, 1235);
     }
 
+    TEST(CanFrameCodecTest, FloatToFixed32_NanReturnsZero)
+    {
+        auto result = CanFrameCodec::FloatToFixed32(std::numeric_limits<float>::quiet_NaN(), 1000);
+        EXPECT_EQ(result, 0);
+    }
+
+    TEST(CanFrameCodecTest, FloatToFixed32_ExactlyAtInt32MaxBoundary)
+    {
+        auto result = CanFrameCodec::FloatToFixed32(static_cast<float>(std::numeric_limits<int32_t>::max()), 1);
+        EXPECT_EQ(result, std::numeric_limits<int32_t>::max());
+    }
+
     TEST(CanFrameCodecTest, Fixed32ToFloat_RoundTrip)
     {
         int32_t fixed = CanFrameCodec::FloatToFixed32(3.14f, 10000);

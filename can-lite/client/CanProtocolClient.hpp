@@ -89,7 +89,6 @@ namespace services
         struct ServerLiveness
         {
             uint16_t nodeId = 0;
-            bool online = false;
             bool occupied = false;
             infra::TimerSingleShot timeoutTimer;
         };

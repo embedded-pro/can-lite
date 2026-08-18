@@ -177,14 +177,6 @@ namespace services
         {
             if (entry.occupied && entry.nodeId == nodeId)
             {
-                if (!entry.online)
-                {
-                    entry.online = true;
-                    NotifyObservers([nodeId](auto& obs)
-                        {
-                            obs.OnServerOnline(nodeId);
-                        });
-                }
                 entry.timeoutTimer.Start(config.serverTimeout, [this, nodeId]()
                     {
                         HandleServerTimeout(nodeId);
@@ -199,7 +191,6 @@ namespace services
             {
                 entry.occupied = true;
                 entry.nodeId = nodeId;
-                entry.online = true;
                 NotifyObservers([nodeId](auto& obs)
                     {
                         obs.OnServerOnline(nodeId);
@@ -217,16 +208,12 @@ namespace services
         auto& evicted = serverLiveness[nextLivenessEvictIndex];
         nextLivenessEvictIndex = static_cast<uint8_t>((nextLivenessEvictIndex + 1) % serverLiveness.size());
         evicted.timeoutTimer.Cancel();
-        if (evicted.online)
-        {
-            auto evictedNodeId = evicted.nodeId;
-            NotifyObservers([evictedNodeId](auto& obs)
-                {
-                    obs.OnServerOffline(evictedNodeId);
-                });
-        }
+        auto evictedNodeId = evicted.nodeId;
+        NotifyObservers([evictedNodeId](auto& obs)
+            {
+                obs.OnServerOffline(evictedNodeId);
+            });
         evicted.nodeId = nodeId;
-        evicted.online = true;
         NotifyObservers([nodeId](auto& obs)
             {
                 obs.OnServerOnline(nodeId);
@@ -243,7 +230,6 @@ namespace services
         {
             if (entry.occupied && entry.nodeId == nodeId)
             {
-                entry.online = false;
                 entry.occupied = false;
                 NotifyObservers([nodeId](auto& obs)
                     {

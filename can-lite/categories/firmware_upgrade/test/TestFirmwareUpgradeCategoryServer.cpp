@@ -108,6 +108,21 @@ namespace
         EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
     }
 
+    TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, BeginUpgrade_ObserverReportsFailure_AcksCategoryError)
+    {
+        EXPECT_CALL(observer, OnBeginUpgrade(_, _)).WillOnce(Invoke([](uint32_t, const infra::Function<void(FwuError, uint16_t)>& cb)
+            {
+                cb(FwuError::busy, 0);
+            }));
+
+        hal::Can::Message data;
+        data.resize(4, 0);
+        CanFrameCodec::WriteInt32(data, 0, 12288);
+        server.HandleMessage(fwuBeginUpgradeId, data);
+
+        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::categoryError);
+    }
+
     TEST_F(TestFirmwareUpgradeCategoryServer, BeginUpgrade_TooShortRejected)
     {
         hal::Can::Message data;
@@ -144,6 +159,29 @@ namespace
         EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
     }
 
+    TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, DataBlock_ObserverReportsFailure_AcksCategoryError)
+    {
+        EXPECT_CALL(observer, OnBeginUpgrade(_, _)).WillOnce(Invoke([](uint32_t, const infra::Function<void(FwuError, uint16_t)>& cb)
+            {
+                cb(FwuError::ok, 4096);
+            }));
+        EXPECT_CALL(observer, OnDataBlock(_, _, _)).WillOnce(Invoke([](uint16_t, const hal::Can::Message&, const infra::Function<void(FwuError)>& cb)
+            {
+                cb(FwuError::writeError);
+            }));
+
+        hal::Can::Message begin;
+        begin.resize(4, 0);
+        CanFrameCodec::WriteInt32(begin, 0, 6);
+        server.HandleMessage(fwuBeginUpgradeId, begin);
+
+        hal::Can::Message block;
+        block.resize(8, 0);
+        server.HandleMessage(fwuDataBlockId, block);
+
+        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::categoryError);
+    }
+
     TEST_F(TestFirmwareUpgradeCategoryServer, DataBlock_TooShortRejected)
     {
         hal::Can::Message data;
@@ -176,6 +214,29 @@ namespace
         EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
     }
 
+    TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, Verify_ObserverReportsFailure_AcksCategoryError)
+    {
+        EXPECT_CALL(observer, OnBeginUpgrade(_, _)).WillOnce(Invoke([](uint32_t, const infra::Function<void(FwuError, uint16_t)>& cb)
+            {
+                cb(FwuError::ok, 4096);
+            }));
+        EXPECT_CALL(observer, OnVerify(_, _)).WillOnce(Invoke([](uint32_t, const infra::Function<void(FwuError)>& cb)
+            {
+                cb(FwuError::crcMismatch);
+            }));
+
+        hal::Can::Message begin;
+        begin.resize(4, 0);
+        CanFrameCodec::WriteInt32(begin, 0, 6);
+        server.HandleMessage(fwuBeginUpgradeId, begin);
+
+        hal::Can::Message data;
+        data.resize(4, 0);
+        server.HandleMessage(fwuVerifyId, data);
+
+        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::categoryError);
+    }
+
     TEST_F(TestFirmwareUpgradeCategoryServer, Verify_TooShortRejected)
     {
         hal::Can::Message data;
@@ -204,6 +265,28 @@ namespace
         server.HandleMessage(fwuActivateId, data);
 
         EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::success);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, Activate_ObserverReportsFailure_AcksCategoryError)
+    {
+        EXPECT_CALL(observer, OnBeginUpgrade(_, _)).WillOnce(Invoke([](uint32_t, const infra::Function<void(FwuError, uint16_t)>& cb)
+            {
+                cb(FwuError::ok, 4096);
+            }));
+        EXPECT_CALL(observer, OnActivate(_)).WillOnce(Invoke([](const infra::Function<void(FwuError)>& cb)
+            {
+                cb(FwuError::sequenceError);
+            }));
+
+        hal::Can::Message begin;
+        begin.resize(4, 0);
+        CanFrameCodec::WriteInt32(begin, 0, 6);
+        server.HandleMessage(fwuBeginUpgradeId, begin);
+
+        hal::Can::Message data;
+        server.HandleMessage(fwuActivateId, data);
+
+        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::categoryError);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, Abort_CallbackSendsAck)

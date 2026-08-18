@@ -13,6 +13,8 @@ namespace services
         , systemCategory(transport)
         , systemObserver(systemCategory, *this)
     {
+        really_assert(config.nodeId != canBroadcastNodeId);
+
         systemCategory.SetAcknowledger(*this);
         categories.push_back(systemCategory);
 

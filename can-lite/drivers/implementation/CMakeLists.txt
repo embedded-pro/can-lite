@@ -74,8 +74,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
             )
 
             target_sources(can_lite.drivers.pcan PRIVATE
-                PCanAdapter.cpp
-                PCanAdapter.hpp
+                PcanAdapter.cpp
+                PcanAdapter.hpp
             )
         else()
             message(WARNING "CAN_LITE_DRIVER_PCAN is ON but PCAN-Basic SDK not found")
