@@ -141,19 +141,19 @@ The base classes own the transport and fill in the category ID and priority.
 
 **Server:**
 
-| Method                                             | Priority    | Message type            |
-|----------------------------------------------------|-------------|-------------------------|
-| `SendResponse(messageType, payload)`               | `response`  | as given                |
-| `SendTelemetry(messageType, payload)`              | `telemetry` | as given                |
-| `SendCategoryError(originatingCommandId, code)`    | `response`  | `0xFE`                  |
-| `SendCommandAck(messageType, status)`              | `response`  | system ACK              |
+| Method                                          | Priority    | Message type |
+|-------------------------------------------------|-------------|--------------|
+| `SendResponse(messageType, payload)`            | `response`  | as given     |
+| `SendTelemetry(messageType, payload)`           | `telemetry` | as given     |
+| `SendCategoryError(originatingCommandId, code)` | `response`  | `0xFE`       |
+| `SendCommandAck(messageType, status)`           | `response`  | system ACK   |
 
 **Client:**
 
-| Method                                                      | Sequence byte |
-|-------------------------------------------------------------|---------------|
-| `SendCommand(nodeId, messageType[, payload][, priority])`   | prepended automatically |
-| `SendCommandWithoutSequence(nodeId, messageType[, payload][, priority])` | none |
+| Method                                                                   | Sequence byte           |
+|--------------------------------------------------------------------------|-------------------------|
+| `SendCommand(nodeId, messageType[, payload][, priority])`                | prepended automatically |
+| `SendCommandWithoutSequence(nodeId, messageType[, payload][, priority])` | none                    |
 
 ```cpp
 bool MyCategoryClient::SendSetParameters(uint16_t targetNodeId, int16_t first, int16_t second)

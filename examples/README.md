@@ -13,9 +13,9 @@ cmake --preset host -DCAN_LITE_BUILD_EXAMPLES=On
 They are also built automatically when `CAN_LITE_BUILD_TESTS=On`, so their unit
 tests run in CI.
 
-| Example                          | Category ID | Description                                       |
-|----------------------------------|-------------|---------------------------------------------------|
-| [`foc_motor/`](foc_motor/)       | `0x2`       | Field-oriented motor control commands and telemetry |
+| Example                    | Category ID | Description                                         |
+|----------------------------|-------------|-----------------------------------------------------|
+| [`foc_motor/`](foc_motor/) | `0x2`       | Field-oriented motor control commands and telemetry |
 
 ## Using an example
 

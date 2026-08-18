@@ -4,8 +4,8 @@
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryServer.hpp"
 #include "can-lite/client/CanProtocolClient.hpp"
 #include "can-lite/server/CanProtocolServer.hpp"
-#include "gmock/gmock.h"
 #include "support/TestCategories.hpp"
+#include "gmock/gmock.h"
 
 namespace integration
 {

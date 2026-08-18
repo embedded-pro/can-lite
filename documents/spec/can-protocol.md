@@ -139,11 +139,11 @@ Lower numerical values have higher CAN bus arbitration priority.
 
 ## 7. Message Categories
 
-| Value     | Name              | Description                                                      |
-|-----------|-------------------|------------------------------------------------------------------|
-| 0x0       | System            | Heartbeat, command acknowledgement, status request, category discovery |
-| 0x1       | Firmware Upgrade  | Block-based firmware transfer, verification, and activation      |
-| 0x2 - 0xF | Application       | Reserved for application-defined categories                      |
+| Value     | Name             | Description                                                            |
+|-----------|------------------|------------------------------------------------------------------------|
+| 0x0       | System           | Heartbeat, command acknowledgement, status request, category discovery |
+| 0x1       | Firmware Upgrade | Block-based firmware transfer, verification, and activation            |
+| 0x2 - 0xF | Application      | Reserved for application-defined categories                            |
 
 The System category is always available. Category 0x1 is defined in a
 separate extension specification:
@@ -162,10 +162,10 @@ Message type `0xFE` is reserved across all categories for a
 **category error response**, carrying a category-specific failure detail
 that the universal acknowledgement status cannot express.
 
-| Byte | Field                | Type  | Description                                  |
-|------|----------------------|-------|----------------------------------------------|
-| 0    | Originating Command  | uint8 | Message type of the command that failed      |
-| 1    | Error Code           | uint8 | Category-defined error code                  |
+| Byte | Field               | Type  | Description                             |
+|------|---------------------|-------|-----------------------------------------|
+| 0    | Originating Command | uint8 | Message type of the command that failed |
+| 1    | Error Code          | uint8 | Category-defined error code             |
 
 A category error response is normally followed by a command acknowledgement
 with status `categoryError`.
