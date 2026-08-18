@@ -88,7 +88,7 @@ namespace services
     uint8_t CanPayloadReader::ReadUInt8()
     {
         auto start = Take(1);
-        if (!start)
+        if (!start.has_value())
             return 0;
 
         return message[*start];
@@ -97,7 +97,7 @@ namespace services
     int16_t CanPayloadReader::ReadInt16()
     {
         auto start = Take(2);
-        if (!start)
+        if (!start.has_value())
             return 0;
 
         return CanFrameCodec::ReadInt16(message, *start);
@@ -106,7 +106,7 @@ namespace services
     uint16_t CanPayloadReader::ReadUInt16()
     {
         auto start = Take(2);
-        if (!start)
+        if (!start.has_value())
             return 0;
 
         return CanFrameCodec::ReadUInt16(message, *start);
@@ -115,7 +115,7 @@ namespace services
     int32_t CanPayloadReader::ReadInt32()
     {
         auto start = Take(4);
-        if (!start)
+        if (!start.has_value())
             return 0;
 
         return CanFrameCodec::ReadInt32(message, *start);
@@ -124,7 +124,7 @@ namespace services
     uint32_t CanPayloadReader::ReadUInt32()
     {
         auto start = Take(4);
-        if (!start)
+        if (!start.has_value())
             return 0;
 
         return CanFrameCodec::ReadUInt32(message, *start);
