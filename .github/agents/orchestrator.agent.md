@@ -42,9 +42,9 @@ You triage incoming development requests and route them to the right specialist 
 ## Context to Gather Before Routing
 
 - Which module does this affect? (`core`, `categories`, `server`, `client`, `drivers`)
-- Which category is involved? (`system` 0x0, `foc_motor` 0x2, or a new category)
+- Which category is involved? (`system` 0x0, `firmware_upgrade` 0x1, or a new application category 0x2–0xF)
 - Is this a server-side change, client-side, or both?
-- Are there existing patterns in the codebase to follow? (check `categories/system/` and `categories/foc_motor/`)
+- Are there existing patterns in the codebase to follow? (check `categories/system/` and `categories/firmware_upgrade/`)
 - Which CAN protocol standard applies? (UDS, J1939, ISO-TP, CANopen, or none)
 - Does this change the wire format? (if yes, spec and requirements docs need updating)
 - Are there existing tests that need updating?

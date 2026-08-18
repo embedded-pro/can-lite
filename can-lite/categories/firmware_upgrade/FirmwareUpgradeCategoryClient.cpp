@@ -1,23 +1,12 @@
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeCategoryClient.hpp"
-#include "can-lite/client/CanProtocolClient.hpp"
-#include "can-lite/core/CanFrameCodec.hpp"
+#include "can-lite/core/CanPayload.hpp"
 
 namespace services
 {
-    FirmwareUpgradeCategoryClient::FirmwareUpgradeCategoryClient(CanFrameTransport& transport, CanProtocolClient& client)
-        : transport(transport)
-        , client(client)
-        , beginResponse(*this)
-        , dataBlockAck(*this)
-        , verifyResponse(*this)
-        , activateResponse(*this)
-        , progressResponse(*this)
+    FirmwareUpgradeCategoryClient::FirmwareUpgradeCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource)
+        : CanCategoryClient(transport, sequenceSource)
     {
-        AddMessageType(beginResponse);
-        AddMessageType(dataBlockAck);
-        AddMessageType(verifyResponse);
-        AddMessageType(activateResponse);
-        AddMessageType(progressResponse);
+        AddMessageTypes(beginResponse, dataBlockAck, verifyResponse, activateResponse, progressResponse);
     }
 
     uint8_t FirmwareUpgradeCategoryClient::Id() const
@@ -25,172 +14,116 @@ namespace services
         return firmwareUpgradeCategoryId;
     }
 
+    // Commands carry no sequence byte: the server orders transfers by block index instead.
+
     bool FirmwareUpgradeCategoryClient::SendBeginUpgrade(uint16_t targetNodeId, uint32_t firmwareSize)
     {
-        hal::Can::Message data;
-        data.resize(4, 0);
-        CanFrameCodec::WriteUInt32(data, 0, firmwareSize);
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuBeginUpgradeId, data, [] {});
+        CanPayloadWriter payload;
+        payload.WriteUInt32(firmwareSize);
+
+        return SendCommandWithoutSequence(targetNodeId, fwuBeginUpgradeId, payload);
     }
 
     bool FirmwareUpgradeCategoryClient::SendDataBlock(uint16_t targetNodeId, uint16_t blockIndex, const hal::Can::Message& blockData)
     {
-        if (blockData.size() > 6)
-            return false;
+        CanPayloadWriter payload;
+        payload.WriteUInt16(blockIndex).WriteBytes(infra::MakeRange(blockData));
 
-        hal::Can::Message data;
-        data.resize(2, 0);
-        CanFrameCodec::WriteUInt16(data, 0, blockIndex);
-        for (auto byte : blockData)
-            data.push_back(byte);
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuDataBlockId, data, [] {});
+        return SendCommandWithoutSequence(targetNodeId, fwuDataBlockId, payload);
     }
 
     bool FirmwareUpgradeCategoryClient::SendVerify(uint16_t targetNodeId, uint32_t expectedCrc32)
     {
-        hal::Can::Message data;
-        data.resize(4, 0);
-        CanFrameCodec::WriteUInt32(data, 0, expectedCrc32);
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuVerifyId, data, [] {});
+        CanPayloadWriter payload;
+        payload.WriteUInt32(expectedCrc32);
+
+        return SendCommandWithoutSequence(targetNodeId, fwuVerifyId, payload);
     }
 
     bool FirmwareUpgradeCategoryClient::SendActivate(uint16_t targetNodeId)
     {
-        hal::Can::Message data;
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuActivateId, data, [] {});
+        return SendCommandWithoutSequence(targetNodeId, fwuActivateId);
     }
 
     bool FirmwareUpgradeCategoryClient::SendAbort(uint16_t targetNodeId)
     {
-        hal::Can::Message data;
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuAbortId, data, [] {});
+        return SendCommandWithoutSequence(targetNodeId, fwuAbortId);
     }
 
     bool FirmwareUpgradeCategoryClient::SendQueryProgress(uint16_t targetNodeId)
     {
-        hal::Can::Message data;
-        return transport.SendFrame(targetNodeId, CanPriority::command, firmwareUpgradeCategoryId, fwuQueryProgressId, data, [] {});
+        return SendCommandWithoutSequence(targetNodeId, fwuQueryProgressId);
     }
 
-    // BeginResponse
-
-    FirmwareUpgradeCategoryClient::BeginResponseMessageType::BeginResponseMessageType(FirmwareUpgradeCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t FirmwareUpgradeCategoryClient::BeginResponseMessageType::Id() const
+    void FirmwareUpgradeCategoryClient::HandleBeginResponse(const hal::Can::Message& data)
     {
-        return fwuBeginResponseId;
-    }
+        CanPayloadReader reader{ data };
+        auto status = static_cast<FwuError>(reader.ReadUInt8());
+        auto pageSize = reader.ReadUInt16();
 
-    void FirmwareUpgradeCategoryClient::BeginResponseMessageType::Handle(const hal::Can::Message& data)
-    {
-        if (data.size() < 3)
+        if (!reader.Valid())
             return;
 
-        auto status = static_cast<FwuError>(data[0]);
-        auto pageSize = CanFrameCodec::ReadUInt16(data, 1);
-
-        parent.NotifyObservers([status, pageSize](auto& observer)
+        NotifyObservers([status, pageSize](auto& observer)
             {
                 observer.OnBeginResponse(status, pageSize);
             });
     }
 
-    // DataBlockAck
-
-    FirmwareUpgradeCategoryClient::DataBlockAckMessageType::DataBlockAckMessageType(FirmwareUpgradeCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t FirmwareUpgradeCategoryClient::DataBlockAckMessageType::Id() const
+    void FirmwareUpgradeCategoryClient::HandleDataBlockAck(const hal::Can::Message& data)
     {
-        return fwuDataBlockAckId;
-    }
+        CanPayloadReader reader{ data };
+        auto status = static_cast<FwuError>(reader.ReadUInt8());
+        auto blockIndex = reader.ReadUInt16();
 
-    void FirmwareUpgradeCategoryClient::DataBlockAckMessageType::Handle(const hal::Can::Message& data)
-    {
-        if (data.size() < 3)
+        if (!reader.Valid())
             return;
 
-        auto status = static_cast<FwuError>(data[0]);
-        auto blockIndex = CanFrameCodec::ReadUInt16(data, 1);
-
-        parent.NotifyObservers([status, blockIndex](auto& observer)
+        NotifyObservers([status, blockIndex](auto& observer)
             {
                 observer.OnDataBlockAck(status, blockIndex);
             });
     }
 
-    // VerifyResponse
-
-    FirmwareUpgradeCategoryClient::VerifyResponseMessageType::VerifyResponseMessageType(FirmwareUpgradeCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t FirmwareUpgradeCategoryClient::VerifyResponseMessageType::Id() const
+    void FirmwareUpgradeCategoryClient::HandleVerifyResponse(const hal::Can::Message& data)
     {
-        return fwuVerifyResponseId;
-    }
+        CanPayloadReader reader{ data };
+        auto status = static_cast<FwuError>(reader.ReadUInt8());
 
-    void FirmwareUpgradeCategoryClient::VerifyResponseMessageType::Handle(const hal::Can::Message& data)
-    {
-        if (data.empty())
+        if (!reader.Valid())
             return;
 
-        auto status = static_cast<FwuError>(data[0]);
-
-        parent.NotifyObservers([status](auto& observer)
+        NotifyObservers([status](auto& observer)
             {
                 observer.OnVerifyResponse(status);
             });
     }
 
-    // ActivateResponse
-
-    FirmwareUpgradeCategoryClient::ActivateResponseMessageType::ActivateResponseMessageType(FirmwareUpgradeCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t FirmwareUpgradeCategoryClient::ActivateResponseMessageType::Id() const
+    void FirmwareUpgradeCategoryClient::HandleActivateResponse(const hal::Can::Message& data)
     {
-        return fwuActivateResponseId;
-    }
+        CanPayloadReader reader{ data };
+        auto status = static_cast<FwuError>(reader.ReadUInt8());
 
-    void FirmwareUpgradeCategoryClient::ActivateResponseMessageType::Handle(const hal::Can::Message& data)
-    {
-        if (data.empty())
+        if (!reader.Valid())
             return;
 
-        auto status = static_cast<FwuError>(data[0]);
-
-        parent.NotifyObservers([status](auto& observer)
+        NotifyObservers([status](auto& observer)
             {
                 observer.OnActivateResponse(status);
             });
     }
 
-    // ProgressResponse
-
-    FirmwareUpgradeCategoryClient::ProgressResponseMessageType::ProgressResponseMessageType(FirmwareUpgradeCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t FirmwareUpgradeCategoryClient::ProgressResponseMessageType::Id() const
+    void FirmwareUpgradeCategoryClient::HandleProgressResponse(const hal::Can::Message& data)
     {
-        return fwuProgressResponseId;
-    }
+        CanPayloadReader reader{ data };
+        auto state = static_cast<FwuState>(reader.ReadUInt8());
+        auto blocksReceived = reader.ReadUInt16();
+        auto totalBlocks = reader.ReadUInt16();
 
-    void FirmwareUpgradeCategoryClient::ProgressResponseMessageType::Handle(const hal::Can::Message& data)
-    {
-        if (data.size() < 5)
+        if (!reader.Valid())
             return;
 
-        auto state = static_cast<FwuState>(data[0]);
-        auto blocksReceived = CanFrameCodec::ReadUInt16(data, 1);
-        auto totalBlocks = CanFrameCodec::ReadUInt16(data, 3);
-
-        parent.NotifyObservers([state, blocksReceived, totalBlocks](auto& observer)
+        NotifyObservers([state, blocksReceived, totalBlocks](auto& observer)
             {
                 observer.OnProgressResponse(state, blocksReceived, totalBlocks);
             });

@@ -127,18 +127,18 @@ WHEN(R"(a frame is received with system category and unknown message type {int})
     fixture.serverCan.InjectFrame(id, msg);
 }
 
-GIVEN(R"(the FOC motor category is registered on the server)")
+GIVEN(R"(the demo category is registered on the server)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    fixture.RegisterFocMotorServerOnly();
+    fixture.RegisterDemoCategoryServerOnly();
 }
 
-WHEN(R"(the client sends a set PID current command with only {int} bytes)", (std::int32_t byteCount))
+WHEN(R"(the client sends a set parameters command with only {int} bytes)", (std::int32_t byteCount))
 {
     auto& fixture = context.Get<ApplicationFixture>();
 
-    uint32_t rawId = MakeCanId(CanPriority::command, focMotorCategoryId,
-        focSetPidCurrentId, fixture.config.nodeId);
+    uint32_t rawId = MakeCanId(CanPriority::command, integration::demoCategoryId,
+        integration::demoSetParametersId, fixture.config.nodeId);
     auto id = hal::Can::Id::Create29BitId(rawId);
     hal::Can::Message msg;
     for (std::int32_t i = 0; i < byteCount; ++i)
@@ -147,7 +147,7 @@ WHEN(R"(the client sends a set PID current command with only {int} bytes)", (std
     fixture.serverCan.InjectFrame(id, msg);
 }
 
-THEN(R"(the motor server observer shall not have received a PID current command)")
+THEN(R"(the demo server observer shall not have received a set parameters command)")
 {
     SUCCEED();
 }

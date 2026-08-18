@@ -6,9 +6,11 @@ endif()
 
 option(CMAKE_COMPILE_WARNING_AS_ERROR "Enable warnings-as-error" On)
 option(CAN_LITE_BUILD_TESTS "Enable build of the tests" Off)
+option(CAN_LITE_BUILD_EXAMPLES "Enable build of the example categories" Off)
 
 if (CAN_LITE_BUILD_TESTS)
     set(BUILD_TESTING On)
+    set(CAN_LITE_BUILD_EXAMPLES On)
 endif()
 
 project(can_lite LANGUAGES C CXX ASM VERSION 0.0.1) # x-release-please-version
@@ -54,11 +56,15 @@ endif()
 
 add_subdirectory(can-lite)
 
+if (CAN_LITE_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
 if (CAN_LITE_BUILD_TESTS)
     add_subdirectory(integration_tests)
 endif()
 
-emil_clangformat_directories(can_lite DIRECTORIES can-lite)
+emil_clangformat_directories(can_lite DIRECTORIES can-lite examples)
 emil_folderize_all_targets()
 emil_coverage_targets(DIRECTORIES .)
 

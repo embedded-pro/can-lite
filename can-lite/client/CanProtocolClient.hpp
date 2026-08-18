@@ -4,6 +4,7 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
+#include "can-lite/core/CanSequenceSource.hpp"
 #include "can-lite/transport/IsoTpTransport.hpp"
 #include "hal/interfaces/Can.hpp"
 #include "infra/timer/Timer.hpp"
@@ -29,6 +30,7 @@ namespace services
 
     class CanProtocolClient
         : public infra::Subject<CanProtocolClientObserver>
+        , public CanSequenceSource
     {
     public:
         struct Config
@@ -53,8 +55,9 @@ namespace services
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
 
-        uint8_t PeekSequence(uint16_t nodeId);
-        void CommitSequence(uint16_t nodeId);
+        // CanSequenceSource
+        uint8_t PeekSequence(uint16_t nodeId) override;
+        void CommitSequence(uint16_t nodeId) override;
 
     private:
         class SystemObserver

@@ -1,13 +1,12 @@
 #include "can-lite/categories/system/CanSystemCategoryClient.hpp"
+#include "can-lite/core/CanPayload.hpp"
 
 namespace services
 {
-    CanSystemCategoryClient::CanSystemCategoryClient()
-        : commandAck(*this)
-        , categoryListResponse(*this)
+    CanSystemCategoryClient::CanSystemCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource)
+        : CanCategoryClient(transport, sequenceSource)
     {
-        AddMessageType(commandAck);
-        AddMessageType(categoryListResponse);
+        AddMessageTypes(commandAck, categoryListResponse);
     }
 
     uint8_t CanSystemCategoryClient::Id() const
@@ -15,36 +14,23 @@ namespace services
         return canSystemCategoryId;
     }
 
-    CanSystemCategoryClient::CommandAckMessageType::CommandAckMessageType(CanSystemCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t CanSystemCategoryClient::CommandAckMessageType::Id() const
+    void CanSystemCategoryClient::HandleCommandAck(const hal::Can::Message& data)
     {
-        return canCommandAckMessageTypeId;
-    }
+        CanPayloadReader reader{ data };
+        auto category = reader.ReadUInt8();
+        auto command = reader.ReadUInt8();
+        auto status = static_cast<CanAckStatus>(reader.ReadUInt8());
 
-    void CanSystemCategoryClient::CommandAckMessageType::Handle(const hal::Can::Message& data)
-    {
-        if (data.size() < 3)
+        if (!reader.Valid())
             return;
 
-        if (parent.onCommandAck)
-            parent.onCommandAck(data[0], data[1], static_cast<CanAckStatus>(data[2]));
+        if (onCommandAck)
+            onCommandAck(category, command, status);
     }
 
-    CanSystemCategoryClient::CategoryListResponseMessageType::CategoryListResponseMessageType(CanSystemCategoryClient& parent)
-        : parent(parent)
-    {}
-
-    uint8_t CanSystemCategoryClient::CategoryListResponseMessageType::Id() const
+    void CanSystemCategoryClient::HandleCategoryListResponse(const hal::Can::Message& data)
     {
-        return canCategoryListResponseMessageTypeId;
-    }
-
-    void CanSystemCategoryClient::CategoryListResponseMessageType::Handle(const hal::Can::Message& data)
-    {
-        parent.NotifyObservers([&data](auto& observer)
+        NotifyObservers([&data](auto& observer)
             {
                 observer.OnCategoryListResponse(data);
             });

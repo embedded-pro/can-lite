@@ -19,6 +19,14 @@ namespace services
     static constexpr uint8_t canCategoryListRequestMessageTypeId = 0x04;
     static constexpr uint8_t canCategoryListResponseMessageTypeId = 0x05;
 
+    static constexpr uint8_t canFirmwareUpgradeCategoryId = 0x01;
+    static constexpr uint8_t canFirstApplicationCategoryId = 0x02;
+    static constexpr uint8_t canLastApplicationCategoryId = 0x0F;
+
+    static constexpr uint8_t canCategoryErrorResponseMessageTypeId = 0xFE;
+
+    static constexpr uint8_t canLastCommandMessageTypeId = 0x7F;
+
     enum class CanPriority : uint8_t
     {
         emergency = 0,
@@ -91,5 +99,20 @@ namespace services
     static constexpr uint16_t ExtractCanNodeId(uint32_t canId)
     {
         return static_cast<uint16_t>(canId & canIdNodeIdMask);
+    }
+
+    static constexpr bool IsCommandMessageType(uint8_t messageType)
+    {
+        return messageType <= canLastCommandMessageTypeId;
+    }
+
+    static constexpr bool IsResponseMessageType(uint8_t messageType)
+    {
+        return messageType > canLastCommandMessageTypeId;
+    }
+
+    static constexpr bool IsApplicationCategoryId(uint8_t category)
+    {
+        return category >= canFirstApplicationCategoryId && category <= canLastApplicationCategoryId;
     }
 }

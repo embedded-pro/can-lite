@@ -1,7 +1,10 @@
 #pragma once
 
+#include "can-lite/core/CanFrameTransport.hpp"
 #include "can-lite/core/CanMessageType.hpp"
+#include "can-lite/core/CanPayload.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
+#include "can-lite/core/CanSequenceSource.hpp"
 #include "infra/util/ByteRange.hpp"
 #include "infra/util/IntrusiveList.hpp"
 #include <cstdint>
@@ -27,6 +30,13 @@ namespace services
         virtual bool RequiresSequenceValidation() const = 0;
 
         void AddMessageType(CanMessageType& messageType);
+
+        template<class... MessageTypes>
+        void AddMessageTypes(MessageTypes&... messageTypes)
+        {
+            (AddMessageType(messageTypes), ...);
+        }
+
         bool HandleMessage(uint8_t messageType, const hal::Can::Message& data);
         bool HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu);
 
@@ -51,11 +61,20 @@ namespace services
         void SendCommandAck(uint8_t messageType, CanAckStatus status);
 
     protected:
-        CanCategoryServer() = default;
+        explicit CanCategoryServer(CanFrameTransport& transport);
         ~CanCategoryServer() = default;
 
+        CanFrameTransport& Transport();
+
+        bool SendResponse(uint8_t messageType, const hal::Can::Message& data);
+        bool SendResponse(uint8_t messageType, const CanPayloadWriter& payload);
+        bool SendTelemetry(uint8_t messageType, const hal::Can::Message& data);
+        bool SendTelemetry(uint8_t messageType, const CanPayloadWriter& payload);
+        bool SendCategoryError(uint8_t originatingCommandId, uint8_t categoryErrorCode);
+
     private:
-        CanCommandAcknowledger* acknowledger = nullptr;
+        CanFrameTransport& transport;
+        CanCommandAcknowledger* acknowledger{ nullptr };
     };
 
     class CanCategoryClient
@@ -66,7 +85,21 @@ namespace services
         bool RequiresSequenceValidation() const override;
 
     protected:
-        CanCategoryClient() = default;
+        CanCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource);
         ~CanCategoryClient() = default;
+
+        CanFrameTransport& Transport();
+
+        bool SendCommand(uint16_t targetNodeId, uint8_t messageType, CanPriority priority = CanPriority::command);
+        bool SendCommand(uint16_t targetNodeId, uint8_t messageType, const hal::Can::Message& payload, CanPriority priority = CanPriority::command);
+        bool SendCommand(uint16_t targetNodeId, uint8_t messageType, const CanPayloadWriter& payload, CanPriority priority = CanPriority::command);
+
+        bool SendCommandWithoutSequence(uint16_t targetNodeId, uint8_t messageType, CanPriority priority = CanPriority::command);
+        bool SendCommandWithoutSequence(uint16_t targetNodeId, uint8_t messageType, const hal::Can::Message& payload, CanPriority priority = CanPriority::command);
+        bool SendCommandWithoutSequence(uint16_t targetNodeId, uint8_t messageType, const CanPayloadWriter& payload, CanPriority priority = CanPriority::command);
+
+    private:
+        CanFrameTransport& transport;
+        CanSequenceSource& sequenceSource;
     };
 }

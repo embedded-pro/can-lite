@@ -2,15 +2,12 @@
 
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeDefinitions.hpp"
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanFrameTransport.hpp"
-#include "can-lite/core/CanMessageType.hpp"
+#include "can-lite/core/CanMessageHandler.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
 
 namespace services
 {
-    class CanProtocolClient;
-
     class FirmwareUpgradeCategoryClient;
 
     class FirmwareUpgradeCategoryClientObserver
@@ -31,7 +28,7 @@ namespace services
         , public infra::Subject<FirmwareUpgradeCategoryClientObserver>
     {
     public:
-        FirmwareUpgradeCategoryClient(CanFrameTransport& transport, CanProtocolClient& client);
+        FirmwareUpgradeCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource);
 
         uint8_t Id() const override;
 
@@ -43,73 +40,16 @@ namespace services
         bool SendQueryProgress(uint16_t targetNodeId);
 
     private:
-        class BeginResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit BeginResponseMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
+        void HandleBeginResponse(const hal::Can::Message& data);
+        void HandleDataBlockAck(const hal::Can::Message& data);
+        void HandleVerifyResponse(const hal::Can::Message& data);
+        void HandleActivateResponse(const hal::Can::Message& data);
+        void HandleProgressResponse(const hal::Can::Message& data);
 
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        class DataBlockAckMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit DataBlockAckMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        class VerifyResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit VerifyResponseMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        class ActivateResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit ActivateResponseMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        class ProgressResponseMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit ProgressResponseMessageType(FirmwareUpgradeCategoryClient& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryClient& parent;
-        };
-
-        CanFrameTransport& transport;
-        CanProtocolClient& client;
-
-        BeginResponseMessageType beginResponse;
-        DataBlockAckMessageType dataBlockAck;
-        VerifyResponseMessageType verifyResponse;
-        ActivateResponseMessageType activateResponse;
-        ProgressResponseMessageType progressResponse;
+        CanMessageHandler<FirmwareUpgradeCategoryClient> beginResponse{ fwuBeginResponseId, *this, &FirmwareUpgradeCategoryClient::HandleBeginResponse };
+        CanMessageHandler<FirmwareUpgradeCategoryClient> dataBlockAck{ fwuDataBlockAckId, *this, &FirmwareUpgradeCategoryClient::HandleDataBlockAck };
+        CanMessageHandler<FirmwareUpgradeCategoryClient> verifyResponse{ fwuVerifyResponseId, *this, &FirmwareUpgradeCategoryClient::HandleVerifyResponse };
+        CanMessageHandler<FirmwareUpgradeCategoryClient> activateResponse{ fwuActivateResponseId, *this, &FirmwareUpgradeCategoryClient::HandleActivateResponse };
+        CanMessageHandler<FirmwareUpgradeCategoryClient> progressResponse{ fwuProgressResponseId, *this, &FirmwareUpgradeCategoryClient::HandleProgressResponse };
     };
 }

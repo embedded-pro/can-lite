@@ -75,6 +75,9 @@ FetchContent_MakeAvailable(can-lite)
 target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite.client)
 ```
 
+The reference categories under `examples/` are not built or installed by default.
+Enable them with `-DCAN_LITE_BUILD_EXAMPLES=On` to compile them alongside the library.
+
 ## Project Structure
 
 ```
@@ -82,14 +85,16 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 │   ├── core/                   # Protocol definitions, frame codec, transport
 │   │   ├── CanProtocolDefinitions.hpp  # Enums, constants, CAN ID layout
 │   │   ├── CanFrameCodec.hpp           # Fixed-point encoding/decoding
+│   │   ├── CanPayload.hpp              # Bounds-checked big-endian payload reader/writer
 │   │   ├── CanFrameTransport.hpp       # Async frame queue and send
 │   │   ├── CanCategory.hpp             # Base category hierarchy (Server/Client)
 │   │   ├── CanMessageType.hpp          # Message handler interface
-│   │   └── test/                       # Core unit tests
-│   ├── categories/             # Category implementations (server/client pairs)
-│   │   ├── system/             # Built-in System category (heartbeat, ack, discovery)
-│   │   ├── firmware_upgrade/   # Firmware Upgrade category (extension example)
-│   │   └── foc_motor/          # FOC Motor Control category (extension example)
+│   │   ├── CanMessageHandler.hpp       # Binds a message type ID to a member function
+│   │   ├── CanSequenceSource.hpp       # Per-server sequence supply for client categories
+│   │   └── test/                       # Core unit tests and shared test doubles
+│   ├── categories/             # Built-in categories (server/client pairs)
+│   │   ├── system/             # System category 0x0 (heartbeat, ack, discovery)
+│   │   └── firmware_upgrade/   # Firmware Upgrade category 0x1
 │   ├── server/                 # Server implementation
 │   │   ├── CanProtocolServer.hpp       # Server with dispatch & observer
 │   │   └── test/                       # Server unit tests
@@ -102,12 +107,18 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 │   │   ├── iso-tp/                     # ISO 15765-2 internals (all non-template with WithStorage)
 │   │   └── test/                       # Transport unit tests
 │   └── drivers/                # Hardware driver adapters
+├── examples/                   # Reference application categories, not built by default
+│   └── foc_motor/              # FOC Motor Control category (copy into your project)
 ├── documents/
-│   ├── design/                 # Architecture & design decisions
+│   ├── design/                 # Architecture & category authoring guide
 │   ├── requirements/           # Protocol requirements (YAML)
 │   └── spec/                   # Protocol specification (Markdown)
 └── CMakeLists.txt
 ```
+
+Application-specific categories belong in the consuming project, not in
+`can-lite/categories/`. See
+[Extending can-lite with categories](documents/design/extending-categories.md).
 
 ## Key Design Principles
 
@@ -132,8 +143,8 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 ## Documentation
 
 - [Architecture & Design](documents/design/architecture.md) — Architecture decisions and design patterns
+- [Extending with Categories](documents/design/extending-categories.md) — How to add an application category
 - [Protocol Specification](documents/spec/can-protocol.md) — Full wire-format specification
-- [FOC Motor Control Specification](documents/spec/foc-motor-control.md) — FOC Motor Control category specification
 - [Firmware Upgrade Specification](documents/spec/firmware-upgrade.md) — Firmware Upgrade category specification
 - [Protocol Requirements](documents/requirements/can-protocol.yaml) — Formal requirements
 - [Copilot Instructions](.github/copilot-instructions.md) — Development guidelines

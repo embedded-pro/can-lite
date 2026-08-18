@@ -2,8 +2,7 @@
 
 #include "can-lite/categories/firmware_upgrade/FirmwareUpgradeDefinitions.hpp"
 #include "can-lite/core/CanCategory.hpp"
-#include "can-lite/core/CanFrameTransport.hpp"
-#include "can-lite/core/CanMessageType.hpp"
+#include "can-lite/core/CanMessageHandler.hpp"
 #include "infra/timer/Timer.hpp"
 #include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
@@ -50,91 +49,25 @@ namespace services
         void SendActivateResponse(FwuError status);
         void SendProgressResponse(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks);
 
-        class BeginUpgradeMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit BeginUpgradeMessageType(FirmwareUpgradeCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryServer& parent;
-        };
-
-        class DataBlockMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit DataBlockMessageType(FirmwareUpgradeCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryServer& parent;
-        };
-
-        class VerifyMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit VerifyMessageType(FirmwareUpgradeCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryServer& parent;
-        };
-
-        class ActivateMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit ActivateMessageType(FirmwareUpgradeCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryServer& parent;
-        };
-
-        class AbortMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit AbortMessageType(FirmwareUpgradeCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryServer& parent;
-        };
-
-        class QueryProgressMessageType
-            : public CanMessageType
-        {
-        public:
-            explicit QueryProgressMessageType(FirmwareUpgradeCategoryServer& parent);
-            uint8_t Id() const override;
-            void Handle(const hal::Can::Message& data) override;
-
-        private:
-            FirmwareUpgradeCategoryServer& parent;
-        };
+        void HandleBeginUpgrade(const hal::Can::Message& data);
+        void HandleDataBlock(const hal::Can::Message& data);
+        void HandleVerify(const hal::Can::Message& data);
+        void HandleActivate(const hal::Can::Message& data);
+        void HandleAbort(const hal::Can::Message& data);
+        void HandleQueryProgress(const hal::Can::Message& data);
 
         void ResetSessionTimer();
         void StopSessionTimer();
         void HandleSessionTimeout();
 
-        CanFrameTransport& transport;
         Config config;
         infra::TimerSingleShot sessionTimeoutTimer;
 
-        BeginUpgradeMessageType beginUpgrade;
-        DataBlockMessageType dataBlock;
-        VerifyMessageType verify;
-        ActivateMessageType activate;
-        AbortMessageType abort;
-        QueryProgressMessageType queryProgress;
+        CanMessageHandler<FirmwareUpgradeCategoryServer> beginUpgrade{ fwuBeginUpgradeId, *this, &FirmwareUpgradeCategoryServer::HandleBeginUpgrade };
+        CanMessageHandler<FirmwareUpgradeCategoryServer> dataBlock{ fwuDataBlockId, *this, &FirmwareUpgradeCategoryServer::HandleDataBlock };
+        CanMessageHandler<FirmwareUpgradeCategoryServer> verify{ fwuVerifyId, *this, &FirmwareUpgradeCategoryServer::HandleVerify };
+        CanMessageHandler<FirmwareUpgradeCategoryServer> activate{ fwuActivateId, *this, &FirmwareUpgradeCategoryServer::HandleActivate };
+        CanMessageHandler<FirmwareUpgradeCategoryServer> abort{ fwuAbortId, *this, &FirmwareUpgradeCategoryServer::HandleAbort };
+        CanMessageHandler<FirmwareUpgradeCategoryServer> queryProgress{ fwuQueryProgressId, *this, &FirmwareUpgradeCategoryServer::HandleQueryProgress };
     };
 }

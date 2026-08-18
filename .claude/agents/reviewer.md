@@ -11,7 +11,7 @@ You are the reviewer agent for the can-lite project — a lightweight, extensibl
 1. **Identify changed files** via `git diff` or from the task description.
 2. **Read each file completely** — do not skim.
 3. **Check each rule** in the checklist below.
-4. **Search for patterns**: Compare against `categories/system/` and `categories/foc_motor/` for consistency.
+4. **Search for patterns**: Compare against `categories/system/` and `categories/firmware_upgrade/` for consistency.
 5. **Verify CAN protocol correctness** for UDS, J1939, ISO-TP, or CANopen implementations.
 6. **Check document consistency**: Verify spec, requirements, architecture, README reflect changes.
 7. **Output a structured review** with findings by severity.
@@ -145,4 +145,4 @@ End with summary: total criticals, warnings, suggestions, and overall verdict (A
 - Architecture: `documents/design/architecture.md`
 - Requirements: `documents/requirements/can-protocol.yaml`
 - Reference category (built-in): `can-lite/categories/system/`
-- Reference category (extension): `can-lite/categories/foc_motor/`
+- Reference category (extension): `can-lite/categories/firmware_upgrade/`

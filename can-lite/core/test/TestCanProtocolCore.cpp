@@ -2,6 +2,8 @@
 #include "can-lite/core/CanFrameCodec.hpp"
 #include "can-lite/core/CanMessageType.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
+#include "can-lite/core/test/CanCategoryStubs.hpp"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <limits>
 
@@ -38,7 +40,8 @@ namespace
 
     // --- CanCategory ---
 
-    class StubCategoryServer : public CanCategoryServer
+    class StubCategoryServer
+        : public CanCategoryServerStub
     {
     public:
         explicit StubCategoryServer(uint8_t id)
@@ -54,7 +57,8 @@ namespace
         uint8_t id;
     };
 
-    class StubCategoryClient : public CanCategoryClient
+    class StubCategoryClient
+        : public CanCategoryClientStub
     {
     public:
         explicit StubCategoryClient(uint8_t id)

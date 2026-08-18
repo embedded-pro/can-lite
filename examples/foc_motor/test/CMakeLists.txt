@@ -1,0 +1,16 @@
+add_executable(can_lite.examples.foc_motor_test)
+emil_build_for(can_lite.examples.foc_motor_test HOST All BOOL CAN_LITE_BUILD_TESTS)
+emil_add_test(can_lite.examples.foc_motor_test)
+
+target_link_libraries(can_lite.examples.foc_motor_test PRIVATE
+    can_lite.examples.foc_motor
+    can_lite.client
+    can_lite.test_util
+    infra.timer_test_helper
+    gmock_main
+)
+
+target_sources(can_lite.examples.foc_motor_test PRIVATE
+    TestFocMotorCategoryClient.cpp
+    TestFocMotorCategoryServer.cpp
+)

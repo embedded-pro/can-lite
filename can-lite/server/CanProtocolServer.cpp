@@ -10,6 +10,7 @@ namespace services
               {
                   ResetRateCounter();
               })
+        , systemCategory(transport)
         , systemObserver(systemCategory, *this)
     {
         systemCategory.SetAcknowledger(*this);

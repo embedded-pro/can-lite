@@ -20,7 +20,7 @@ You are also an expert in CAN bus protocols: UDS (ISO 14229), J1939 (SAE), ISO-T
 1. **Identify changed files**: Determine which files were created or modified
 2. **Read each file** completely — do not skim
 3. **Check each rule** in the checklist below
-4. **Search for patterns**: Compare against existing code in `categories/system/` and `categories/foc_motor/` to verify consistency
+4. **Search for patterns**: Compare against existing code in `categories/system/` and `categories/firmware_upgrade/` to verify consistency
 5. **Verify CAN protocol correctness**: If the code implements or interacts with UDS, J1939, ISO-TP, or CANopen, verify compliance with the respective standard
 6. **Check document consistency**: Verify that spec, requirements, architecture, and README reflect any changes
 7. **Output a structured review** with findings organized by severity
@@ -168,4 +168,4 @@ If the code implements or maps to an industry CAN standard, verify:
 - Formal requirements: [can-protocol.yaml](../../documents/requirements/can-protocol.yaml)
 - Project guidelines: [copilot-instructions.md](../../.github/copilot-instructions.md)
 - Reference category (built-in): `can-lite/categories/system/`
-- Reference category (extension): `can-lite/categories/foc_motor/`
+- Reference category (extension): `can-lite/categories/firmware_upgrade/`

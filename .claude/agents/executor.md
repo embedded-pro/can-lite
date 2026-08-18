@@ -11,7 +11,7 @@ You are the executor agent for the can-lite project — a lightweight, extensibl
 1. **Read the plan or task** carefully.
 2. **Clarify before coding**: If any requirement is ambiguous, ask the user before proceeding.
 3. **Write tests first (TDD)**: Red → Green → Refactor. Write failing unit tests that capture requirements, then implement minimum code to pass them.
-4. **Search for existing patterns**: Follow them exactly — start with `categories/system/` and `categories/foc_motor/`.
+4. **Search for existing patterns**: Follow them exactly — start with `categories/system/` and `categories/firmware_upgrade/`.
 5. **Implement one file at a time**, following all rules below.
 6. **Update CMakeLists.txt** if new files were added (library naming: `can_lite.<component>`).
 7. **Build and verify**: `cmake --build --preset host-Debug` then `ctest --preset host`.
@@ -80,7 +80,7 @@ raw_id = (priority << 24) | (category << 20) | (message_type << 12) | node_id
 ```
 
 - Priority values: Emergency=0, Command=4, Response=8, Telemetry=12, Heartbeat=16
-- Categories: System=0x0, FirmwareUpgrade=0x1, FocMotor=0x2, custom=0x3–0xF
+- Categories: System=0x0, FirmwareUpgrade=0x1, application=0x2–0xF
 - Message types: commands 0x00–0x7F, responses 0x80–0xFF
 - Node IDs: 0x000=broadcast, 0x001–0xFFF=individual
 - All multi-byte wire values **big-endian**

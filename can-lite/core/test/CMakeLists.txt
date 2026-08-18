@@ -1,6 +1,7 @@
 add_library(can_lite.test_util INTERFACE)
 
 target_sources(can_lite.test_util INTERFACE
+    CanCategoryStubs.hpp
     CanMock.hpp
 )
 
@@ -9,6 +10,7 @@ target_include_directories(can_lite.test_util INTERFACE
 )
 
 target_link_libraries(can_lite.test_util INTERFACE
+    can_lite.core
     hal.interfaces
     gmock
 )
@@ -19,6 +21,7 @@ emil_add_test(can_lite.core_test)
 
 target_link_libraries(can_lite.core_test PRIVATE
     can_lite.core
+    can_lite.test_util
     gtest_main
 )
 

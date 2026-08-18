@@ -17,10 +17,10 @@ namespace integration
 
     ApplicationFixture::~ApplicationFixture()
     {
-        if (motorClient)
-            client.UnregisterCategory(*motorClient);
-        if (motorServer)
-            server.UnregisterCategory(*motorServer);
+        if (demoClient)
+            client.UnregisterCategory(*demoClient);
+        if (demoServer)
+            server.UnregisterCategory(*demoServer);
 
         if (fwuClient)
             client.UnregisterCategory(*fwuClient);
@@ -33,23 +33,21 @@ namespace integration
             server.UnregisterCategory(cat);
     }
 
-    void ApplicationFixture::RegisterFocMotor()
+    void ApplicationFixture::RegisterDemoCategory()
     {
-        motorServer.emplace(server.Transport());
-        motorServerObserver.emplace(*motorServer);
-        server.RegisterCategory(*motorServer);
+        RegisterDemoCategoryServerOnly();
 
         clientTransport.emplace(clientCan, config.nodeId);
-        motorClient.emplace(*clientTransport, client);
-        motorClientObserver.emplace(*motorClient);
-        client.RegisterCategory(*motorClient);
+        demoClient.emplace(*clientTransport, client);
+        demoClientObserver.emplace(*demoClient);
+        client.RegisterCategory(*demoClient);
     }
 
-    void ApplicationFixture::RegisterFocMotorServerOnly()
+    void ApplicationFixture::RegisterDemoCategoryServerOnly()
     {
-        motorServer.emplace(server.Transport());
-        motorServerObserver.emplace(*motorServer);
-        server.RegisterCategory(*motorServer);
+        demoServer.emplace(server.Transport());
+        demoServerObserver.emplace(*demoServer);
+        server.RegisterCategory(*demoServer);
     }
 
     void ApplicationFixture::RegisterFirmwareUpgrade()
@@ -67,7 +65,7 @@ namespace integration
 
     SequencedTestCategory& ApplicationFixture::RegisterSequencedCategory(uint8_t id)
     {
-        sequencedCategories.emplace_back(id);
+        sequencedCategories.emplace_back(server.Transport(), id);
         auto& cat = sequencedCategories.back();
         server.RegisterCategory(cat);
         return cat;
@@ -75,7 +73,7 @@ namespace integration
 
     SimpleTestCategory& ApplicationFixture::RegisterSimpleCategory(uint8_t id)
     {
-        simpleCategories.emplace_back(id);
+        simpleCategories.emplace_back(server.Transport(), id);
         auto& cat = simpleCategories.back();
         server.RegisterCategory(cat);
         return cat;

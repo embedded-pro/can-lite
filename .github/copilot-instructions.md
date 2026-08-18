@@ -5,15 +5,16 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
 1) Big-picture architecture (short)
 - Purpose: Lightweight, extensible CAN bus protocol library implementing a client-server model over CAN 2.0B (29-bit extended identifiers). Designed for embedded systems with strict memory and timing constraints.
 - Major components:
-  - `can-lite/core/` — Protocol definitions (enums, CAN ID layout, constants), frame codec (fixed-point encoding), frame transport (async send queue), and the base `CanCategory` hierarchy (`CanCategoryServer` / `CanCategoryClient`).
-  - `can-lite/categories/` — Category implementations split into server/client pairs. Built-in: `system/` (heartbeat, ack, discovery). Extension example: `foc_motor/`.
+  - `can-lite/core/` — Protocol definitions (enums, CAN ID layout, constants), frame codec (fixed-point encoding), `CanPayload` (bounds-checked big-endian reader/writer), frame transport (async send queue), the base `CanCategory` hierarchy (`CanCategoryServer` / `CanCategoryClient`), `CanMessageHandler` (binds a message type ID to a member function), and `CanSequenceSource`.
+  - `can-lite/categories/` — Built-in category implementations split into server/client pairs: `system/` (heartbeat, ack, discovery) and `firmware_upgrade/`. Application-specific categories belong in the consuming project.
   - `can-lite/server/` — Server implementation: listens for commands, dispatches to category handlers, sends acknowledgements. Uses observer pattern for application callbacks.
-  - `can-lite/client/` — Client implementation: sends commands/queries to servers, receives responses. Supports multiple servers via node addressing.
+  - `can-lite/client/` — Client implementation: sends commands/queries to servers, receives responses. Supports multiple servers via node addressing; implements `CanSequenceSource`.
   - `can-lite/drivers/` — Hardware driver adapters.
   - `can-lite/transport/` — ISO-TP (ISO 15765-2) segmentation layer. All classes (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`, `IsoTpTransportImpl`) are non-template with `WithStorage` aliases for zero-heap PDU buffer ownership.
+  - `examples/` — Reference application categories (`foc_motor/`), not built by default (`CAN_LITE_BUILD_EXAMPLES`).
   - `embedded-infra-lib/` — Infrastructure dependency: bounded containers, build helpers, `hal::Can`, `infra::Subject`/`infra::SingleObserver`.
 - Architecture: Client initiates all requests; Server listens and responds. Built-in System category (0x0) provides heartbeat, ack, status request, and category discovery. Categories are split into server/client pairs inheriting from `CanCategoryServer`/`CanCategoryClient` for compile-time type safety. All category handlers use `infra::Subject`/`infra::SingleObserver` for event notification. Applications extend via custom category implementations.
-- Documents: `documents/spec/can-protocol.md` (wire-format spec), `documents/requirements/can-protocol.yaml` (formal requirements), `documents/design/architecture.md` (architecture & design decisions), `README.md` (project overview).
+- Documents: `documents/spec/can-protocol.md` (wire-format spec), `documents/requirements/can-protocol.yaml` (formal requirements), `documents/design/architecture.md` (architecture & design decisions), `documents/design/extending-categories.md` (category authoring guide), `README.md` (project overview).
 
 2) Critical developer workflows (exact commands)
 - Clone:
@@ -38,16 +39,17 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
   - See `.github/instructions/embedded-cpp.instructions.md` for full examples.
 
 4) Patterns & code locations (concrete examples)
-- Add a new message category:
-  - Define a new `CanCategory` enum value in `can-lite/core/CanProtocolDefinitions.hpp`.
-  - Implement a `CanCategoryServer` subclass and/or a `CanCategoryClient` subclass in `can-lite/categories/<name>/`.
+- Add a new category (see `documents/design/extending-categories.md`):
+  - Pick an application category ID (0x2–0xF) and declare it in a new `*Definitions.hpp` alongside its message type IDs.
+  - Implement a `CanCategoryServer` subclass (takes a `CanFrameTransport&`) and/or a `CanCategoryClient` subclass (takes a `CanFrameTransport&` and a `CanSequenceSource&`).
   - Register the handler with `CanProtocolServer::RegisterCategory()` (server side) or `CanProtocolClient::RegisterCategory()` (client side).
+  - Categories link `can_lite.core` only.
 - Add a new message type to an existing category:
-  - Add the `CanMessageType` enum value in `CanProtocolDefinitions.hpp`.
-  - Create a `CanMessageType` subclass and register it via `AddMessageType()` in the category constructor.
-  - Handle it in the subclass's `Handle()` method and notify via the category's observer.
-- Fixed-point encoding: use `CanFrameCodec` helpers (`FloatToFixed16`, `Fixed16ToFloat`, `WriteInt16`, `ReadInt16`, etc.).
-- Observer pattern: all categories expose events through `infra::Subject<Observer>` / `infra::SingleObserver`. Server-level events use `infra::Subject<CanProtocolServerObserver>`. Category-level events use per-category observer interfaces (e.g. `FocMotorCategoryServerObserver`).
+  - Add the message type ID `constexpr` in the category's `*Definitions.hpp`.
+  - Add a private handler member function plus a `CanMessageHandler<Owner>` member binding the ID to it, and register it with `AddMessageTypes()` in the constructor.
+  - Parse the payload with `CanPayloadReader` and notify via the category's observer.
+- Fixed-point encoding: use `CanFrameCodec` helpers (`FloatToFixed16`, `Fixed16ToFloat`) or `CanPayloadWriter::WriteFixed16` / `CanPayloadReader::ReadFixed16`.
+- Observer pattern: all categories expose events through `infra::Subject<Observer>` / `infra::SingleObserver`. Server-level events use `infra::Subject<CanProtocolServerObserver>`. Category-level events use per-category observer interfaces.
 
 5) Testing & CI expectations
 - Unit tests run on host using GoogleTest.
@@ -63,7 +65,7 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
 
 7) When making changes, be explicit
 - Update `documents/spec/can-protocol.md` and `documents/requirements/can-protocol.yaml` when changing protocol behavior.
-- This library ships three built-in categories: System (0x0), FirmwareUpgrade (0x1), and FocMotor (0x2). New application-specific categories should be added to consumer projects, not to this library, unless they are genuinely reusable protocol extensions.
+- This library ships two built-in categories: System (0x0) and FirmwareUpgrade (0x1). Application-specific categories belong in consumer projects, not in this library, unless they are genuinely reusable protocol extensions.
 
 8) Document consistency (must check before finishing any change)
 - The following documents must stay aligned with each other and with the code:
@@ -71,7 +73,8 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
   - `documents/spec/can-protocol.md` — wire-format specification (CAN ID layout, message types, encoding).
   - `documents/requirements/can-protocol.yaml` — formal requirements (traceability to spec and tests).
   - `documents/design/architecture.md` — architecture decisions, patterns, component relationships.
-- After any protocol, structural, or behavioral change, review all four documents for consistency. Update any document that contradicts or omits the new behavior.
+  - `documents/design/extending-categories.md` — category authoring guide.
+- After any protocol, structural, or behavioral change, review all five documents for consistency. Update any document that contradicts or omits the new behavior.
 - Pay particular attention to: CAN ID bit-field definitions, category IDs, message type values, observer interfaces, and the category hierarchy description.
 
 9) Quick pointers for reviewers / code suggestions
