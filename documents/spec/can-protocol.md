@@ -85,10 +85,10 @@ For payloads exceeding the 8-byte CAN frame limit, can-lite provides an optional
 
 ### Timing Parameters
 
-| Parameter | Value   | Description                                                      |
-|-----------|---------|-------------------------------------------------------------------|
-| N_Bs      | 1000 ms | Sender timeout waiting for a Flow Control frame                  |
-| N_Cr      | 1000 ms | Receiver timeout waiting for a Consecutive Frame                 |
+| Parameter | Value   | Description                                                                                                      |
+|-----------|---------|------------------------------------------------------------------------------------------------------------------|
+| N_Bs      | 1000 ms | Sender timeout waiting for a Flow Control frame                                                                  |
+| N_Cr      | 1000 ms | Receiver timeout waiting for a Consecutive Frame                                                                 |
 | N_WFTmax  | 16      | Maximum consecutive Flow Control `Wait` frames before the sender aborts (implementation-defined per ISO 15765-2) |
 
 On `FS = Wait`, the sender restarts N_Bs and continues waiting rather than
