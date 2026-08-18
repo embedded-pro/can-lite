@@ -56,15 +56,18 @@ endif()
 
 add_subdirectory(can-lite)
 
+set(CAN_LITE_FORMAT_DIRECTORIES can-lite)
+
 if (CAN_LITE_BUILD_EXAMPLES)
     add_subdirectory(examples)
+    list(APPEND CAN_LITE_FORMAT_DIRECTORIES examples)
 endif()
 
 if (CAN_LITE_BUILD_TESTS)
     add_subdirectory(integration_tests)
 endif()
 
-emil_clangformat_directories(can_lite DIRECTORIES can-lite examples)
+emil_clangformat_directories(can_lite DIRECTORIES ${CAN_LITE_FORMAT_DIRECTORIES})
 emil_folderize_all_targets()
 emil_coverage_targets(DIRECTORIES .)
 
