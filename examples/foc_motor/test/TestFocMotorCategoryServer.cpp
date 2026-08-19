@@ -488,4 +488,16 @@ namespace
         EXPECT_EQ(lastAckStatus, CanAckStatus::categoryError);
         EXPECT_EQ(lastAckCommandType, focSelectControlModeId);
     }
+
+    TEST_F(TestFocMotorCategoryServer, BroadcastFaultStatus_EmitsTelemetryStatusFrame)
+    {
+        server.BroadcastFaultStatus(FocFaultCode::overCurrent);
+
+        EXPECT_EQ(ExtractCanMessageType(lastSentId.Get29BitId()), focTelemetryStatusResponseId);
+        ASSERT_EQ(lastSentData.size(), 6u);
+        EXPECT_EQ(lastSentData[0], static_cast<uint8_t>(FocMotorState::fault));
+        EXPECT_EQ(lastSentData[1], static_cast<uint8_t>(FocFaultCode::overCurrent));
+        EXPECT_EQ(CanFrameCodec::ReadInt16(lastSentData, 2), 0);
+        EXPECT_EQ(CanFrameCodec::ReadInt16(lastSentData, 4), 0);
+    }
 }
