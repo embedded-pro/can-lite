@@ -73,6 +73,11 @@ namespace services
         SendCommandAck(origCommandId, CanAckStatus::categoryError);
     }
 
+    void FocMotorCategoryServer::BroadcastFaultStatus(FocFaultCode fault)
+    {
+        SendTelemetryStatusResponse(FocTelemetryStatus{ FocMotorState::fault, fault, 0, 0 });
+    }
+
     void FocMotorCategoryServer::HandleQueryMotorType(const hal::Can::Message&)
     {
         NotifyObservers([this](auto& observer)
