@@ -5,6 +5,7 @@
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <array>
 
 namespace
 {
@@ -94,6 +95,83 @@ namespace
         EXPECT_CALL(observerMock, Online());
 
         SimulateRx(id, MakeMessage({ canProtocolVersion }));
+    }
+
+    TEST_F(CanProtocolServerTest, ClientGoesOfflineAfterHeartbeatTimeout)
+    {
+        auto id = MakeSystemId(canHeartbeatMessageTypeId);
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(3));
+    }
+
+    TEST_F(CanProtocolServerTest, HeartbeatBeforeTimeout_DefersClientOffline)
+    {
+        auto id = MakeSystemId(canHeartbeatMessageTypeId);
+
+        EXPECT_CALL(observerMock, Online()).Times(2);
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+        ForwardTime(std::chrono::seconds(2));
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+        ForwardTime(std::chrono::seconds(2));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolServerTest, NoHeartbeatEverReceived_NeverGoesOffline)
+    {
+        ForwardTime(std::chrono::seconds(10));
+    }
+
+    TEST_F(CanProtocolServerTest, ClientReconnectsAfterTimeout_NotifiesOnlineAgain)
+    {
+        auto id = MakeSystemId(canHeartbeatMessageTypeId);
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(3));
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+    }
+
+    TEST_F(CanProtocolServerTest, CommandTraffic_RefreshesClientLivenessWithoutHeartbeat)
+    {
+        auto id = MakeCommandId(0x06, 0x50);
+
+        SimulateRx(id, MakeMessage({ 0x00 }));
+        ForwardTime(std::chrono::seconds(2));
+        SimulateRx(id, MakeMessage({ 0x01 }));
+        ForwardTime(std::chrono::seconds(2));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolServerTest, DispatchPdu_CommandTraffic_RefreshesClientLiveness)
+    {
+        StrictMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
+        server.AttachIsoTpTransport(mockIsoTp);
+
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x06, 0x50, 1);
+        uint8_t payload[] = { 0x00 };
+        capturedPduCallback(rawId, infra::MakeRange(payload));
+
+        ForwardTime(std::chrono::seconds(2));
+        capturedPduCallback(rawId, infra::MakeRange(payload));
+        ForwardTime(std::chrono::seconds(2));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(1));
     }
 
     TEST_F(CanProtocolServerTest, StatusRequestReceived_SendsHeartbeat)
@@ -569,7 +647,7 @@ namespace
         server.UnregisterCategory(testCategory);
     }
 
-    TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdAsserts)
+    TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdReturnsFalse)
     {
         class TestCategory : public CanCategoryServerStub
         {
@@ -581,7 +659,36 @@ namespace
         };
 
         TestCategory duplicate;
-        EXPECT_DEATH(server.RegisterCategory(duplicate), "");
+        EXPECT_FALSE(server.RegisterCategory(duplicate));
+    }
+
+    TEST_F(CanProtocolServerTest, RegisterCategory_AtCapacityReturnsFalse)
+    {
+        class TestCategory : public CanCategoryServerStub
+        {
+        public:
+            explicit TestCategory(uint8_t id)
+                : id(id)
+            {}
+
+            uint8_t Id() const override
+            {
+                return id;
+            }
+
+        private:
+            uint8_t id;
+        };
+
+        std::array<TestCategory, canMaxRegisteredCategories - 1> categories{
+            TestCategory(1), TestCategory(2), TestCategory(3), TestCategory(4),
+            TestCategory(5), TestCategory(6), TestCategory(7)
+        };
+        for (auto& category : categories)
+            EXPECT_TRUE(server.RegisterCategory(category));
+
+        TestCategory oneTooMany(canMaxRegisteredCategories);
+        EXPECT_FALSE(server.RegisterCategory(oneTooMany));
     }
 
     TEST_F(CanProtocolServerTest, Construct_WithDefaultConstructedConfig_AssertsInsteadOfBroadcasting)
@@ -924,8 +1031,9 @@ namespace
 
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
             {
-                ASSERT_GE(data.size(), 3u);
+                ASSERT_GE(data.size(), 4u);
                 EXPECT_EQ(data[2], static_cast<uint8_t>(CanAckStatus::sequenceError));
+                EXPECT_EQ(data[3], 1u);
                 cb(true);
             });
 

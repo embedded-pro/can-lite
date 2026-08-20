@@ -17,3 +17,5 @@ target_link_libraries(can_lite.integration_tests.support PUBLIC
     infra.timer_test_helper
     GTest::gmock
 )
+
+add_subdirectory(test)

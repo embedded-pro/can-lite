@@ -13,7 +13,12 @@ namespace integration
         , server(serverCan, config)
         , serverObserver(server)
         , client(clientCan)
-    {}
+    {
+        EXPECT_CALL(serverObserver, Offline()).Times(testing::AnyNumber()).WillRepeatedly([this]()
+            {
+                clientOnlineAsSeenByServer = false;
+            });
+    }
 
     ApplicationFixture::~ApplicationFixture()
     {

@@ -11,9 +11,11 @@ GIVEN(R"(a CAN bus with a server at node {int} and rate limit {int})", (std::int
 {
     auto fixture = context.Emplace<ApplicationFixture>(static_cast<uint16_t>(nodeId), static_cast<uint16_t>(rateLimit));
     auto* count = &fixture->processedCount;
-    EXPECT_CALL(fixture->serverObserver, Online()).WillRepeatedly([count]()
+    auto* onlineFlag = &fixture->clientOnlineAsSeenByServer;
+    EXPECT_CALL(fixture->serverObserver, Online()).WillRepeatedly([count, onlineFlag]()
         {
             (*count)++;
+            *onlineFlag = true;
         });
 }
 

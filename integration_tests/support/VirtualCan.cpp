@@ -36,4 +36,12 @@ namespace integration
         if (receiveCallback)
             receiveCallback(id, data);
     }
+
+    void VirtualCan::Disconnect()
+    {
+        if (peer)
+            peer->peer = nullptr;
+
+        peer = nullptr;
+    }
 }

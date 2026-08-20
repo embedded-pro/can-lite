@@ -26,6 +26,7 @@ namespace services
 
         virtual void OnServerOnline(uint16_t nodeId) = 0;
         virtual void OnServerOffline(uint16_t nodeId) = 0;
+        virtual void OnCommandAckTimeout(uint16_t nodeId, uint8_t category, uint8_t messageType) = 0;
     };
 
     class CanProtocolClient
@@ -36,6 +37,8 @@ namespace services
         struct Config
         {
             infra::Duration serverTimeout = std::chrono::seconds(3);
+            infra::Duration heartbeatInterval = std::chrono::seconds(1);
+            infra::Duration commandAckTimeout = std::chrono::seconds(1);
         };
 
         explicit CanProtocolClient(hal::Can& can);
@@ -46,7 +49,7 @@ namespace services
         CanProtocolClient(CanProtocolClient&&) = delete;
         CanProtocolClient& operator=(CanProtocolClient&&) = delete;
 
-        void RegisterCategory(CanCategoryClient& category);
+        bool RegisterCategory(CanCategoryClient& category);
         void UnregisterCategory(CanCategoryClient& category);
 
         CanSystemCategoryClient& SystemCategory();
@@ -59,7 +62,7 @@ namespace services
 
         // CanSequenceSource
         uint8_t PeekSequence(uint16_t nodeId) override;
-        void CommitSequence(uint16_t nodeId) override;
+        void CommitSequence(uint16_t nodeId, uint8_t category, uint8_t messageType) override;
 
     private:
         class SystemObserver
@@ -78,12 +81,23 @@ namespace services
         void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
         void MarkServerAlive(uint16_t nodeId);
         void HandleServerTimeout(uint16_t nodeId);
+        void HandleCommandAckFrame(uint16_t sourceNodeId, uint8_t categoryId, uint8_t messageType, infra::ConstByteRange payload);
+        void ResyncSequence(uint16_t nodeId, uint8_t expectedSequence);
+        void ClearAwaitingAck(uint16_t nodeId, uint8_t category, uint8_t messageType);
+        void HandleCommandAckTimeout(uint16_t nodeId);
+        void SendHeartbeat();
+        void ResetHeartbeatTimer();
 
         struct PerServerState
         {
             uint16_t nodeId = 0;
             uint8_t sequenceCounter = 0;
             bool occupied = false;
+
+            bool awaitingAck = false;
+            uint8_t awaitingCategory = 0;
+            uint8_t awaitingMessageType = 0;
+            infra::TimerSingleShot ackTimer;
         };
 
         struct ServerLiveness
@@ -97,6 +111,7 @@ namespace services
 
         Config config;
         CanFrameTransport transport;
+        infra::TimerSingleShot heartbeatTimer;
         CanSystemCategoryClient systemCategory;
         SystemObserver systemObserver;
         infra::IntrusiveList<CanCategoryClient> categories;

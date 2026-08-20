@@ -12,6 +12,7 @@ namespace integration
         void Receive(Id id, const Message& data);
         void ConnectTo(VirtualCan& other);
         void InjectFrame(Id id, const Message& data);
+        void Disconnect();
 
         Id lastSentId = Id::Create29BitId(0);
         Message lastSentData;

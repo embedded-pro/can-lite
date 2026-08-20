@@ -115,7 +115,7 @@ namespace services
         if (!SendCommandWithoutSequence(targetNodeId, messageType, data, priority))
             return false;
 
-        sequenceSource.CommitSequence(targetNodeId);
+        sequenceSource.CommitSequence(targetNodeId, Id(), messageType);
         return true;
     }
 

@@ -5,6 +5,7 @@
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <array>
 
 namespace
 {
@@ -36,11 +37,10 @@ namespace
                     {
                         receiveCallback = callback;
                     });
-                ON_CALL(canMock, SendData(_, _, _))
-                    .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                        {
-                            cb(true);
-                        }));
+                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                    {
+                        cb(true);
+                    }));
             }
         };
 
@@ -123,7 +123,7 @@ namespace
         client.UnregisterCategory(testCategory);
     }
 
-    TEST_F(CanProtocolClientTest, RegisterCategory_DuplicateIdAsserts)
+    TEST_F(CanProtocolClientTest, RegisterCategory_DuplicateIdReturnsFalse)
     {
         class TestCategory : public CanCategoryClientStub
         {
@@ -135,7 +135,36 @@ namespace
         };
 
         TestCategory duplicate;
-        EXPECT_DEATH(client.RegisterCategory(duplicate), "");
+        EXPECT_FALSE(client.RegisterCategory(duplicate));
+    }
+
+    TEST_F(CanProtocolClientTest, RegisterCategory_AtCapacityReturnsFalse)
+    {
+        class TestCategory : public CanCategoryClientStub
+        {
+        public:
+            explicit TestCategory(uint8_t id)
+                : id(id)
+            {}
+
+            uint8_t Id() const override
+            {
+                return id;
+            }
+
+        private:
+            uint8_t id;
+        };
+
+        std::array<TestCategory, canMaxRegisteredCategories - 1> categories{
+            TestCategory(1), TestCategory(2), TestCategory(3), TestCategory(4),
+            TestCategory(5), TestCategory(6), TestCategory(7)
+        };
+        for (auto& category : categories)
+            EXPECT_TRUE(client.RegisterCategory(category));
+
+        TestCategory oneTooMany(canMaxRegisteredCategories);
+        EXPECT_FALSE(client.RegisterCategory(oneTooMany));
     }
 
     TEST_F(CanProtocolClientTest, UnregisterCategory_StopsDispatch)
@@ -304,24 +333,24 @@ namespace
     TEST_F(CanProtocolClientTest, CommitSequence_AdvancesCounter)
     {
         client.PeekSequence(1);
-        client.CommitSequence(1);
+        client.CommitSequence(1, 3, 0x10);
         EXPECT_EQ(client.PeekSequence(1), 1u);
     }
 
     TEST_F(CanProtocolClientTest, PeekCommitSequence_IndependentPerServer)
     {
         EXPECT_EQ(client.PeekSequence(1), 0u);
-        client.CommitSequence(1);
+        client.CommitSequence(1, 3, 0x10);
         EXPECT_EQ(client.PeekSequence(2), 0u);
-        client.CommitSequence(2);
+        client.CommitSequence(2, 3, 0x10);
         EXPECT_EQ(client.PeekSequence(1), 1u);
-        client.CommitSequence(1);
+        client.CommitSequence(1, 3, 0x10);
         EXPECT_EQ(client.PeekSequence(2), 1u);
     }
 
     TEST_F(CanProtocolClientTest, CommitSequence_UntrackedNodeAsserts)
     {
-        EXPECT_DEATH(client.CommitSequence(42), "");
+        EXPECT_DEATH(client.CommitSequence(42, 3, 0x10), "");
     }
 
     TEST_F(CanProtocolClientTest, PeekSequence_AllSlotsFull_EvictsOldestRoundRobin)
@@ -329,11 +358,11 @@ namespace
         for (uint16_t node = 1; node <= 8; ++node)
         {
             client.PeekSequence(node);
-            client.CommitSequence(node);
+            client.CommitSequence(node, 3, 0x10);
         }
 
         EXPECT_EQ(client.PeekSequence(9), 0u);
-        client.CommitSequence(9);
+        client.CommitSequence(9, 3, 0x10);
         EXPECT_EQ(client.PeekSequence(9), 1u);
 
         EXPECT_EQ(client.PeekSequence(8), 1u);
@@ -362,6 +391,7 @@ namespace
 
         MOCK_METHOD(void, OnServerOnline, (uint16_t nodeId), (override));
         MOCK_METHOD(void, OnServerOffline, (uint16_t nodeId), (override));
+        MOCK_METHOD(void, OnCommandAckTimeout, (uint16_t nodeId, uint8_t category, uint8_t messageType), (override));
     };
 
     class CanProtocolClientLivenessTest
@@ -390,6 +420,18 @@ namespace
             uint32_t rawId = MakeCanId(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, sourceNodeId);
             auto id = hal::Can::Id::Create29BitId(rawId);
             receiveCallback(id, hal::Can::Message{});
+        }
+
+        void SimulateCommandAck(uint16_t sourceNodeId, uint8_t category, uint8_t messageType, CanAckStatus status, uint8_t expectedSequence)
+        {
+            uint32_t rawId = MakeCanId(CanPriority::response, canSystemCategoryId, canCommandAckMessageTypeId, sourceNodeId);
+            auto id = hal::Can::Id::Create29BitId(rawId);
+            hal::Can::Message msg;
+            msg.push_back(category);
+            msg.push_back(messageType);
+            msg.push_back(static_cast<uint8_t>(status));
+            msg.push_back(expectedSequence);
+            receiveCallback(id, msg);
         }
 
         StrictMock<hal::CanMock> canMock;
@@ -467,6 +509,77 @@ namespace
 
         EXPECT_CALL(observer, OnServerOffline(9u));
         ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, SequenceErrorAck_ResyncsToServersExpectedSequence)
+    {
+        client.PeekSequence(5);
+        client.CommitSequence(5, 3, 0x10);
+        EXPECT_EQ(client.PeekSequence(5), 1u);
+
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        SimulateCommandAck(5, 3, 0x10, CanAckStatus::sequenceError, 7);
+
+        EXPECT_EQ(client.PeekSequence(5), 7u);
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, SuccessAck_DoesNotResync)
+    {
+        client.PeekSequence(5);
+        client.CommitSequence(5, 3, 0x10);
+
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        SimulateCommandAck(5, 3, 0x10, CanAckStatus::success, 0);
+
+        EXPECT_EQ(client.PeekSequence(5), 1u);
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, CommandAckTimeout_FiresWhenNoAckArrives)
+    {
+        client.PeekSequence(5);
+        client.CommitSequence(5, 3, 0x10);
+
+        EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
+        ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, CommandAckTimeout_DoesNotFireWhenAckArrives)
+    {
+        client.PeekSequence(5);
+        client.CommitSequence(5, 3, 0x10);
+
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        SimulateCommandAck(5, 3, 0x10, CanAckStatus::success, 0);
+
+        ForwardTime(std::chrono::seconds(2));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, MismatchedAck_DoesNotClearAwaitingTimer)
+    {
+        client.PeekSequence(5);
+        client.CommitSequence(5, 3, 0x10);
+
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        SimulateCommandAck(5, 4, 0x20, CanAckStatus::success, 0);
+
+        EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
+        ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, SendsHeartbeatAfterQuietPeriod)
+    {
+        bool heartbeatSeen = false;
+        EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([&heartbeatSeen](hal::Can::Id id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+            {
+                if (id.Is29BitId() && ExtractCanMessageType(id.Get29BitId()) == canHeartbeatMessageTypeId &&
+                    ExtractCanCategory(id.Get29BitId()) == canSystemCategoryId)
+                    heartbeatSeen = true;
+                cb(true);
+            }));
+
+        ForwardTime(std::chrono::seconds(1));
+
+        EXPECT_TRUE(heartbeatSeen);
     }
 
     // === ISO-TP transport integration ===
