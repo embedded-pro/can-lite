@@ -97,6 +97,50 @@ namespace
         SimulateRx(id, MakeMessage({ canProtocolVersion }));
     }
 
+    TEST_F(CanProtocolServerTest, ClientGoesOfflineAfterHeartbeatTimeout)
+    {
+        auto id = MakeSystemId(canHeartbeatMessageTypeId);
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(3));
+    }
+
+    TEST_F(CanProtocolServerTest, HeartbeatBeforeTimeout_DefersClientOffline)
+    {
+        auto id = MakeSystemId(canHeartbeatMessageTypeId);
+
+        EXPECT_CALL(observerMock, Online()).Times(2);
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+        ForwardTime(std::chrono::seconds(2));
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+        ForwardTime(std::chrono::seconds(2));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolServerTest, NoHeartbeatEverReceived_NeverGoesOffline)
+    {
+        ForwardTime(std::chrono::seconds(10));
+    }
+
+    TEST_F(CanProtocolServerTest, ClientReconnectsAfterTimeout_NotifiesOnlineAgain)
+    {
+        auto id = MakeSystemId(canHeartbeatMessageTypeId);
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(3));
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+    }
+
     TEST_F(CanProtocolServerTest, StatusRequestReceived_SendsHeartbeat)
     {
         auto id = MakeSystemId(canStatusRequestMessageTypeId);

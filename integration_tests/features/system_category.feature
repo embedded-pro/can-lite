@@ -31,3 +31,23 @@ Feature: System Category
   Scenario: Status request causes server to send heartbeat
     When the client sends a status request to the server
     Then the server shall respond with a heartbeat message
+
+  @REQ-CAN-036
+  Scenario: Client heartbeat marks the client online on the server
+    When 1 second elapses
+    Then the server shall consider the client online
+
+  @REQ-CAN-036
+  Scenario: Server detects a silent client as offline
+    Given the client goes silent
+    When 3 seconds elapse
+    Then the server shall consider the client offline
+
+  @REQ-CAN-036
+  Scenario: A client that reconnects after going silent is seen online again
+    Given the client goes silent
+    When 3 seconds elapse
+    Then the server shall consider the client offline
+    Given the client reconnects
+    When 1 second elapses
+    Then the server shall consider the client online

@@ -37,6 +37,7 @@ namespace services
         struct Config
         {
             infra::Duration serverTimeout = std::chrono::seconds(3);
+            infra::Duration heartbeatInterval = std::chrono::seconds(1);
             infra::Duration commandAckTimeout = std::chrono::seconds(1);
         };
 
@@ -84,6 +85,8 @@ namespace services
         void ResyncSequence(uint16_t nodeId, uint8_t expectedSequence);
         void ClearAwaitingAck(uint16_t nodeId, uint8_t category, uint8_t messageType);
         void HandleCommandAckTimeout(uint16_t nodeId);
+        void SendHeartbeat();
+        void ResetHeartbeatTimer();
 
         struct PerServerState
         {
@@ -108,6 +111,7 @@ namespace services
 
         Config config;
         CanFrameTransport transport;
+        infra::TimerSingleShot heartbeatTimer;
         CanSystemCategoryClient systemCategory;
         SystemObserver systemObserver;
         infra::IntrusiveList<CanCategoryClient> categories;

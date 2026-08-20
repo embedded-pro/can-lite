@@ -37,11 +37,10 @@ namespace
                     {
                         receiveCallback = callback;
                     });
-                ON_CALL(canMock, SendData(_, _, _))
-                    .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                        {
-                            cb(true);
-                        }));
+                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                    {
+                        cb(true);
+                    }));
             }
         };
 
@@ -565,6 +564,22 @@ namespace
 
         EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, SendsHeartbeatAfterQuietPeriod)
+    {
+        bool heartbeatSeen = false;
+        EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([&heartbeatSeen](hal::Can::Id id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+            {
+                if (id.Is29BitId() && ExtractCanMessageType(id.Get29BitId()) == canHeartbeatMessageTypeId &&
+                    ExtractCanCategory(id.Get29BitId()) == canSystemCategoryId)
+                    heartbeatSeen = true;
+                cb(true);
+            }));
+
+        ForwardTime(std::chrono::seconds(1));
+
+        EXPECT_TRUE(heartbeatSeen);
     }
 
     // === ISO-TP transport integration ===

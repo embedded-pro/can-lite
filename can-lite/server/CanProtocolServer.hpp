@@ -35,6 +35,7 @@ namespace services
             uint16_t nodeId{ 0 };
             uint16_t maxMessagesPerSecond{ 500 };
             infra::Duration heartbeatInterval = std::chrono::seconds(1);
+            infra::Duration clientTimeout = std::chrono::seconds(3);
         };
 
         CanProtocolServer(hal::Can& can, const Config& config);
@@ -80,14 +81,18 @@ namespace services
         CanCategoryServer* FindCategory(uint8_t categoryId);
         void ResetHeartbeatTimer();
         void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
+        void MarkClientAlive();
+        void HandleClientTimeout();
 
         Config config;
         CanFrameTransport transport;
         infra::TimerSingleShot heartbeatTimer;
         infra::TimerRepeating rateResetTimer;
+        infra::TimerSingleShot clientLivenessTimer;
         uint16_t messageCountThisPeriod = 0;
         uint8_t lastSequenceNumber = 0;
         bool sequenceInitialized = false;
+        bool clientOnline = false;
 
         CanSystemCategoryServer systemCategory;
         SystemObserver systemObserver;

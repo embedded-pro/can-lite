@@ -38,6 +38,7 @@ namespace integration
         services::CanProtocolServer::Config config;
         services::CanProtocolServer server;
         testing::StrictMock<ServerObserverMock> serverObserver;
+        bool clientOnlineAsSeenByServer = false;
         services::CanProtocolClient client;
 
         std::optional<DemoCategoryServer> demoServer;

@@ -19,6 +19,13 @@ namespace services
             {
                 ProcessReceivedMessage(id, data);
             });
+
+        transport.SetOnSendNotification([this]()
+            {
+                ResetHeartbeatTimer();
+            });
+
+        ResetHeartbeatTimer();
     }
 
     CanProtocolClient::SystemObserver::SystemObserver(CanSystemCategoryClient& subject, CanProtocolClient& client)
@@ -247,6 +254,22 @@ namespace services
                 return;
             }
         }
+    }
+
+    void CanProtocolClient::SendHeartbeat()
+    {
+        hal::Can::Message msg;
+        msg.push_back(canProtocolVersion);
+
+        transport.SendFrame(canBroadcastNodeId, CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [](bool) {});
+    }
+
+    void CanProtocolClient::ResetHeartbeatTimer()
+    {
+        heartbeatTimer.Start(config.heartbeatInterval, [this]()
+            {
+                SendHeartbeat();
+            });
     }
 
     void CanProtocolClient::MarkServerAlive(uint16_t nodeId)

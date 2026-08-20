@@ -42,6 +42,8 @@ namespace services
             {
                 observer.Online();
             });
+
+        server.MarkClientAlive();
     }
 
     void CanProtocolServer::SystemObserver::OnStatusRequest()
@@ -265,6 +267,27 @@ namespace services
 
         lastSequenceNumber = sequenceNumber;
         return { true, sequenceNumber };
+    }
+
+    void CanProtocolServer::MarkClientAlive()
+    {
+        clientOnline = true;
+        clientLivenessTimer.Start(config.clientTimeout, [this]()
+            {
+                HandleClientTimeout();
+            });
+    }
+
+    void CanProtocolServer::HandleClientTimeout()
+    {
+        if (!clientOnline)
+            return;
+
+        clientOnline = false;
+        NotifyObservers([](auto& observer)
+            {
+                observer.Offline();
+            });
     }
 
     CanFrameTransport& CanProtocolServer::Transport()

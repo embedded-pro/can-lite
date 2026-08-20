@@ -11,6 +11,36 @@ WHEN(R"({int} second elapses)", (std::int32_t seconds))
     fixture.ForwardTime(std::chrono::seconds(seconds));
 }
 
+WHEN(R"({int} seconds elapse)", (std::int32_t seconds))
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+    fixture.ForwardTime(std::chrono::seconds(seconds));
+}
+
+GIVEN(R"(the client goes silent)")
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+    fixture.clientCan.Disconnect();
+}
+
+GIVEN(R"(the client reconnects)")
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+    fixture.clientCan.ConnectTo(fixture.serverCan);
+}
+
+THEN(R"(the server shall consider the client online)")
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+    EXPECT_TRUE(fixture.clientOnlineAsSeenByServer);
+}
+
+THEN(R"(the server shall consider the client offline)")
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+    EXPECT_FALSE(fixture.clientOnlineAsSeenByServer);
+}
+
 THEN(R"(the server shall have transmitted a heartbeat frame)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
