@@ -199,7 +199,7 @@ After any protocol, structural, or behavioral change, keep these aligned:
 | `documents/requirements/can-protocol.yaml` | Formal protocol requirements        |
 | `documents/design/architecture.md`         | Architecture decisions and patterns |
 | `documents/booklet/*.md`                   | Design booklet chapters (layers, class/sequence diagrams, corner cases) |
-| `README.md`                                | Project overview, features          |
+| `README.md`                                | Project overview, features                                              |
 
 Category-specific specs and requirements live alongside the main ones: `documents/spec/firmware-upgrade.md`, `documents/requirements/firmware-upgrade.yaml`. The category authoring guide is `documents/design/extending-categories.md`. Example categories keep their docs under `examples/<name>/documents/`.
 

@@ -74,10 +74,10 @@ is what makes segmentation transparent to a category (Chapter 8).
 Neither half of a category composes an identifier. The base classes fill in the
 category identity and the priority, so a category never touches the frame layer.
 
-| Side | Can send | Cannot send |
-|------|----------|-------------|
-| Server | responses, telemetry, category errors, and acknowledgements routed through the protocol object | commands |
-| Client | commands, addressed to a specific server | anything unsolicited |
+| Side   | Can send                                                                                       | Cannot send          |
+|--------|------------------------------------------------------------------------------------------------|----------------------|
+| Server | responses, telemetry, category errors, and acknowledgements routed through the protocol object | commands             |
+| Client | commands, addressed to a specific server                                                       | anything unsolicited |
 
 Acknowledgements are the interesting one. An acknowledgement is a *system*
 category message, and a category is not allowed to speak for another category —

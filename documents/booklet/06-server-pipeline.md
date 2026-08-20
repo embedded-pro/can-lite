@@ -46,16 +46,16 @@ it is worth stating as a rule: **a frame is answered only when it was
 unambiguously meant for this server and this category.** If it was, silence
 would be a bug. If it was not, an answer would be noise.
 
-| Gate | Answer | Reasoning |
-|------|--------|-----------|
-| Standard identifier | Silent | The frame belongs to another protocol sharing the bus |
-| Another node's address | Silent | Answering would produce noise proportional to the number of servers on the bus |
-| Over the rate limit | Silent | An acknowledgement is itself a frame; answering a flood would double it |
-| A response, not a command | Silent | Servers do not consume responses; answering would create a loop between servers |
-| Unregistered category | Silent | The frame may be legitimate traffic for another server that does implement that category |
-| Empty payload, validated category | Answered | Addressed here, category exists — the client deserves to know |
-| Sequence mismatch | Answered, with the expected number | The client needs that number to resynchronise without a round trip (Chapter 7) |
-| Unknown message type in a known category | Answered | The client is talking to a category that does not implement that command |
+| Gate                                     | Answer                             | Reasoning                                                                                |
+|------------------------------------------|------------------------------------|------------------------------------------------------------------------------------------|
+| Standard identifier                      | Silent                             | The frame belongs to another protocol sharing the bus                                    |
+| Another node's address                   | Silent                             | Answering would produce noise proportional to the number of servers on the bus           |
+| Over the rate limit                      | Silent                             | An acknowledgement is itself a frame; answering a flood would double it                  |
+| A response, not a command                | Silent                             | Servers do not consume responses; answering would create a loop between servers          |
+| Unregistered category                    | Silent                             | The frame may be legitimate traffic for another server that does implement that category |
+| Empty payload, validated category        | Answered                           | Addressed here, category exists — the client deserves to know                            |
+| Sequence mismatch                        | Answered, with the expected number | The client needs that number to resynchronise without a round trip (Chapter 7)           |
+| Unknown message type in a known category | Answered                           | The client is talking to a category that does not implement that command                 |
 
 Two ordering choices in the pipeline are equally deliberate:
 

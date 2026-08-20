@@ -35,12 +35,12 @@ classDiagram
 
 Four properties of that contract shape every layer above it:
 
-| Property | Consequence |
-|----------|-------------|
-| A payload is at most 8 bytes | Anything longer needs segmentation (Chapter 8), and payload composition is bounds-checked against the frame (Chapter 4) |
-| Sending is asynchronous, completing through a callback | The core layer keeps its own queue and serialises sends (Chapter 4) |
-| Exactly one receive callback exists per interface | The protocol object claims it at construction; a second consumer of the same bus is not supported |
-| Identifier widths are distinguishable | can-lite uses extended identifiers exclusively and discards standard-identifier frames unseen, which is what lets it share a bus with other protocols (REQ-CAN-002) |
+| Property                                               | Consequence                                                                                                                                                         |
+|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| A payload is at most 8 bytes                           | Anything longer needs segmentation (Chapter 8), and payload composition is bounds-checked against the frame (Chapter 4)                                             |
+| Sending is asynchronous, completing through a callback | The core layer keeps its own queue and serialises sends (Chapter 4)                                                                                                 |
+| Exactly one receive callback exists per interface      | The protocol object claims it at construction; a second consumer of the same bus is not supported                                                                   |
+| Identifier widths are distinguishable                  | can-lite uses extended identifiers exclusively and discards standard-identifier frames unseen, which is what lets it share a bus with other protocols (REQ-CAN-002) |
 
 The library neither provides nor requires a particular implementation. On a
 microcontroller the platform HAL supplies one; the library takes a reference to
@@ -88,12 +88,12 @@ classDiagram
     CanBusAdapterObserver --> CanBusAdapter : observes
 ```
 
-| Adapter | Availability |
-|---------|--------------|
-| SocketCAN | Always, on Linux |
-| PCAN-Basic | Windows, opt-in, requires the vendor SDK to be found |
-| Kvaser CANlib | Windows, opt-in, requires the vendor SDK to be found |
-| CANable over SLCAN | Windows, on by default |
+| Adapter            | Availability                                         |
+|--------------------|------------------------------------------------------|
+| SocketCAN          | Always, on Linux                                     |
+| PCAN-Basic         | Windows, opt-in, requires the vendor SDK to be found |
+| Kvaser CANlib      | Windows, opt-in, requires the vendor SDK to be found |
+| CANable over SLCAN | Windows, on by default                               |
 
 Each adapter is guarded both in the build and in its header, so including the
 wrong one for a platform yields an empty translation unit rather than a compile
@@ -126,12 +126,12 @@ exercised.
 What the virtual bus does **not** model is the boundary of what the integration
 tests can prove:
 
-| Not modelled | Consequence for testing |
-|--------------|-------------------------|
-| Arbitration and priority | Frame order is send order, so priority effects are reasoned about (Chapter 11), not observed |
-| Bus errors, error frames, bus-off | Sending always succeeds; failure paths are exercised through mocks instead |
-| Transmission delay and bit timing | Bus-load budgeting is arithmetic, not measurement |
-| More than two endpoints | Multi-server behaviour is covered at the unit level |
+| Not modelled                      | Consequence for testing                                                                      |
+|-----------------------------------|----------------------------------------------------------------------------------------------|
+| Arbitration and priority          | Frame order is send order, so priority effects are reasoned about (Chapter 11), not observed |
+| Bus errors, error frames, bus-off | Sending always succeeds; failure paths are exercised through mocks instead                   |
+| Transmission delay and bit timing | Bus-load budgeting is arithmetic, not measurement                                            |
+| More than two endpoints           | Multi-server behaviour is covered at the unit level                                          |
 
 ## 4. What can-lite assumes of a driver
 

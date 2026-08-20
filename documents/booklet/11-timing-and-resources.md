@@ -12,18 +12,18 @@ components that own them — see
 
 ## 1. Timer inventory
 
-| Owner | Timer | Kind | Restarted by | On expiry |
-|-------|-------|------|--------------|-----------|
-| Server | heartbeat | single-shot | every outgoing frame from this node | send a heartbeat |
-| Server | rate window | **repeating** | itself | reset the accepted-frame count |
-| Server | client liveness | single-shot | every frame addressed to this node | report the client offline |
-| Client | heartbeat | single-shot | every outgoing frame from this node | broadcast a heartbeat |
-| Client | server liveness, one per slot | single-shot × 8 | every frame from that server | report that server offline |
-| Client | acknowledgement, one per slot | single-shot × 8 | committing a command to that server | report the command unanswered |
-| Firmware upgrade | session | single-shot | the commands that make progress | report the session expired |
-| Segmentation sender | N_Bs | single-shot | sending a frame that awaits flow control | abort the transfer |
-| Segmentation sender | separation | single-shot | each frame, when the peer asks for pacing | send the next frame |
-| Segmentation receiver | N_Cr | single-shot | each accepted frame | abort the reassembly |
+| Owner                 | Timer                         | Kind            | Restarted by                              | On expiry                      |
+|-----------------------|-------------------------------|-----------------|-------------------------------------------|--------------------------------|
+| Server                | heartbeat                     | single-shot     | every outgoing frame from this node       | send a heartbeat               |
+| Server                | rate window                   | **repeating**   | itself                                    | reset the accepted-frame count |
+| Server                | client liveness               | single-shot     | every frame addressed to this node        | report the client offline      |
+| Client                | heartbeat                     | single-shot     | every outgoing frame from this node       | broadcast a heartbeat          |
+| Client                | server liveness, one per slot | single-shot × 8 | every frame from that server              | report that server offline     |
+| Client                | acknowledgement, one per slot | single-shot × 8 | committing a command to that server       | report the command unanswered  |
+| Firmware upgrade      | session                       | single-shot     | the commands that make progress           | report the session expired     |
+| Segmentation sender   | N_Bs                          | single-shot     | sending a frame that awaits flow control  | abort the transfer             |
+| Segmentation sender   | separation                    | single-shot     | each frame, when the peer asks for pacing | send the next frame            |
+| Segmentation receiver | N_Cr                          | single-shot     | each accepted frame                       | abort the reassembly           |
 
 A fully loaded client — eight servers tracked, eight commands outstanding —
 holds **seventeen** live timers. A server holds three, plus one per firmware
@@ -45,12 +45,12 @@ flowchart LR
     GAP["longest legitimate gap<br/>between firmware blocks"] -->|"<"| SESS["session timeout"]
 ```
 
-| Relationship | Why |
-|--------------|-----|
-| Liveness timeout at least three heartbeat intervals | A timeout must survive two lost heartbeats, or an idle bus flaps between online and offline (Chapter 10, §10.4) |
+| Relationship                                                 | Why                                                                                                                       |
+|--------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
+| Liveness timeout at least three heartbeat intervals          | A timeout must survive two lost heartbeats, or an idle bus flaps between online and offline (Chapter 10, §10.4)           |
 | Acknowledgement timeout above the worst-case handler latency | It must cover asynchronous work the observer defers — a flash write, a conversion — plus the queueing delay of a busy bus |
-| Rate limit at twice the peak rate | The window is tumbling, so a burst straddling a reset delivers up to double (Chapter 10, §7.2) |
-| Session timeout above the client's own block cadence | Usually dominated by the client's flash read or network fetch, not by the bus |
+| Rate limit at twice the peak rate                            | The window is tumbling, so a burst straddling a reset delivers up to double (Chapter 10, §7.2)                            |
+| Session timeout above the client's own block cadence         | Usually dominated by the client's flash read or network fetch, not by the bus                                             |
 
 The limits that are **not** tunable, because they are compile-time properties:
 registered categories per node, tracked servers per client, outbound queue
