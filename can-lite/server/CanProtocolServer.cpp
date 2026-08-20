@@ -42,8 +42,6 @@ namespace services
             {
                 observer.Online();
             });
-
-        server.MarkClientAlive();
     }
 
     void CanProtocolServer::SystemObserver::OnStatusRequest()
@@ -93,6 +91,8 @@ namespace services
         auto nodeId = ExtractCanNodeId(rawId);
         if (nodeId != config.nodeId && nodeId != canBroadcastNodeId)
             return;
+
+        MarkClientAlive();
 
         if (!CheckAndIncrementRate())
             return;
@@ -146,6 +146,8 @@ namespace services
 
         if (targetNodeId != config.nodeId && targetNodeId != canBroadcastNodeId)
             return;
+
+        MarkClientAlive();
 
         if (!CheckAndIncrementRate())
             return;

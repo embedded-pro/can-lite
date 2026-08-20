@@ -141,6 +141,39 @@ namespace
         SimulateRx(id, MakeMessage({ canProtocolVersion }));
     }
 
+    TEST_F(CanProtocolServerTest, CommandTraffic_RefreshesClientLivenessWithoutHeartbeat)
+    {
+        auto id = MakeCommandId(0x06, 0x50);
+
+        SimulateRx(id, MakeMessage({ 0x00 }));
+        ForwardTime(std::chrono::seconds(2));
+        SimulateRx(id, MakeMessage({ 0x01 }));
+        ForwardTime(std::chrono::seconds(2));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolServerTest, DispatchPdu_CommandTraffic_RefreshesClientLiveness)
+    {
+        StrictMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
+        server.AttachIsoTpTransport(mockIsoTp);
+
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x06, 0x50, 1);
+        uint8_t payload[] = { 0x00 };
+        capturedPduCallback(rawId, infra::MakeRange(payload));
+
+        ForwardTime(std::chrono::seconds(2));
+        capturedPduCallback(rawId, infra::MakeRange(payload));
+        ForwardTime(std::chrono::seconds(2));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(1));
+    }
+
     TEST_F(CanProtocolServerTest, StatusRequestReceived_SendsHeartbeat)
     {
         auto id = MakeSystemId(canStatusRequestMessageTypeId);
