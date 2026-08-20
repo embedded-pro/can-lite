@@ -15,7 +15,7 @@ namespace services
             return sequence;
         }
 
-        void CommitSequence(uint16_t) override
+        void CommitSequence(uint16_t, uint8_t, uint8_t) override
         {
             ++sequence;
         }

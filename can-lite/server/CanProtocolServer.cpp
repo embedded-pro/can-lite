@@ -54,13 +54,18 @@ namespace services
         server.SendCategoryList();
     }
 
-    void CanProtocolServer::RegisterCategory(CanCategoryServer& category)
+    bool CanProtocolServer::RegisterCategory(CanCategoryServer& category)
     {
+        if (categories.size() >= canMaxRegisteredCategories)
+            return false;
+
         for (auto& existing : categories)
-            really_assert(existing.Id() != category.Id());
+            if (existing.Id() == category.Id())
+                return false;
 
         category.SetAcknowledger(*this);
         categories.push_back(category);
+        return true;
     }
 
     void CanProtocolServer::UnregisterCategory(CanCategoryServer& category)
@@ -109,9 +114,10 @@ namespace services
             }
 
             uint8_t sequenceNumber = pdu[0];
-            if (!ValidateSequence(sequenceNumber))
+            auto validation = ValidateSequence(sequenceNumber);
+            if (!validation.accepted)
             {
-                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError);
+                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError, validation.expected);
                 return;
             }
         }
@@ -161,9 +167,10 @@ namespace services
             }
 
             uint8_t sequenceNumber = data[0];
-            if (!ValidateSequence(sequenceNumber))
+            auto validation = ValidateSequence(sequenceNumber);
+            if (!validation.accepted)
             {
-                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError);
+                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError, validation.expected);
                 return;
             }
         }
@@ -188,10 +195,16 @@ namespace services
 
     void CanProtocolServer::SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status)
     {
+        SendCommandAck(category, commandType, status, 0);
+    }
+
+    void CanProtocolServer::SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status, uint8_t expectedSequence)
+    {
         hal::Can::Message msg;
         msg.push_back(category);
         msg.push_back(commandType);
         msg.push_back(static_cast<uint8_t>(status));
+        msg.push_back(expectedSequence);
 
         transport.SendFrame(CanPriority::response, canSystemCategoryId, canCommandAckMessageTypeId, msg, [](bool) {});
     }
@@ -237,21 +250,21 @@ namespace services
         return true;
     }
 
-    bool CanProtocolServer::ValidateSequence(uint8_t sequenceNumber)
+    CanProtocolServer::SequenceValidationResult CanProtocolServer::ValidateSequence(uint8_t sequenceNumber)
     {
         if (!sequenceInitialized)
         {
             sequenceInitialized = true;
             lastSequenceNumber = sequenceNumber;
-            return true;
+            return { true, sequenceNumber };
         }
 
         auto expected = static_cast<uint8_t>(lastSequenceNumber + 1);
         if (sequenceNumber != expected)
-            return false;
+            return { false, expected };
 
         lastSequenceNumber = sequenceNumber;
-        return true;
+        return { true, sequenceNumber };
     }
 
     CanFrameTransport& CanProtocolServer::Transport()

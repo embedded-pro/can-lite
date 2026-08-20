@@ -5,6 +5,7 @@
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <array>
 
 namespace
 {
@@ -569,7 +570,7 @@ namespace
         server.UnregisterCategory(testCategory);
     }
 
-    TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdAsserts)
+    TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdReturnsFalse)
     {
         class TestCategory : public CanCategoryServerStub
         {
@@ -581,7 +582,36 @@ namespace
         };
 
         TestCategory duplicate;
-        EXPECT_DEATH(server.RegisterCategory(duplicate), "");
+        EXPECT_FALSE(server.RegisterCategory(duplicate));
+    }
+
+    TEST_F(CanProtocolServerTest, RegisterCategory_AtCapacityReturnsFalse)
+    {
+        class TestCategory : public CanCategoryServerStub
+        {
+        public:
+            explicit TestCategory(uint8_t id)
+                : id(id)
+            {}
+
+            uint8_t Id() const override
+            {
+                return id;
+            }
+
+        private:
+            uint8_t id;
+        };
+
+        std::array<TestCategory, canMaxRegisteredCategories - 1> categories{
+            TestCategory(1), TestCategory(2), TestCategory(3), TestCategory(4),
+            TestCategory(5), TestCategory(6), TestCategory(7)
+        };
+        for (auto& category : categories)
+            EXPECT_TRUE(server.RegisterCategory(category));
+
+        TestCategory oneTooMany(canMaxRegisteredCategories);
+        EXPECT_FALSE(server.RegisterCategory(oneTooMany));
     }
 
     TEST_F(CanProtocolServerTest, Construct_WithDefaultConstructedConfig_AssertsInsteadOfBroadcasting)
@@ -924,8 +954,9 @@ namespace
 
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
             {
-                ASSERT_GE(data.size(), 3u);
+                ASSERT_GE(data.size(), 4u);
                 EXPECT_EQ(data[2], static_cast<uint8_t>(CanAckStatus::sequenceError));
+                EXPECT_EQ(data[3], 1u);
                 cb(true);
             });
 

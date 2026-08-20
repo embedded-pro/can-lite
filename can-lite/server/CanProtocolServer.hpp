@@ -39,7 +39,7 @@ namespace services
 
         CanProtocolServer(hal::Can& can, const Config& config);
 
-        void RegisterCategory(CanCategoryServer& category);
+        bool RegisterCategory(CanCategoryServer& category);
         void UnregisterCategory(CanCategoryServer& category);
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
@@ -64,12 +64,19 @@ namespace services
             CanProtocolServer& server;
         };
 
+        struct SequenceValidationResult
+        {
+            bool accepted;
+            uint8_t expected;
+        };
+
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
         void SendHeartbeat();
         void SendCategoryList();
         bool CheckAndIncrementRate();
         void ResetRateCounter();
-        bool ValidateSequence(uint8_t sequenceNumber);
+        SequenceValidationResult ValidateSequence(uint8_t sequenceNumber);
+        void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status, uint8_t expectedSequence);
         CanCategoryServer* FindCategory(uint8_t categoryId);
         void ResetHeartbeatTimer();
         void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);

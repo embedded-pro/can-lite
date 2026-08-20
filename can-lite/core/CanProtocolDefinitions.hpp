@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace services
@@ -23,6 +24,8 @@ namespace services
     static constexpr uint8_t canFirmwareUpgradeCategoryId = 0x01;
     static constexpr uint8_t canFirstApplicationCategoryId = 0x02;
     static constexpr uint8_t canLastApplicationCategoryId = 0x0F;
+
+    static constexpr uint8_t canMaxRegisteredCategories = 8;
 
     static constexpr uint8_t canCategoryErrorResponseMessageTypeId = 0xFE;
 
@@ -72,6 +75,16 @@ namespace services
         }
         return "unknown";
     }
+
+    static constexpr std::size_t canCommandAckSize = 4;
+
+    struct CanCommandAck
+    {
+        uint8_t category;
+        uint8_t messageType;
+        CanAckStatus status;
+        uint8_t expectedSequence;
+    };
 
     static constexpr uint32_t MakeCanId(CanPriority priority, uint8_t category,
         uint8_t messageType, uint16_t nodeId)
