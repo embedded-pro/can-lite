@@ -33,12 +33,12 @@ What it costs is one of the eight registration slots, permanently.
 The two halves handle disjoint sets of messages, and the asymmetry is
 informative rather than accidental:
 
-| Conversation | Server half | Client half |
-|--------------|-------------|-------------|
-| Presence | handles the client's broadcast | — |
-| Acknowledgement | sends them | recognises them, acts nowhere |
-| Status request | handles it | — |
-| Discovery | answers it | consumes the answer |
+| Conversation    | Server half                    | Client half                   |
+|-----------------|--------------------------------|-------------------------------|
+| Presence        | handles the client's broadcast | —                             |
+| Acknowledgement | sends them                     | recognises them, acts nowhere |
+| Status request  | handles it                     | —                             |
+| Discovery       | answers it                     | consumes the answer           |
 
 A server's heartbeat arriving at a client finds no handler, and nothing goes
 wrong: the client already extracted that frame's value — proof of life — before
@@ -196,17 +196,17 @@ arithmetic is in Chapter 11, §4.
 
 ## 4. What the application must provide
 
-| Concern | What the category expects |
-|---------|---------------------------|
-| Storage layout | Somewhere to stage an image that is not the running one |
-| Size policy | Refuse an image that does not fit |
-| Concurrency policy | Refuse a second session while one is open |
-| Block ordering | Compare each index with the expected one and report a gap |
-| Buffering | Accumulate small blocks into whatever unit the storage writes |
-| Verification | Check the image against the client's checksum |
-| Activation | Switch to the new image, ideally with rollback if it fails to run |
-| Timeout recovery | Discard staging state when the session expires |
-| **Authenticity** | **Verify a signature, if the product needs one** |
+| Concern            | What the category expects                                         |
+|--------------------|-------------------------------------------------------------------|
+| Storage layout     | Somewhere to stage an image that is not the running one           |
+| Size policy        | Refuse an image that does not fit                                 |
+| Concurrency policy | Refuse a second session while one is open                         |
+| Block ordering     | Compare each index with the expected one and report a gap         |
+| Buffering          | Accumulate small blocks into whatever unit the storage writes     |
+| Verification       | Check the image against the client's checksum                     |
+| Activation         | Switch to the new image, ideally with rollback if it fails to run |
+| Timeout recovery   | Discard staging state when the session expires                    |
+| **Authenticity**   | **Verify a signature, if the product needs one**                  |
 
 The last row is the one to read twice. can-lite authenticates nothing: any node
 that can put frames on the bus can start an upgrade. Where that matters, the

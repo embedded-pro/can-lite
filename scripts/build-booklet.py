@@ -99,6 +99,12 @@ def read_index():
             source = (BOOKLET_DIR / target).resolve()
             if source in seen:
                 continue
+            if not is_inside_repository(source):
+                print(f"ERROR: index links outside the repository: {target}", file=sys.stderr)
+                return []
+            if (BOOKLET_DIR / target).is_symlink():
+                print(f"ERROR: index links a symlink: {target}", file=sys.stderr)
+                return []
             if not source.is_file():
                 print(f"WARNING: index links a missing file: {target}", file=sys.stderr)
                 continue
@@ -108,6 +114,20 @@ def read_index():
             chapters.append(Chapter(number, title_of(source), source, part, page_name(source)))
 
     return chapters
+
+
+def is_inside_repository(path):
+    """Reject a source that resolves outside the repository.
+
+    Chapter paths come from an index file that a pull request can change, and
+    resolving follows symlinks, so an unguarded index could pull an arbitrary
+    file on the build machine into the published PDF and site.
+    """
+    try:
+        path.relative_to(ROOT)
+    except ValueError:
+        return False
+    return True
 
 
 def page_name(source):

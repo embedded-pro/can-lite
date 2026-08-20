@@ -17,13 +17,13 @@ specification — is one document.
 The project's documents each own a subject, and this booklet does not restate
 any of them:
 
-| Subject | Owning document | Where in this booklet |
-|---------|-----------------|-----------------------|
-| Wire format: identifier layout, priorities, message catalogue, encoding, enumerations | [Protocol Specification](../spec/can-protocol.md) | Part IV |
-| Firmware upgrade messages, states, error codes and flows | [Firmware Upgrade Specification](../spec/firmware-upgrade.md) | Part IV |
-| Architecture decisions, patterns, component relationships | [Architecture and Design Decisions](../design/architecture.md) | Part IV |
-| How to author an application category | [Extending can-lite with Categories](../design/extending-categories.md) | Part IV |
-| Formal requirements | `documents/requirements/*.yaml` | Appendix A, generated at build time |
+| Subject                                                                               | Owning document                                                         | Where in this booklet               |
+|---------------------------------------------------------------------------------------|-------------------------------------------------------------------------|-------------------------------------|
+| Wire format: identifier layout, priorities, message catalogue, encoding, enumerations | [Protocol Specification](../spec/can-protocol.md)                       | Part IV                             |
+| Firmware upgrade messages, states, error codes and flows                              | [Firmware Upgrade Specification](../spec/firmware-upgrade.md)           | Part IV                             |
+| Architecture decisions, patterns, component relationships                             | [Architecture and Design Decisions](../design/architecture.md)          | Part IV                             |
+| How to author an application category                                                 | [Extending can-lite with Categories](../design/extending-categories.md) | Part IV                             |
+| Formal requirements                                                                   | `documents/requirements/*.yaml`                                         | Appendix A, generated at build time |
 
 Parts I to III add what those documents do not have: the composition and
 ownership model, the per-layer state machines and pipelines, the catalogue of
@@ -50,22 +50,22 @@ flowchart LR
     P3 -. "traces to" .-> AP
 ```
 
-| Reader | Suggested path |
-|--------|----------------|
-| Integrating can-lite into a product | Part I, then the layer that carries your traffic, then Chapters 10 and 11 |
-| Writing an application category | Chapter 5, then the authoring guide in Part IV |
-| Changing the protocol core | All of Parts II and III, then the specification in Part IV |
-| Reviewing a change | Chapter 10 for the behaviour it must not break, Appendix A for the requirement it must satisfy |
+| Reader                              | Suggested path                                                                                 |
+|-------------------------------------|------------------------------------------------------------------------------------------------|
+| Integrating can-lite into a product | Part I, then the layer that carries your traffic, then Chapters 10 and 11                      |
+| Writing an application category     | Chapter 5, then the authoring guide in Part IV                                                 |
+| Changing the protocol core          | All of Parts II and III, then the specification in Part IV                                     |
+| Reviewing a change                  | Chapter 10 for the behaviour it must not break, Appendix A for the requirement it must satisfy |
 
 ## 4. Conventions
 
-| Convention | Meaning |
-|------------|---------|
-| Component names | Written as they appear in the library, in the `services` namespace, which is dropped in prose |
-| Chapter *n* | A cross-reference: a hyperlink on the web edition, a chapter number in the PDF |
-| REQ-CAN-*nnn* | A requirement, listed in Appendix A |
-| **Design limit** | A deliberate simplification, with its cost stated |
-| **Latent** | Behaviour that is correct today but rests on an assumption worth knowing |
+| Convention       | Meaning                                                                                       |
+|------------------|-----------------------------------------------------------------------------------------------|
+| Component names  | Written as they appear in the library, in the `services` namespace, which is dropped in prose |
+| Chapter *n*      | A cross-reference: a hyperlink on the web edition, a chapter number in the PDF                |
+| REQ-CAN-*nnn*    | A requirement, listed in Appendix A                                                           |
+| **Design limit** | A deliberate simplification, with its cost stated                                             |
+| **Latent**       | Behaviour that is correct today but rests on an assumption worth knowing                      |
 
 Every diagram is generated from a diagram source held in the chapter it appears
 in, so the booklet moves when the design moves.

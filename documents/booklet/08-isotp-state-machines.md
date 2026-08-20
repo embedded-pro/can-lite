@@ -174,12 +174,12 @@ than eight bytes.
 Beyond the parameters in the specification, four things are simply not
 implemented, and each has a cost worth knowing before choosing this transport:
 
-| Omission | Cost |
-|----------|------|
-| Frames are never padded to full length | A peer that requires 8-byte frames will not interoperate; short frames keep a loaded bus shorter |
-| The receiver never requests pacing | A receiver that needed it would have to become a configurable policy; nothing in the library does |
-| Only normal addressing | No address extension, no mixed addressing |
-| Classic CAN only | The length field and frame sizes assume 8-byte frames |
+| Omission                               | Cost                                                                                              |
+|----------------------------------------|---------------------------------------------------------------------------------------------------|
+| Frames are never padded to full length | A peer that requires 8-byte frames will not interoperate; short frames keep a loaded bus shorter  |
+| The receiver never requests pacing     | A receiver that needed it would have to become a configurable policy; nothing in the library does |
+| Only normal addressing                 | No address extension, no mixed addressing                                                         |
+| Classic CAN only                       | The length field and frame sizes assume 8-byte frames                                             |
 
 The first two are the pair worth revisiting first if can-lite ever has to talk
 to a third-party stack, because they are the ones a conventional diagnostic

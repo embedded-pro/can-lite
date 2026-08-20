@@ -268,9 +268,11 @@ new document.
 - **Cross-reference, never restate.** If a table, identifier layout, message
   catalogue or enumeration already exists in another document, link to it. A
   second copy drifts from the first.
-- **No code in documentation.** Documents describe design and behaviour, not
-  source. No code excerpts, listings or snippets — name the components and
-  their responsibilities instead; a reader who needs the code opens the code.
+- **No source code in documentation.** Documents describe design and behaviour,
+  not implementation. No excerpts, listings or snippets of the library's source
+  — name the components and their responsibilities instead; a reader who needs
+  the code opens the code. Command lines a reader is meant to run, and diagram
+  sources, are instructions rather than source, and belong wherever they help.
 - **Diagrams earn their place.** A class, sequence, state or flow diagram that
   is not already in another document is the one thing worth adding.
 - **Fix, do not fork.** When a change makes a document wrong, correct that

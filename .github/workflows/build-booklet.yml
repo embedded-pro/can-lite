@@ -29,7 +29,7 @@ jobs:
     name: Build Booklet (PDF + Site)
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -82,11 +82,23 @@ jobs:
         with:
           path: build/booklet/site
 
+  attach-to-release:
+    name: Attach PDF to Release
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download PDF artifact
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: can-lite-design-booklet
+
       - name: Attach PDF to release
-        if: github.event_name == 'release'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
-          files: build/booklet/CanLiteDesign.pdf
+          files: CanLiteDesign.pdf
 
   deploy-pages:
     name: Deploy to GitHub Pages

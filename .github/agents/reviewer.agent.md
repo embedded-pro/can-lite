@@ -157,7 +157,7 @@ If the code implements or maps to an industry CAN standard, verify:
 Documentation rules — flag any violation:
 
 - [ ] No fact is restated from another document; documents cross-reference instead of copying (wire format lives in `documents/spec/`, requirements in `documents/requirements/`, architecture decisions in `documents/design/architecture.md`, category authoring in `documents/design/extending-categories.md`, layer narrative and corner cases in `documents/booklet/`)
-- [ ] No code excerpts, listings or snippets in any document — documents describe design and behaviour, not source
+- [ ] No excerpts, listings or snippets of library source in any document — documents describe design and behaviour (command lines a reader runs, and diagram sources, are fine)
 - [ ] New diagrams do not duplicate a diagram that already exists elsewhere
 - [ ] A document made wrong by the change is corrected in place, not copied and corrected elsewhere
 

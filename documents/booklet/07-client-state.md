@@ -66,13 +66,13 @@ flowchart TD
     H -- yes --> I["dispatch to the category"]
 ```
 
-| Difference from the server | Reason |
-|----------------------------|--------|
-| No address filter | A client consumes frames from every server; the address on an incoming frame is the *source*, not a destination to match |
-| No rate limiting | The client issues the traffic; limiting what it may receive would drop its own answers |
-| No command/response check | A client legitimately observes broadcast heartbeats as well as responses |
-| Acknowledgements are intercepted before dispatch | The interception needs the **source identity**, which category dispatch does not carry down |
-| Nothing is ever acknowledged | Clients do not acknowledge |
+| Difference from the server                       | Reason                                                                                                                   |
+|--------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| No address filter                                | A client consumes frames from every server; the address on an incoming frame is the *source*, not a destination to match |
+| No rate limiting                                 | The client issues the traffic; limiting what it may receive would drop its own answers                                   |
+| No command/response check                        | A client legitimately observes broadcast heartbeats as well as responses                                                 |
+| Acknowledgements are intercepted before dispatch | The interception needs the **source identity**, which category dispatch does not carry down                              |
+| Nothing is ever acknowledged                     | Clients do not acknowledge                                                                                               |
 
 The interception is the structurally interesting part. It runs on every frame,
 recognises acknowledgements itself, and ignores any that is malformed or claims

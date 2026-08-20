@@ -74,10 +74,10 @@ it — the property the heartbeat rule depends on (Chapter 6).
 
 Two edges surprise readers who expect a strict cake, and both are deliberate:
 
-| Edge | Why it exists |
-|------|---------------|
-| Categories reach the core layer directly, not through the protocol layer | A category that borrowed the protocol object would be bound to one side of the bus; borrowing only the frame transport keeps it usable on both |
-| The transport layer is attached at run time and sits beside, not under, the protocol layer | Segmentation is optional. A node that never sends payloads longer than a frame pays nothing for it, in code or in memory |
+| Edge                                                                                       | Why it exists                                                                                                                                  |
+|--------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| Categories reach the core layer directly, not through the protocol layer                   | A category that borrowed the protocol object would be bound to one side of the bus; borrowing only the frame transport keeps it usable on both |
+| The transport layer is attached at run time and sits beside, not under, the protocol layer | Segmentation is optional. A node that never sends payloads longer than a frame pays nothing for it, in code or in memory                       |
 
 The rule that keeps the rest honest: **no layer reaches two levels down for
 convenience.** A category that needs its node address asks the frame transport
@@ -174,13 +174,13 @@ the identifier and the queueing, the HAL the bits on the wire.
 
 ## 5. Extension points
 
-| To add | Do this | Chapter |
-|--------|---------|---------|
-| A functional group of messages | Author a category pair and register both halves | 5, and the authoring guide in Part IV |
-| Support for another bus | Implement the HAL interface, or the host adapter interface for tooling | 3 |
-| Payloads longer than one frame | Attach the segmentation transport and give the message type a segmented handler | 8 |
-| A reaction to protocol-level events | Implement the server or client observer interface | 6, 7 |
-| Different timing | The configuration structures on the server, the client and the firmware upgrade category | 11 |
+| To add                              | Do this                                                                                  | Chapter                               |
+|-------------------------------------|------------------------------------------------------------------------------------------|---------------------------------------|
+| A functional group of messages      | Author a category pair and register both halves                                          | 5, and the authoring guide in Part IV |
+| Support for another bus             | Implement the HAL interface, or the host adapter interface for tooling                   | 3                                     |
+| Payloads longer than one frame      | Attach the segmentation transport and give the message type a segmented handler          | 8                                     |
+| A reaction to protocol-level events | Implement the server or client observer interface                                        | 6, 7                                  |
+| Different timing                    | The configuration structures on the server, the client and the firmware upgrade category | 11                                    |
 
 Not in that table: the dispatcher, the identifier layout and the
 acknowledgement rules. Those are the protocol, and changing them is a

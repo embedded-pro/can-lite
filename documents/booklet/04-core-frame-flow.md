@@ -54,12 +54,12 @@ stateDiagram-v2
 
 Four behaviours of that small machine are load-bearing:
 
-| Behaviour | Why it matters |
-|-----------|----------------|
-| The queue advances **before** the finished frame's completion runs | A completion that itself sends finds the transport in a consistent state, so chained sends are safe |
+| Behaviour                                                                              | Why it matters                                                                                                                                                                                |
+|----------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| The queue advances **before** the finished frame's completion runs                     | A completion that itself sends finds the transport in a consistent state, so chained sends are safe                                                                                           |
 | The queue holds a fixed eight frames; the ninth is **refused, not buffered elsewhere** | Refusal is visible to the caller, who decides. A category's send reports failure; a client command reports failure **without consuming a sequence number**; an acknowledgement is simply lost |
-| Every accepted frame — queued or immediate — raises a send notification | This is the hook the protocol layer uses to defer its heartbeat, and it is why a refused frame does not postpone one |
-| The notification has exactly one owner, enforced at run time | The protocol object claims it at construction; a second claimant is a programming error, and fails loudly |
+| Every accepted frame — queued or immediate — raises a send notification                | This is the hook the protocol layer uses to defer its heartbeat, and it is why a refused frame does not postpone one                                                                          |
+| The notification has exactly one owner, enforced at run time                           | The protocol object claims it at construction; a second claimant is a programming error, and fails loudly                                                                                     |
 
 The address stamped into an outbound frame differs by role, and the asymmetry is
 worth fixing in mind: a **server** stamps its own address, because a response
