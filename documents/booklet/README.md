@@ -14,44 +14,44 @@ no chapter contains source code.
 
 ## Part I — Orientation
 
-| # | Chapter | What it covers |
-|---|---------|----------------|
+| # | Chapter                                        | What it covers                                                      |
+|---|------------------------------------------------|---------------------------------------------------------------------|
 | 1 | [About This Booklet](01-about-this-booklet.md) | What the booklet adds, what the other documents own, how to read it |
 
 ## Part II — The Layers in Depth
 
-| # | Chapter | What it covers |
-|---|---------|----------------|
-| 2 | [The Layer Map](02-layer-map.md) | Composition and ownership, where the layering bends, the build graph, a frame's journey |
-| 3 | [HAL and Bus Drivers](03-hal-and-drivers.md) | What the library requires of a bus, the host adapters, the virtual bus, driver assumptions |
-| 4 | [The Core Layer: Frame Flow](04-core-frame-flow.md) | Routing by identifier, the outbound queue, payload validity, number representation |
-| 5 | [Category Dispatch and Sequence Policy](05-category-dispatch.md) | Dispatch outcomes, the segmented path, and the contract the two halves of a category must keep |
-| 6 | [The Server: Receive Pipeline](06-server-pipeline.md) | Every gate a received frame passes, why some rejections are silent, sequence validation, liveness, heartbeat |
-| 7 | [The Client: Per-Server State](07-client-state.md) | The two state tables, sequence supply, resynchronisation, outstanding commands, server tracking, discovery |
-| 8 | [Segmentation: The ISO-TP State Machines](08-isotp-state-machines.md) | Channels, the sender and receiver machines, aborts, and the deliberate omissions |
-| 9 | [The Built-in Categories: Design Rationale](09-builtin-categories.md) | Why the system category is a category, and why the firmware upgrade category keeps no state |
+| # | Chapter                                                               | What it covers                                                                                               |
+|---|-----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| 2 | [The Layer Map](02-layer-map.md)                                      | Composition and ownership, where the layering bends, the build graph, a frame's journey                      |
+| 3 | [HAL and Bus Drivers](03-hal-and-drivers.md)                          | What the library requires of a bus, the host adapters, the virtual bus, driver assumptions                   |
+| 4 | [The Core Layer: Frame Flow](04-core-frame-flow.md)                   | Routing by identifier, the outbound queue, payload validity, number representation                           |
+| 5 | [Category Dispatch and Sequence Policy](05-category-dispatch.md)      | Dispatch outcomes, the segmented path, and the contract the two halves of a category must keep               |
+| 6 | [The Server: Receive Pipeline](06-server-pipeline.md)                 | Every gate a received frame passes, why some rejections are silent, sequence validation, liveness, heartbeat |
+| 7 | [The Client: Per-Server State](07-client-state.md)                    | The two state tables, sequence supply, resynchronisation, outstanding commands, server tracking, discovery   |
+| 8 | [Segmentation: The ISO-TP State Machines](08-isotp-state-machines.md) | Channels, the sender and receiver machines, aborts, and the deliberate omissions                             |
+| 9 | [The Built-in Categories: Design Rationale](09-builtin-categories.md) | Why the system category is a category, and why the firmware upgrade category keeps no state                  |
 
 ## Part III — Behaviour Under Stress
 
-| # | Chapter | What it covers |
-|---|---------|----------------|
-| 10 | [Corner Cases and Failure Modes](10-corner-cases.md) | The catalogue: condition, mechanism, observable outcome, per layer |
+| #  | Chapter                                                     | What it covers                                                                             |
+|----|-------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| 10 | [Corner Cases and Failure Modes](10-corner-cases.md)        | The catalogue: condition, mechanism, observable outcome, per layer                         |
 | 11 | [Timing, Memory and Bus Budget](11-timing-and-resources.md) | Timer inventory, how the parameters constrain each other, static footprint, bus arithmetic |
-| 12 | [Verification Strategy](12-verification.md) | How the three levels relate, and where verification stops |
+| 12 | [Verification Strategy](12-verification.md)                 | How the three levels relate, and where verification stops                                  |
 
 ## Part IV — Reference Documents
 
-| # | Chapter | What it covers |
-|---|---------|----------------|
-| 13 | [Architecture and Design Decisions](../design/architecture.md) | The living architecture record |
-| 14 | [Extending can-lite with Categories](../design/extending-categories.md) | The category authoring guide |
-| 15 | [Protocol Specification](../spec/can-protocol.md) | Normative wire format |
-| 16 | [Firmware Upgrade Specification](../spec/firmware-upgrade.md) | Normative firmware upgrade category |
+| #  | Chapter                                                                 | What it covers                      |
+|----|-------------------------------------------------------------------------|-------------------------------------|
+| 13 | [Architecture and Design Decisions](../design/architecture.md)          | The living architecture record      |
+| 14 | [Extending can-lite with Categories](../design/extending-categories.md) | The category authoring guide        |
+| 15 | [Protocol Specification](../spec/can-protocol.md)                       | Normative wire format               |
+| 16 | [Firmware Upgrade Specification](../spec/firmware-upgrade.md)           | Normative firmware upgrade category |
 
 ## Appendices
 
-| # | Chapter | What it covers |
-|---|---------|----------------|
+| #  | Chapter                    | What it covers                   |
+|----|----------------------------|----------------------------------|
 | 17 | [Glossary](20-glossary.md) | The vocabulary this booklet adds |
 
 Appendix A, the requirements catalogue, is generated at build time from
@@ -59,22 +59,15 @@ Appendix A, the requirements catalogue, is generated at build time from
 
 ## Building the booklet
 
-```bash
-pip install pyyaml
-npm install -g @mermaid-js/mermaid-cli
-sudo apt-get install -y pandoc texlive-xetex \
-    texlive-latex-extra texlive-fonts-recommended lmodern librsvg2-bin
-
-python scripts/build-booklet.py --format all
-```
+Install the dependencies used by CI (PyYAML, mermaid-cli, Pandoc, and a XeLaTeX toolchain), then build both outputs with `python scripts/build-booklet.py --format all`.
 
 Outputs land in `build/booklet/`:
 
-| Path | Content |
-|------|---------|
-| `CanLiteDesign.pdf` | The complete booklet as a single PDF |
-| `site/index.html` | The static site: landing page plus one page per chapter |
-| `book.md` | The assembled Markdown the PDF is rendered from |
+| Path                | Content                                                 |
+|---------------------|---------------------------------------------------------|
+| `CanLiteDesign.pdf` | The complete booklet as a single PDF                    |
+| `site/index.html`   | The static site: landing page plus one page per chapter |
+| `book.md`           | The assembled Markdown the PDF is rendered from         |
 
 `--format pdf` and `--format html` build one output; `--skip-diagrams` leaves
 the diagram sources as code blocks when mermaid-cli is unavailable;

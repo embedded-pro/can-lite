@@ -67,15 +67,15 @@ composed objects on the target.
 
 What the structure guarantees, independent of toolchain:
 
-| Component | Fixed-count storage |
-|-----------|---------------------|
-| Frame transport | eight queued frames — identifier, payload and a completion each — plus two callback slots |
-| Server | one transport, three timers, the system category, a handful of counters and flags |
-| Client | one transport, one timer, the system category, eight sequence slots and eight liveness slots, each with a timer |
-| Segmentation sender and receiver | one payload-sized buffer each, one or two timers, a few bytes of state |
-| Segmentation channel | one sender, one receiver, three callback slots |
-| Segmentation transport | its channels, a pointer array and two callback slots |
-| Each category | its own members, plus one binding per message type |
+| Component                        | Fixed-count storage                                                                                             |
+|----------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| Frame transport                  | eight queued frames — identifier, payload and a completion each — plus two callback slots                       |
+| Server                           | one transport, three timers, the system category, a handful of counters and flags                               |
+| Client                           | one transport, one timer, the system category, eight sequence slots and eight liveness slots, each with a timer |
+| Segmentation sender and receiver | one payload-sized buffer each, one or two timers, a few bytes of state                                          |
+| Segmentation channel             | one sender, one receiver, three callback slots                                                                  |
+| Segmentation transport           | its channels, a pointer array and two callback slots                                                            |
+| Each category                    | its own members, plus one binding per message type                                                              |
 
 The dominant term is almost always segmentation:
 
@@ -100,21 +100,21 @@ An extended CAN frame costs 67 bits of framing plus 8 bits per payload byte,
 before bit stuffing; worst-case stuffing adds roughly a quarter of the stuffable
 field.
 
-| Frame | Payload bytes | Nominal bits | Worst case |
-|-------|---------------|--------------|------------|
-| Heartbeat | 1 | 75 | ≈ 91 |
-| Acknowledgement | 4 | 99 | ≈ 121 |
-| Typical validated command | 7 | 123 | ≈ 151 |
-| Full frame | 8 | 131 | ≈ 160 |
+| Frame                     | Payload bytes | Nominal bits | Worst case |
+|---------------------------|---------------|--------------|------------|
+| Heartbeat                 | 1             | 75           | ≈ 91       |
+| Acknowledgement           | 4             | 99           | ≈ 121      |
+| Typical validated command | 7             | 123          | ≈ 151      |
+| Full frame                | 8             | 131          | ≈ 160      |
 
 Frame time for a full frame (nominal / worst case):
 
-| Bitrate | Bit time | Full frame |
-|---------|----------|------------|
-| 125 kbit/s | 8 µs | 1.05 ms / 1.28 ms |
-| 250 kbit/s | 4 µs | 524 µs / 640 µs |
-| 500 kbit/s | 2 µs | 262 µs / 320 µs |
-| 1 Mbit/s | 1 µs | 131 µs / 160 µs |
+| Bitrate    | Bit time | Full frame        |
+|------------|----------|-------------------|
+| 125 kbit/s | 8 µs     | 1.05 ms / 1.28 ms |
+| 250 kbit/s | 4 µs     | 524 µs / 640 µs   |
+| 500 kbit/s | 2 µs     | 262 µs / 320 µs   |
+| 1 Mbit/s   | 1 µs     | 131 µs / 160 µs   |
 
 **What a rate limit means in bus load.** Five hundred full frames per second at
 500 kbit/s is about 131 ms of bus time — roughly 13 %, leaving ample room for
@@ -130,10 +130,10 @@ frames — command, response, acknowledgement — about 750 µs of bus time at
 line-rate bound is roughly 9 KiB/s at 500 kbit/s and 19 KiB/s at 1 Mbit/s. The
 bound that actually applies is different:
 
-| Bound | 500 kbit/s | 1 Mbit/s |
-|-------|-----------|----------|
-| Line rate only | ≈ 9.3 KiB/s | ≈ 18.7 KiB/s |
-| With a 1 ms round trip, stop-and-wait | ≈ 5.4 KiB/s | ≈ 5.7 KiB/s |
+| Bound                                 | 500 kbit/s  | 1 Mbit/s     |
+|---------------------------------------|-------------|--------------|
+| Line rate only                        | ≈ 9.3 KiB/s | ≈ 18.7 KiB/s |
+| With a 1 ms round trip, stop-and-wait | ≈ 5.4 KiB/s | ≈ 5.7 KiB/s  |
 
 The second row is the real one, and the reason is in Chapter 9, §3: the transfer
 waits for each block to be acknowledged, so **round-trip latency sets the
@@ -148,15 +148,15 @@ per-block turnaround.
 
 ## 5. Processing cost
 
-| Operation | Cost |
-|-----------|------|
-| Identifier decode | a few shifts and masks, evaluable at compile time |
-| Category lookup | linear over at most eight entries |
-| Message-type lookup | linear over the category's bindings, typically two to six |
-| Sequence validation | one increment, one comparison |
-| Rate limiting | one comparison, one increment |
-| Payload access | a bounds check and byte moves; no allocation |
-| Segmentation channel lookup | linear over at most sixteen channels |
+| Operation                   | Cost                                                      |
+|-----------------------------|-----------------------------------------------------------|
+| Identifier decode           | a few shifts and masks, evaluable at compile time         |
+| Category lookup             | linear over at most eight entries                         |
+| Message-type lookup         | linear over the category's bindings, typically two to six |
+| Sequence validation         | one increment, one comparison                             |
+| Rate limiting               | one comparison, one increment                             |
+| Payload access              | a bounds check and byte moves; no allocation              |
+| Segmentation channel lookup | linear over at most sixteen channels                      |
 
 The fixed part of the receive path is well under a microsecond on a
 hundred-megahertz core — one to two orders of magnitude below the frame time
@@ -172,13 +172,13 @@ work is deferred behind a completion.
 A four-axis machine: one controller and four drives at 500 kbit/s, each drive
 receiving 200 set-points per second and returning telemetry at 100 Hz.
 
-| Traffic | Frames/s | Bits/s | Bus load |
-|---------|----------|--------|----------|
-| Set-points, 7 bytes | 800 | 98 400 | 19.7 % |
-| Acknowledgements, 4 bytes | 800 | 79 200 | 15.8 % |
-| Telemetry, 8 bytes | 400 | 52 400 | 10.5 % |
-| Heartbeats | ≈ 0 | ≈ 0 | ≈ 0 % |
-| **Total** | **2000** | **230 000** | **46 %** |
+| Traffic                   | Frames/s | Bits/s      | Bus load |
+|---------------------------|----------|-------------|----------|
+| Set-points, 7 bytes       | 800      | 98 400      | 19.7 %   |
+| Acknowledgements, 4 bytes | 800      | 79 200      | 15.8 %   |
+| Telemetry, 8 bytes        | 400      | 52 400      | 10.5 %   |
+| Heartbeats                | ≈ 0      | ≈ 0         | ≈ 0 %    |
+| **Total**                 | **2000** | **230 000** | **46 %** |
 
 Four observations worth carrying into a real design:
 

@@ -20,11 +20,11 @@ flowchart TB
     UNIT -- "exercises" --> IMPL
 ```
 
-| Level | Question it answers |
-|-------|---------------------|
-| Unit | Does this component do what it promises, including at its bounds? |
-| Integration | Do a real server and client, wired as an application would wire them, hold the right conversation? |
-| Requirements | Is there a stated requirement behind this behaviour? |
+| Level        | Question it answers                                                                                |
+|--------------|----------------------------------------------------------------------------------------------------|
+| Unit         | Does this component do what it promises, including at its bounds?                                  |
+| Integration  | Do a real server and client, wired as an application would wire them, hold the right conversation? |
+| Requirements | Is there a stated requirement behind this behaviour?                                               |
 
 Coverage is organised so that each level answers what the others cannot: unit
 tests own the bounds and the failure paths (every abort reason, every refusal,
@@ -85,14 +85,14 @@ mapping.
 Stated plainly, because a verification chapter that lists only what is covered
 is misleading:
 
-| Not covered | Why | What stands in for it |
-|-------------|-----|-----------------------|
-| Arbitration and priority | The virtual bus delivers in send order | The bus-load arithmetic of Chapter 11 |
-| Bus errors, error frames, bus-off | Not modelled | Failure paths driven through mocked send outcomes |
-| Timing on target hardware | Host tests use a virtual clock | Budgets computed in Chapter 11, validated per product |
-| More than two nodes end to end | The fixture couples one server and one client | Multi-server behaviour covered at the unit level |
-| Interoperability with third-party segmentation stacks | No external stack in the loop | The deliberate omissions of Chapter 8, §6 |
-| Long-run behaviour — counter wrap over days, timer drift | Not simulated | Wrap-around tested directly at its boundary |
+| Not covered                                              | Why                                           | What stands in for it                                 |
+|----------------------------------------------------------|-----------------------------------------------|-------------------------------------------------------|
+| Arbitration and priority                                 | The virtual bus delivers in send order        | The bus-load arithmetic of Chapter 11                 |
+| Bus errors, error frames, bus-off                        | Not modelled                                  | Failure paths driven through mocked send outcomes     |
+| Timing on target hardware                                | Host tests use a virtual clock                | Budgets computed in Chapter 11, validated per product |
+| More than two nodes end to end                           | The fixture couples one server and one client | Multi-server behaviour covered at the unit level      |
+| Interoperability with third-party segmentation stacks    | No external stack in the loop                 | The deliberate omissions of Chapter 8, §6             |
+| Long-run behaviour — counter wrap over days, timer drift | Not simulated                                 | Wrap-around tested directly at its boundary           |
 
 Each row is a place where Chapter 10 relies on reasoning rather than on a test,
 which is precisely why that chapter states the mechanism behind every outcome.
