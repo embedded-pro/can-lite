@@ -1,0 +1,66 @@
+% LaTeX header shared by the PDF booklet (passed to pandoc via -H).
+\usepackage{fancyhdr}
+\usepackage{emptypage}
+\usepackage{amssymb}
+\usepackage{longtable}
+\usepackage[dvipsnames]{xcolor}
+
+% Latin Modern (the body font) lacks a handful of Unicode symbols that appear in
+% prose and inline code. Map them to equivalents so they always render.
+\usepackage{newunicodechar}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{←}{\ensuremath{\leftarrow}}
+\newunicodechar{↔}{\ensuremath{\leftrightarrow}}
+\newunicodechar{⇒}{\ensuremath{\Rightarrow}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{≠}{\ensuremath{\neq}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{✓}{\ensuremath{\checkmark}}
+\newunicodechar{✗}{\ensuremath{\times}}
+\newunicodechar{∈}{\ensuremath{\in}}
+\newunicodechar{…}{\ldots}
+\newunicodechar{µ}{\ensuremath{\mu}}
+\newunicodechar{⌈}{\ensuremath{\lceil}}
+\newunicodechar{⌉}{\ensuremath{\rceil}}
+\newunicodechar{─}{\textrm{-}}
+\newunicodechar{│}{\textrm{|}}
+\newunicodechar{├}{\textrm{|}}
+\newunicodechar{└}{\textrm{|}}
+\newunicodechar{┌}{\textrm{|}}
+\newunicodechar{┐}{\textrm{|}}
+\newunicodechar{┘}{\textrm{|}}
+\newunicodechar{▲}{\ensuremath{\blacktriangle}}
+\newunicodechar{▼}{\ensuremath{\blacktriangledown}}
+
+% Running headers: chapter on the left, page number on the right.
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\nouppercase{\leftmark}}
+\fancyhead[R]{\thepage}
+
+% Give each chapter a generous opening.
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{RoyalBlue}}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+
+% Cover page: title, subtitle, build metadata.
+\usepackage{titling}
+\pretitle{\begin{center}\vspace*{4cm}\Huge\bfseries\color{RoyalBlue}}
+\posttitle{\par\end{center}\vskip 1em}
+\preauthor{\begin{center}\large}
+\postauthor{\par\end{center}}
+\renewcommand{\and}{\\[0.4em]}
+\predate{\begin{center}\large}
+\postdate{\par\end{center}\vfill}
+
+% Chapters carry LaTeX numbering; sections keep the numbering written into
+% their own headings, so LaTeX must not add a second one.
+\setcounter{secnumdepth}{0}
+
+% Break long code lines instead of letting them run into the margin.
+\usepackage{fvextra}
+\fvset{breaklines=true,breakanywhere=true}

@@ -56,3 +56,12 @@ You triage incoming development requests and route them to the right specialist 
 - Architecture & design: [architecture.md](../../documents/design/architecture.md)
 - Formal requirements: [can-protocol.yaml](../../documents/requirements/can-protocol.yaml)
 - Project overview: [README.md](../../README.md)
+
+## Documentation Rules
+
+Any documentation work routed from here follows the project's documentation
+rules: one fact lives in one document, documents cross-reference rather than
+restate each other, and no document contains code excerpts or listings. The
+design booklet (`documents/booklet/`) carries the layer narrative, diagrams and
+corner cases; it links to the specification and architecture documents rather
+than repeating them.

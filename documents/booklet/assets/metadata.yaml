@@ -1,0 +1,22 @@
+---
+title: "can-lite"
+subtitle: "The Design Booklet — Layers, Class Models, Message Flows and Corner Cases of a Zero-Heap CAN Protocol Stack"
+author:
+  - "Gabriel Francisco dos Santos"
+  - "gabriel.fra.santos@gmail.com"
+lang: en
+documentclass: book
+classoption:
+  - oneside
+geometry:
+  - margin=1in
+fontsize: 11pt
+monofont: "DejaVu Sans Mono"
+monofontoptions:
+  - "Scale=0.85"
+linkcolor: RoyalBlue
+urlcolor: RoyalBlue
+toccolor: black
+toc-title: "Summary"
+colorlinks: true
+...

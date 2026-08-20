@@ -218,6 +218,30 @@ When implementing categories based on industry CAN standards, apply these protoc
   ```
 - Integration tests: cucumber-cpp-runner with Gherkin features in `integration_tests/features/`
 
+### Documentation Rules
+
+These apply to every document under `documents/`, to `README.md`, and to any
+new document.
+
+- **Single source of truth.** Each fact lives in exactly one document:
+  wire format and message catalogues in `documents/spec/`, formal requirements
+  in `documents/requirements/`, architecture decisions in
+  `documents/design/architecture.md`, category authoring in
+  `documents/design/extending-categories.md`, layer narrative, diagrams and
+  corner cases in `documents/booklet/`.
+- **Cross-reference, never restate.** If a table, identifier layout, message
+  catalogue or enumeration already exists in another document, link to it. A
+  second copy drifts from the first.
+- **No source code in documentation.** Documents describe design and behaviour,
+  not implementation. No excerpts, listings or snippets of the library's source
+  — name the components and their responsibilities instead; a reader who needs
+  the code opens the code. Command lines a reader is meant to run, and diagram
+  sources, are instructions rather than source, and belong wherever they help.
+- **Diagrams earn their place.** A class, sequence, state or flow diagram that
+  is not already in another document is the one thing worth adding.
+- **Fix, do not fork.** When a change makes a document wrong, correct that
+  document; never add a corrected copy somewhere else.
+
 ### Document Consistency
 
 After any protocol, structural, or behavioral change, check:

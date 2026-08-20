@@ -167,18 +167,54 @@ Observer callbacks must not allocate or block.
 - Each test traces to a requirement in `documents/requirements/`.
 - Integration test observers must also be `StrictMock`.
 
+## Documentation Rules
+
+These apply to every document under `documents/`, to `README.md`, and to any
+new document.
+
+- **Single source of truth.** Each fact lives in exactly one document:
+  wire format and message catalogues in `documents/spec/`, formal requirements
+  in `documents/requirements/`, architecture decisions in
+  `documents/design/architecture.md`, category authoring in
+  `documents/design/extending-categories.md`, layer narrative, diagrams and
+  corner cases in `documents/booklet/`.
+- **Cross-reference, never restate.** If a table, identifier layout, message
+  catalogue or enumeration already exists in another document, link to it. A
+  second copy drifts from the first.
+- **No source code in documentation.** Documents describe design and behaviour,
+  not implementation. No excerpts, listings or snippets of the library's source
+  — name the components and their responsibilities instead; a reader who needs
+  the code opens the code. Command lines a reader is meant to run, and diagram
+  sources, are instructions rather than source, and belong wherever they help.
+- **Diagrams earn their place.** A class, sequence, state or flow diagram that
+  is not already in another document is the one thing worth adding.
+- **Fix, do not fork.** When a change makes a document wrong, correct that
+  document; never add a corrected copy somewhere else.
+
 ## Document Consistency
 
 After any protocol, structural, or behavioral change, keep these aligned:
 
-| Document                                   | Covers                              |
-|--------------------------------------------|-------------------------------------|
-| `documents/spec/can-protocol.md`           | Wire-format specification           |
-| `documents/requirements/can-protocol.yaml` | Formal protocol requirements        |
-| `documents/design/architecture.md`         | Architecture decisions and patterns |
-| `README.md`                                | Project overview, features          |
+| Document                                   | Covers                                                                  |
+|--------------------------------------------|-------------------------------------------------------------------------|
+| `documents/spec/can-protocol.md`           | Wire-format specification                                               |
+| `documents/requirements/can-protocol.yaml` | Formal protocol requirements                                            |
+| `documents/design/architecture.md`         | Architecture decisions and patterns                                     |
+| `documents/booklet/*.md`                   | Design booklet chapters (layers, class/sequence diagrams, corner cases) |
+| `README.md`                                | Project overview, features                                              |
 
 Category-specific specs and requirements live alongside the main ones: `documents/spec/firmware-upgrade.md`, `documents/requirements/firmware-upgrade.yaml`. The category authoring guide is `documents/design/extending-categories.md`. Example categories keep their docs under `examples/<name>/documents/`.
+
+### Design booklet
+
+`documents/booklet/` holds the design booklet: one chapter per file, ordered by the table in `documents/booklet/README.md`. `scripts/build-booklet.py` assembles it into `build/booklet/CanLiteDesign.pdf` and a multi-page static site under `build/booklet/site/`; `.github/workflows/build-booklet.yml` publishes the site to GitHub Pages on `main` and attaches the PDF to every published release.
+
+The booklet holds what no other document does: composition and ownership, the per-layer pipelines and state machines, the corner-case catalogue, the timing and memory budgets, and the verification strategy. It links to the specifications, the architecture record and the authoring guide rather than repeating them, and it contains no source code (see Documentation Rules above).
+
+- Diagrams are ```` ```mermaid ```` fences, rendered to SVG with `mermaid-cli` (`mmdc`) at build time. A fence that fails to parse fails the build — avoid `;` in sequence-diagram notes and `{}` inside `classDiagram` members.
+- Chapters carry their own section numbering (`## 1.`, `## 2.`); LaTeX numbers chapters only.
+- Add a chapter by creating the file and linking it from the index table under the right `## Part ...` heading — the index drives both outputs. Check first that the material does not belong in an existing document.
+- After a protocol, structural or behavioural change, update the affected booklet chapter along with the documents in the table above.
 
 ## Build System Notes
 
