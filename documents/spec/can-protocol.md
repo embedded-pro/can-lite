@@ -238,12 +238,12 @@ REQ-CAN-006.1.
 
 Sent by the server at CanPriority::response.
 
-| Byte | Field            | Type  | Description                                          |
-|------|------------------|-------|-------------------------------------------------------|
-| 0    | Category         | uint8 | CanCategory of the acknowledged command                |
-| 1    | Command          | uint8 | CanMessageType of the acknowledged command             |
-| 2    | Status           | uint8 | See acknowledgement status table                       |
-| 3    | Expected Sequence| uint8 | Meaningful only when Status is Sequence Error (4); 0 otherwise |
+| Byte | Field             | Type  | Description                                                    |
+|------|-------------------|-------|----------------------------------------------------------------|
+| 0    | Category          | uint8 | CanCategory of the acknowledged command                        |
+| 1    | Command           | uint8 | CanMessageType of the acknowledged command                     |
+| 2    | Status            | uint8 | See acknowledgement status table                               |
+| 3    | Expected Sequence | uint8 | Meaningful only when Status is Sequence Error (4); 0 otherwise |
 
 The category byte ensures the client can uniquely identify which command
 is being acknowledged, since message type values may be reused across
