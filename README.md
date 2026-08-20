@@ -27,6 +27,7 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **Rate Limiting**: Configurable message rate enforcement on the server
 - **Fixed-Point Codec**: Saturation-clamped encoding for float-to-integer conversion
 - **ISO-TP (ISO 15765-2)**: Optional multi-frame segmentation and reassembly for payloads > 8 bytes
+- **Tracing Decorators**: Opt-in, per-layer observability — decoded bus frames, ISO-TP segmentation events, and protocol-layer timeouts, with no tracer dependency in the library itself
 
 ### Embedded Constraints
 - **Zero Heap Allocation**: All memory statically allocated at compile time
@@ -106,6 +107,12 @@ Enable them with `-DCAN_LITE_BUILD_EXAMPLES=On` to compile them alongside the li
 │   │   ├── IsoTpTransportImpl.hpp/cpp  # Concrete impl (WithStorage, zero-heap)
 │   │   ├── iso-tp/                     # ISO 15765-2 internals (all non-template with WithStorage)
 │   │   └── test/                       # Transport unit tests
+│   ├── tracing/                # Opt-in tracing decorators, one per layer
+│   │   ├── TracingCan.hpp              # hal::Can decorator: decoded bus frames
+│   │   ├── TracingIsoTpTransport.hpp   # IsoTpTransport decorator: PDUs and aborts
+│   │   ├── TracingCanProtocolServerObserver.hpp  # liveness events
+│   │   ├── TracingCanProtocolClientObserver.hpp  # liveness and ack timeouts
+│   │   └── test/                       # Tracing unit tests
 │   └── drivers/                # Hardware driver adapters
 ├── examples/                   # Reference application categories, not built by default
 │   └── foc_motor/              # FOC Motor Control category (copy into your project)

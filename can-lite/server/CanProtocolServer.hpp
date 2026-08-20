@@ -16,10 +16,10 @@ namespace services
     class CanProtocolServer;
 
     class CanProtocolServerObserver
-        : public infra::SingleObserver<CanProtocolServerObserver, CanProtocolServer>
+        : public infra::Observer<CanProtocolServerObserver, CanProtocolServer>
     {
     public:
-        using infra::SingleObserver<CanProtocolServerObserver, CanProtocolServer>::SingleObserver;
+        using infra::Observer<CanProtocolServerObserver, CanProtocolServer>::Observer;
 
         virtual void Online() = 0;
         virtual void Offline() = 0;

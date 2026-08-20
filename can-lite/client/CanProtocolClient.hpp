@@ -19,10 +19,10 @@ namespace services
     class CanProtocolClient;
 
     class CanProtocolClientObserver
-        : public infra::SingleObserver<CanProtocolClientObserver, CanProtocolClient>
+        : public infra::Observer<CanProtocolClientObserver, CanProtocolClient>
     {
     public:
-        using infra::SingleObserver<CanProtocolClientObserver, CanProtocolClient>::SingleObserver;
+        using infra::Observer<CanProtocolClientObserver, CanProtocolClient>::Observer;
 
         virtual void OnServerOnline(uint16_t nodeId) = 0;
         virtual void OnServerOffline(uint16_t nodeId) = 0;

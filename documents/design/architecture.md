@@ -1,7 +1,7 @@
 # can-lite: Architecture & Design Decisions
 
 **Status:** Living document
-**Last updated:** 2026-03-09
+**Last updated:** 2026-08-20
 
 ## 1. Overview
 
@@ -129,9 +129,10 @@ sequenceDiagram
 All category handlers use `infra::Subject<Observer>` / `infra::SingleObserver<Observer, Subject>` for event notification. This replaces earlier `infra::Function` callbacks.
 
 **Key properties:**
-- **Single observer**: Each subject supports exactly one observer (`infra::SingleObserver`). This matches the 1:1 relationship between a category instance and its consumer.
+- **Single observer for categories**: Every category subject supports exactly one observer (`infra::SingleObserver`). This matches the 1:1 relationship between a category instance and its consumer.
+- **Multiple observers at the protocol layer**: `CanProtocolServerObserver` and `CanProtocolClientObserver` derive from `infra::Observer`, so a `CanProtocolServer`/`CanProtocolClient` accepts more than one. The protocol subject legitimately has two interested parties — the application and an optional `TracingCanProtocol*Observer` (§13) — whereas a category has one consumer. `infra::Subject` selects its single- or multi-observer specialisation from the observer's `SingleHelper` typedef, so the two forms differ only in the base class; `NotifyObservers()` and `Attach()`/`Detach()` are identical.
 - **Auto-attach/detach**: The observer attaches in its constructor and detaches in its destructor — no manual registration needed.
-- **Zero-cost when unobserved**: `NotifyObservers()` checks for a null observer pointer before dispatching, making it safe to call with no observer attached.
+- **Zero-cost when unobserved**: `NotifyObservers()` checks for a null observer pointer (single) or iterates an empty list (multiple) before dispatching, making it safe to call with no observer attached.
 
 **Example — an application category (server side):**
 
@@ -336,6 +337,12 @@ can-lite/
 ├── client/                        # CanProtocolClient
 │   ├── CanProtocolClient.hpp/cpp
 │   └── test/
+├── tracing/                       # Optional tracing decorators (§13)
+│   ├── TracingCan.hpp/cpp                        # hal::Can decorator
+│   ├── TracingIsoTpTransport.hpp/cpp             # IsoTpTransport decorator
+│   ├── TracingCanProtocolServerObserver.hpp/cpp  # protocol-layer events
+│   ├── TracingCanProtocolClientObserver.hpp/cpp
+│   └── test/
 └── drivers/                       # Hardware driver adapters
 
 examples/                          # Not built by default (CAN_LITE_BUILD_EXAMPLES)
@@ -436,3 +443,48 @@ All mock observers use `testing::StrictMock`. Unexpected calls cause immediate t
 - `context.Emplace<T>(args...)` creates the fixture (returns `std::shared_ptr<T>`).
 - `context.Get<T>()` retrieves it by reference (returns `T&`).
 - Captured `shared_ptr` in lambdas on fixture members must be avoided to prevent circular references that leak the fixture across scenarios.
+
+## 13. Observability
+
+Tracing is provided by **decorators the consumer opts into in the composition root**. Nothing in the library holds a `services::Tracer&`; a build that never constructs a decorator pays nothing. Threading a tracer through `CanFrameTransport`, the protocol classes and every category was rejected: it would change every constructor signature and add a dependency to code that currently links `can_lite.core` only. `.github/linters/goodcheck.yml` enforces the same conclusion by forbidding `services::GlobalTracer()` in production code.
+
+### Layers and seams
+
+| Layer     | Seam                                                      | Class                                                                   |
+|-----------|-----------------------------------------------------------|-------------------------------------------------------------------------|
+| HAL       | `hal::Can`                                                | `TracingCan`                                                            |
+| Transport | `IsoTpTransport`                                          | `TracingIsoTpTransport`                                                 |
+| Protocol  | `CanProtocolServerObserver` / `CanProtocolClientObserver` | `TracingCanProtocolServerObserver` / `TracingCanProtocolClientObserver` |
+
+`TracingCan` sees **all** traffic in both directions, including frames dropped later by node-ID filtering, rate limiting, or unregistered categories. The protocol observers cover what the frame log structurally cannot show: `OnCommandAckTimeout` and both `Offline` transitions are timer-driven and put nothing on the bus, so without them a quiet bus and a bus whose acknowledgements are being missed look identical.
+
+The category layer has no decorator. `CanCategory::HandleMessage` and `HandlePduMessage` are non-virtual, so decorating a category would mean making dispatch virtual in core — for information already derivable from the frame trace and the decoded `commandAck` line.
+
+### Wiring
+
+```cpp
+services::TracingCan tracingCan{ realCan, tracer };
+services::CanProtocolServer server{ tracingCan, config };
+
+services::TracingIsoTpTransport tracingIsoTp{ isoTp, tracer };
+server.AttachIsoTpTransport(tracingIsoTp);
+
+services::TracingCanProtocolServerObserver serverTrace{ server, tracer };
+```
+
+### Line format
+
+Every line is `<ClassName>: <message>`, so a mixed log stays attributable to a layer and filters with a single `grep Tracing`:
+
+```
+TracingCan: TX id 0x4001123 prio command cat 0x0 system type 0x1 heartbeat node 0x123 dlc 3 data 010203
+TracingCan: ack cat 0x3 type 0x5 status sequenceError expectedSeq 0x7
+TracingIsoTpTransport: Abort dataId 0x18db33f1 reason nCrTimeout
+TracingCanProtocolClientObserver: CommandAckTimeout node 0x123 cat 0x3 type 0x5
+```
+
+### Targets
+
+One target per layer, so a consumer links only what it instruments: `can_lite.tracing` (core), `can_lite.tracing_iso_tp` (transport), `can_lite.tracing_protocol` (server + client). All three additionally link `services.tracer`.
+
+`services::Tracer::Trace()` returns `infra::TextOutputStream` under `EMIL_ENABLE_TRACING` and a no-op type under `EMIL_DISABLE_TRACING`, so every trace line is written as a single chained expression — the result is never stored, and `Continue()` is never used to append a conditional part.
