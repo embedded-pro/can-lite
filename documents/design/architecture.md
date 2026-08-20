@@ -171,11 +171,11 @@ The system category on the server is **fully automatic** — no public API is ex
 
 | Message | Internal behavior |
 |---------|-------------------|
-| Heartbeat received | Notifies `CanProtocolServerObserver::Online()` |
+| Heartbeat received | Notifies `CanProtocolServerObserver::Online()` and (re)starts the client-liveness timer (§9.2.1) |
 | Status request | Sends heartbeat response |
 | Category list request | Sends list of registered category IDs |
 
-The application interacts with `CanProtocolServer` only through `RegisterCategory()` and the `CanProtocolServerObserver` (Online/Offline). All system plumbing is hidden.
+`RegisterCategory()` returns `false`, without registering, if the category's ID is already registered on that server or if `canMaxRegisteredCategories` (8) categories are already registered. The application interacts with `CanProtocolServer` only through `RegisterCategory()` and the `CanProtocolServerObserver` (Online/Offline). All system plumbing is hidden.
 
 ### Client side: `CanSystemCategoryClient`
 
@@ -185,11 +185,7 @@ The system category on the client exposes **only category discovery** through it
 |---------------------|-------------|
 | `OnCategoryListResponse(categoryIds)` | Notifies when a category list is received from a server |
 
-| Internal (not in observer) | Description |
-|---------------------------|-------------|
-| `onCommandAck` | Protocol-internal acknowledgement handling; kept as `infra::Function` for future use by `CanProtocolClient` |
-
-Command acknowledgement is a protocol implementation detail — application code should not need to handle it directly. Category discovery is exposed because the application may want to enumerate a server's capabilities.
+Command acknowledgement handling (§9.4) happens in `CanProtocolClient` itself, not in `CanSystemCategoryClient`, because it needs the source node ID, which the category dispatch layer does not pass down to individual message handlers. Category discovery is exposed because the application may want to enumerate a server's capabilities.
 
 ## 7. Bidirectional Category Pattern
 
@@ -272,7 +268,11 @@ concurrently interleave their counters and are rejected with `sequenceError`.
 
 ## 9.1 Per-Server Sequence Tracking
 
-`CanProtocolClient` maintains **independent sequence counters per server node** in a fixed-size array (`maxServers = 8`) and exposes them through the `CanSequenceSource` interface. `PeekSequence(nodeId)` returns the next sequence byte for the given node, and `CommitSequence(nodeId)` advances it once the frame has been accepted by the send queue — so a rejected frame does not burn a sequence number. This ensures that commands directed to different servers do not share or interfere with each other's replay protection state.
+`CanProtocolClient` maintains **independent sequence counters per server node** in a fixed-size array (`maxServers = 8`) and exposes them through the `CanSequenceSource` interface. `PeekSequence(nodeId)` returns the next sequence byte for the given node, and `CommitSequence(nodeId, category, messageType)` advances it once the frame has been accepted by the send queue — so a rejected frame does not burn a sequence number. This ensures that commands directed to different servers do not share or interfere with each other's replay protection state. `CommitSequence` also starts that server's command-ack timeout (§9.4), which is why it takes the category and message type of the command just sent.
+
+### Sequence Resynchronization
+
+A `sequenceError` acknowledgement carries the sequence number the server expected (§9.4). `CanProtocolClient` parses every acknowledgement frame as it arrives (before category dispatch, since it still has the source node ID at that point) and, on `sequenceError`, sets that server's counter to the reported value. This recovers a client whose sequence state has drifted from the server's — for example after the client process restarts and its in-memory counter resets to 0 while the server, unaware of the restart, still expects its old counter to continue — without requiring the server to also reset.
 
 ## 9.2 Server Liveness Detection
 
@@ -285,9 +285,17 @@ concurrently interleave their counters and are rejected with `sequenceError`.
 
 Applications connect a `CanProtocolClientObserver` to receive these events and react accordingly (e.g., stop issuing commands, alert the UI).
 
-## 9.3 Heartbeat Timer (Server-side Silence Guard)
+## 9.2.1 Client Liveness Detection (Server-side)
 
-`CanProtocolServer` uses a `TimerSingleShot` instead of a `TimerRepeating` for heartbeat emission. The timer is restarted (`ResetHeartbeatTimer()`) after every outgoing frame. This means a heartbeat is only sent when the server has been **silent** for the full heartbeat interval, preventing unnecessary heartbeat traffic on active buses.
+`CanProtocolServer` detects the reverse direction: whether its client is still present. `CanProtocolClient` broadcasts its own heartbeat (node ID `0x000`) following the same quiet-period rule as the server's heartbeat (§9.3). Each heartbeat the server receives restarts a `clientLivenessTimer` (configurable, default 3 s via `Config::clientTimeout`) and notifies `CanProtocolServerObserver::Online()`; if the timer fires without a further client heartbeat, `CanProtocolServerObserver::Offline()` is notified. A server tracks liveness for one client only, consistent with the single sequence counter (§9).
+
+## 9.3 Heartbeat Timer (Silence Guard)
+
+Both `CanProtocolServer` and `CanProtocolClient` use a `TimerSingleShot` instead of a `TimerRepeating` for heartbeat emission. The timer is restarted (`ResetHeartbeatTimer()`) after every outgoing frame on that side. This means a heartbeat is only sent when that side has been **silent** for the full heartbeat interval, preventing unnecessary heartbeat traffic on active buses. The client's heartbeat is a broadcast, since a client has no node ID of its own on the bus.
+
+## 9.4 Command Acknowledgement Timeout
+
+When `CanCategoryClient::SendCommand` sends a sequence-validated command, `CanProtocolClient::CommitSequence` starts a per-server `ackTimer` (configurable, default 1 s via `Config::commandAckTimeout`) alongside the category and message type of the command sent. Any acknowledgement frame from that server matching that (category, messageType) cancels the timer, regardless of its status. If the timer fires first, `CanProtocolClientObserver::OnCommandAckTimeout(nodeId, category, messageType)` is notified; the command is not automatically retried. Because a server can have at most one outstanding command tracked this way, sending a second sequence-validated command to the same server before the first is acknowledged replaces the tracked (category, messageType) — an acknowledgement for the first command that arrives afterward will not match and will not cancel the timer for the second.
 
 ## 10. Directory Structure
 

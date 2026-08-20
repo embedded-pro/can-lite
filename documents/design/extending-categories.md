@@ -233,8 +233,11 @@ send queue; two independent transports wrapping the same `hal::Can` would
 each believe they alone own the outstanding transmission, and concurrent
 sends from both could overlap on the HAL.
 
-Registering two categories with the same ID asserts at runtime. Registered
-category IDs are reported automatically by category discovery.
+`RegisterCategory()` returns `false`, without registering, if the category's
+ID is already registered or if 8 categories (`canMaxRegisteredCategories`)
+are already registered on that server or client — check the return value if
+registration can plausibly fail in your composition. Registered category IDs
+are reported automatically by category discovery.
 
 ## 9. Test
 

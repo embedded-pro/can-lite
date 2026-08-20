@@ -39,11 +39,13 @@ The protocol follows a **client-server** model:
 - The topology is **one client to many servers**. A server serves exactly one
   client and keeps a single sequence counter; addressing one server from two
   clients concurrently is not supported and is rejected with a sequence error.
-- The server automatically begins transmitting heartbeat messages on startup.
-  The client uses the presence or absence of heartbeats to determine whether
-  a server is **online** or **offline**, and notifies the application layer
-  accordingly via `CanProtocolClientObserver` callbacks (`OnServerOnline(nodeId)` /
-  `OnServerOffline(nodeId)`).
+- Both the server and the client automatically transmit heartbeat messages
+  starting from construction. Each side uses the presence or absence of the
+  other's heartbeats to determine whether its peer is **online** or
+  **offline**: the client notifies the application via
+  `CanProtocolClientObserver` (`OnServerOnline(nodeId)` /
+  `OnServerOffline(nodeId)`), and the server via `CanProtocolServerObserver`
+  (`Online()` / `Offline()`).
 
 ```mermaid
 flowchart LR
@@ -174,7 +176,10 @@ separate extension specification:
 Applications register additional categories (values 0x2-0xF) by providing
 `CanCategoryServer` and `CanCategoryClient` implementations to
 `CanProtocolServer::RegisterCategory()` and
-`CanProtocolClient::RegisterCategory()`. See
+`CanProtocolClient::RegisterCategory()`. Both return `false`, without
+registering, if the category's ID is already registered or if 8 categories
+are already registered (the System category always occupies one of those 8
+slots). See
 [Extending can-lite with categories](../design/extending-categories.md).
 
 ### 7.1 Reserved Message Type
@@ -203,12 +208,14 @@ Sent at CanPriority::heartbeat. No sequence validation.
 |------|---------|-------|--------------------------------|
 | 0    | Version | uint8 | Protocol version (currently 1) |
 
-The server automatically transmits heartbeat messages starting from the
-moment it is constructed. A heartbeat is sent **at least 1 second after
-the last transmitted message** of any kind. This ensures liveness
-detection without adding traffic when the server is already actively
-communicating. The heartbeat acts as a keep-alive: it fires only during
-periods of silence.
+Both the server and the client automatically transmit heartbeat messages
+starting from the moment they are constructed. A heartbeat is sent **at
+least 1 second after the last transmitted message** of any kind, by
+whichever side is sending it. This ensures liveness detection without
+adding traffic when that side is already actively communicating. The
+heartbeat acts as a keep-alive: it fires only during periods of silence.
+The client's heartbeat is broadcast (node ID 0x000), since the client has
+no node ID of its own on the bus.
 
 The client uses received heartbeats to track server liveness. When a
 heartbeat (or any message) is received from a server, the client
@@ -219,19 +226,40 @@ application via `CanProtocolClientObserver::OnServerOffline(nodeId)`.
 Multiple servers (up to 8) can be tracked simultaneously with
 independent liveness timers.
 
+Symmetrically, the server uses received heartbeats to track whether its
+client is still present. Receiving a heartbeat notifies the application via
+`CanProtocolServerObserver::Online()` and (re)starts the server's client
+timeout timer (default 3 s, `Config::clientTimeout`). If that timer expires
+without another client heartbeat, the server notifies
+`CanProtocolServerObserver::Offline()`. A server tracks only one client, per
+REQ-CAN-006.1.
+
 #### 8.1.2 Command Acknowledgement (Type 0x02)
 
 Sent by the server at CanPriority::response.
 
-| Byte | Field    | Type  | Description                                |
-|------|----------|-------|--------------------------------------------|
-| 0    | Category | uint8 | CanCategory of the acknowledged command    |
-| 1    | Command  | uint8 | CanMessageType of the acknowledged command |
-| 2    | Status   | uint8 | See acknowledgement status table           |
+| Byte | Field            | Type  | Description                                          |
+|------|------------------|-------|-------------------------------------------------------|
+| 0    | Category         | uint8 | CanCategory of the acknowledged command                |
+| 1    | Command          | uint8 | CanMessageType of the acknowledged command             |
+| 2    | Status           | uint8 | See acknowledgement status table                       |
+| 3    | Expected Sequence| uint8 | Meaningful only when Status is Sequence Error (4); 0 otherwise |
 
 The category byte ensures the client can uniquely identify which command
 is being acknowledged, since message type values may be reused across
 categories.
+
+On receiving a `sequenceError` acknowledgement, the client adopts byte 3 as
+its next sequence number for that server, so that a single lost frame, or
+the client's own sequence state having reset (for example after a restart),
+does not leave the two sides permanently out of sync — see §11.
+
+If no acknowledgement of any status arrives for a sequence-validated command
+within a configurable timeout (default 1 s, `Config::commandAckTimeout`),
+the client notifies the application via
+`CanProtocolClientObserver::OnCommandAckTimeout(nodeId, category,
+messageType)`. The command itself is not retried; the application decides
+whether and how to retry.
 
 #### 8.1.3 Status Request (Type 0x03)
 
@@ -261,12 +289,10 @@ Sent by the server at CanPriority::response.
 Each byte contains the ID of one registered category handler. The
 System category (0x0) is always included. Categories are listed in
 registration order. The response is limited to 8 category IDs by the
-CAN frame payload size: if more than 8 categories are registered, the
-9th and beyond are silently dropped from the response with no
-indication to the client that truncation occurred. Since the category ID
-field is 4 bits (16 possible values), this can only be reached by
-registering all 16 category IDs; applications that need more than 8
-categories discoverable in a single response are not currently supported.
+CAN frame payload size. `RegisterCategory()` enforces this bound at
+registration time: the 9th and any subsequent registration attempt returns
+`false` and the category is not registered, so the response can never
+truncate.
 
 ## 9. Data Encoding
 
@@ -327,6 +353,13 @@ sequenceDiagram
 - Heartbeat and status request frames do not use sequence numbers.
 - Unrecognized message types within a registered category are rejected with
   an `unknownCommand` acknowledgement.
+- A `sequenceError` acknowledgement carries the sequence number the server
+  expected (§8.1.2); the client adopts it as its next sequence number for
+  that server. This recovers a client whose own sequence state has drifted
+  from the server's (for example, after the client process restarts and its
+  in-memory counter resets to 0 while the server, unaware of the restart,
+  still expects its old counter to continue) without requiring the server to
+  also restart.
 - Sequence numbers are not an authentication or security mechanism and MUST
   NOT be relied upon to prevent malicious replay on an untrusted CAN bus.
 
