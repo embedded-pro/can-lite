@@ -156,6 +156,7 @@ Observer callbacks must not allocate or block.
 - Functions ≤ 30 lines (hard limit 50).
 - No pure virtual destructors unless the class is deleted polymorphically through a base pointer (adds vtable overhead).
 - Error handling: `std::optional<T>` or status enums — no exceptions.
+- **No comments.** Do not add explanatory, rationale, or section-marker comments to code, headers, or tests. Code must read clearly from names and structure alone. This applies even when the reasoning behind a line is non-obvious — put that in the commit message or PR description, not in the file.
 
 ## Testing Rules
 
