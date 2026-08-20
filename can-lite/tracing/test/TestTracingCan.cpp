@@ -11,8 +11,6 @@ namespace
     using namespace services;
     using testing::_;
     using testing::DoAll;
-    using testing::HasSubstr;
-    using testing::Not;
     using testing::SaveArg;
     using testing::StrictMock;
 
@@ -100,7 +98,7 @@ namespace
         CompleteSend(true);
     }
 
-    TEST_F(TracingCanTest, SuccessfulCompletionIsForwardedWithoutFailureTrace)
+    TEST_F(TracingCanTest, SuccessfulCompletionIsForwardedAndAddsNoTrace)
     {
         ExpectOneSend();
         bool completed = false;
@@ -115,10 +113,10 @@ namespace
 
         EXPECT_TRUE(completed);
         EXPECT_TRUE(result);
-        EXPECT_THAT(std::string(stream.Storage().begin(), stream.Storage().end()), Not(HasSubstr("TX failed")));
+        EXPECT_EQ("\r\nTracingCan: TX standard id 0x123 dlc 0 data ", stream.Storage());
     }
 
-    TEST_F(TracingCanTest, FailedCompletionIsTracedAndForwarded)
+    TEST_F(TracingCanTest, FailedCompletionIsForwardedAndAddsNoTrace)
     {
         ExpectOneSend();
         bool completed = false;
@@ -133,20 +131,32 @@ namespace
 
         EXPECT_TRUE(completed);
         EXPECT_FALSE(result);
-        EXPECT_THAT(std::string(stream.Storage().begin(), stream.Storage().end()), HasSubstr("\r\nTracingCan: TX failed"));
+        EXPECT_EQ("\r\nTracingCan: TX standard id 0x123 dlc 0 data ", stream.Storage());
     }
 
-    TEST_F(TracingCanTest, SecondSendReusesCompletionSlotAfterCompletion)
+    TEST_F(TracingCanTest, ConcurrentSendsForwardEachCompletionToItsOwnCaller)
     {
-        ExpectOneSend();
-        tracing.SendData(hal::Can::Id::Create11BitId(0x123), MakeMessage({}), [](bool) {});
-        CompleteSend(true);
+        infra::Function<void(bool)> firstCompletion;
+        EXPECT_CALL(can, SendData(_, _, _))
+            .WillOnce(SaveArg<2>(&firstCompletion))
+            .WillOnce(SaveArg<2>(&completion));
+        bool firstCompleted = false;
+        bool secondCompleted = false;
 
-        ExpectOneSend();
-        tracing.SendData(hal::Can::Id::Create11BitId(0x124), MakeMessage({}), [](bool) {});
-        CompleteSend(true);
+        tracing.SendData(hal::Can::Id::Create11BitId(0x123), MakeMessage({}), [&firstCompleted](bool)
+            {
+                firstCompleted = true;
+            });
+        tracing.SendData(hal::Can::Id::Create11BitId(0x124), MakeMessage({}), [&secondCompleted](bool)
+            {
+                secondCompleted = true;
+            });
 
-        EXPECT_EQ(sentId, hal::Can::Id::Create11BitId(0x124));
+        completion(true);
+        firstCompletion(true);
+
+        EXPECT_TRUE(firstCompleted);
+        EXPECT_TRUE(secondCompleted);
     }
 
     TEST_F(TracingCanTest, ReceiveDataRegistersWithDelegate)

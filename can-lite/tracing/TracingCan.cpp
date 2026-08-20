@@ -1,7 +1,6 @@
 #include "can-lite/tracing/TracingCan.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "infra/stream/OutputStream.hpp"
-#include "infra/util/ReallyAssert.hpp"
 
 namespace services
 {
@@ -71,15 +70,7 @@ namespace services
     {
         TraceFrame("TX", id, data);
 
-        really_assert(!onSendDone);
-        onSendDone = actionOnCompletion;
-
-        can.SendData(id, data, [this](bool success)
-            {
-                if (!success)
-                    tracer.Trace() << tracePrefix << "TX failed";
-                onSendDone(success);
-            });
+        can.SendData(id, data, actionOnCompletion);
     }
 
     void TracingCan::ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction)

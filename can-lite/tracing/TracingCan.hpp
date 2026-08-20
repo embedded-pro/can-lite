@@ -1,7 +1,6 @@
 #pragma once
 
 #include "hal/interfaces/Can.hpp"
-#include "infra/util/AutoResetFunction.hpp"
 #include "infra/util/Function.hpp"
 #include "services/tracer/Tracer.hpp"
 #include <cstdint>
@@ -26,6 +25,5 @@ namespace services
         Tracer& tracer;
 
         infra::Function<void(Id id, const Message& data)> receivedAction;
-        infra::AutoResetFunction<void(bool success)> onSendDone;
     };
 }
