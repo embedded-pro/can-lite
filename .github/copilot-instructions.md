@@ -80,3 +80,25 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
 9) Quick pointers for reviewers / code suggestions
 - If suggesting new APIs, prefer interface-driven DI and small, testable functions.
 - Observer callbacks must not allocate or block.
+
+10) Documentation rules (apply to every document)
+
+These apply to every document under `documents/`, to `README.md`, and to any
+new document.
+
+- **Single source of truth.** Each fact lives in exactly one document:
+  wire format and message catalogues in `documents/spec/`, formal requirements
+  in `documents/requirements/`, architecture decisions in
+  `documents/design/architecture.md`, category authoring in
+  `documents/design/extending-categories.md`, layer narrative, diagrams and
+  corner cases in `documents/booklet/`.
+- **Cross-reference, never restate.** If a table, identifier layout, message
+  catalogue or enumeration already exists in another document, link to it. A
+  second copy drifts from the first.
+- **No code in documentation.** Documents describe design and behaviour, not
+  source. No code excerpts, listings or snippets — name the components and
+  their responsibilities instead; a reader who needs the code opens the code.
+- **Diagrams earn their place.** A class, sequence, state or flow diagram that
+  is not already in another document is the one thing worth adding.
+- **Fix, do not fork.** When a change makes a document wrong, correct that
+  document; never add a corrected copy somewhere else.

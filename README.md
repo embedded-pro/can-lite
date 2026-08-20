@@ -142,9 +142,10 @@ Application-specific categories belong in the consuming project, not in
 
 ## Documentation
 
-- **[Design Booklet](documents/booklet/README.md)** — The complete layer-by-layer design reference: class
-  diagrams, message flows, corner cases and the wire specification. Built as a PDF and a static site by
-  `scripts/build-booklet.py`; the PDF is attached to every release and the site is published to GitHub Pages.
+- **[Design Booklet](documents/booklet/README.md)** — The design view of the stack: composition and ownership,
+  per-layer pipelines and state machines, corner cases and budgets, with the documents below reproduced as its
+  reference part. Built as a PDF and a static site by `scripts/build-booklet.py`; the PDF is attached to every
+  release and the site is published to GitHub Pages.
 - [Architecture & Design](documents/design/architecture.md) — Architecture decisions and design patterns
 - [Extending with Categories](documents/design/extending-categories.md) — How to add an application category
 - [Protocol Specification](documents/spec/can-protocol.md) — Full wire-format specification

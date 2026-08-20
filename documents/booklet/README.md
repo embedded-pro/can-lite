@@ -1,73 +1,58 @@
 # can-lite — The Design Booklet
 
-This is the design reference for **can-lite**, a zero-heap CAN 2.0B client-server
-protocol library for bare-metal embedded systems. It walks the stack from the
-HAL up to the application categories, one layer per chapter, with class
-diagrams, message-flow diagrams, the corner cases each layer has to survive, and
-the normative wire specification at the back.
+The design view of **can-lite**, a zero-heap CAN 2.0B client-server protocol
+library for bare-metal embedded systems. Parts I to III walk the stack one layer
+at a time — composition, pipelines, state machines, corner cases, budgets — and
+Part IV reproduces the project's normative documents, so design and
+specification are one document.
 
-The booklet is written for three readers:
+The booklet does not restate what those documents own. Wire format, message
+catalogues and encoding belong to the specifications; architecture decisions and
+the category authoring guide belong to the design documents; requirements belong
+to the requirements files. Chapters link to them rather than copying them, and
+no chapter contains source code.
 
-- **Integrators** wiring can-lite into a product — start at Chapters 1–3, then
-  read the layer that carries your traffic.
-- **Category authors** adding application-specific messages — Chapters 6, 12 and
-  the specification in Part V.
-- **Maintainers** changing the protocol core — the whole of Parts II and IV, and
-  the requirements catalogue in the appendix.
-
-Every diagram in this booklet is generated from a `mermaid` fence in the chapter
-source, and every class listing is transcribed from the header it documents, so
-the booklet moves when the code moves.
-
-## Part I — Foundations
+## Part I — Orientation
 
 | # | Chapter | What it covers |
 |---|---------|----------------|
-| 1 | [Introduction and Scope](01-introduction.md) | What can-lite is, what it deliberately is not, and the constraints that shaped it |
-| 2 | [The Layered Architecture](02-layered-architecture.md) | The six layers, their dependency rules, ownership and composition |
-| 3 | [Embedded Foundations](03-embedded-foundations.md) | Bounded containers, `WithStorage`, observers, timers and the event-driven execution model |
+| 1 | [About This Booklet](01-about-this-booklet.md) | What the booklet adds, what the other documents own, how to read it |
 
-## Part II — The Layers
+## Part II — The Layers in Depth
 
 | # | Chapter | What it covers |
 |---|---------|----------------|
-| 4 | [HAL and Bus Drivers](04-hal-and-drivers.md) | `hal::Can`, `CanBusAdapter`, the host adapters and the virtual bus |
-| 5 | [The Core Layer](05-core-layer.md) | Identifier layout, `CanFrameTransport`, `CanPayload`, `CanFrameCodec` |
-| 6 | [The Category Layer](06-category-layer.md) | `CanCategory`, message-type dispatch, sequence policy, acknowledgement |
-| 7 | [The Protocol Layer: Server](07-protocol-server.md) | Receive pipeline, rate limiting, sequence validation, heartbeat, liveness |
-| 8 | [The Protocol Layer: Client](08-protocol-client.md) | Per-server state, sequence source, ack tracking, resynchronisation, discovery |
-| 9 | [The Transport Layer: ISO-TP](09-transport-isotp.md) | ISO 15765-2 segmentation, the sender and receiver state machines, channels |
+| 2 | [The Layer Map](02-layer-map.md) | Composition and ownership, where the layering bends, the build graph, a frame's journey |
+| 3 | [HAL and Bus Drivers](03-hal-and-drivers.md) | What the library requires of a bus, the host adapters, the virtual bus, driver assumptions |
+| 4 | [The Core Layer: Frame Flow](04-core-frame-flow.md) | Routing by identifier, the outbound queue, payload validity, number representation |
+| 5 | [Category Dispatch and Sequence Policy](05-category-dispatch.md) | Dispatch outcomes, the segmented path, and the contract the two halves of a category must keep |
+| 6 | [The Server: Receive Pipeline](06-server-pipeline.md) | Every gate a received frame passes, why some rejections are silent, sequence validation, liveness, heartbeat |
+| 7 | [The Client: Per-Server State](07-client-state.md) | The two state tables, sequence supply, resynchronisation, outstanding commands, server tracking, discovery |
+| 8 | [Segmentation: The ISO-TP State Machines](08-isotp-state-machines.md) | Channels, the sender and receiver machines, aborts, and the deliberate omissions |
+| 9 | [The Built-in Categories: Design Rationale](09-builtin-categories.md) | Why the system category is a category, and why the firmware upgrade category keeps no state |
 
-## Part III — Categories
-
-| # | Chapter | What it covers |
-|---|---------|----------------|
-| 10 | [The System Category](10-system-category.md) | Heartbeat, acknowledgement, status request and category discovery |
-| 11 | [The Firmware Upgrade Category](11-firmware-upgrade-category.md) | Session model, block transfer, verification and activation |
-| 12 | [Authoring a Category](12-authoring-a-category.md) | Building an application category end to end, with the demo category as the worked example |
-
-## Part IV — Behaviour Under Stress
+## Part III — Behaviour Under Stress
 
 | # | Chapter | What it covers |
 |---|---------|----------------|
-| 13 | [Corner Cases and Failure Modes](13-corner-cases.md) | The catalogue of edge conditions, per layer, with the observable outcome of each |
-| 14 | [Timing, Memory and Bus Budget](14-timing-and-resources.md) | Static footprint, timer inventory, timing parameters and bus-load arithmetic |
-| 15 | [Verification Strategy](15-verification.md) | Unit tests, BDD integration tests, the virtual bus and requirement traceability |
+| 10 | [Corner Cases and Failure Modes](10-corner-cases.md) | The catalogue: condition, mechanism, observable outcome, per layer |
+| 11 | [Timing, Memory and Bus Budget](11-timing-and-resources.md) | Timer inventory, how the parameters constrain each other, static footprint, bus arithmetic |
+| 12 | [Verification Strategy](12-verification.md) | How the three levels relate, and where verification stops |
 
-## Part V — Reference Documents
+## Part IV — Reference Documents
 
 | # | Chapter | What it covers |
 |---|---------|----------------|
-| 16 | [Architecture and Design Decisions](../design/architecture.md) | The living architecture record |
-| 17 | [Extending can-lite with Categories](../design/extending-categories.md) | The category authoring guide |
-| 18 | [Protocol Specification](../spec/can-protocol.md) | Normative wire format |
-| 19 | [Firmware Upgrade Specification](../spec/firmware-upgrade.md) | Normative firmware upgrade category |
+| 13 | [Architecture and Design Decisions](../design/architecture.md) | The living architecture record |
+| 14 | [Extending can-lite with Categories](../design/extending-categories.md) | The category authoring guide |
+| 15 | [Protocol Specification](../spec/can-protocol.md) | Normative wire format |
+| 16 | [Firmware Upgrade Specification](../spec/firmware-upgrade.md) | Normative firmware upgrade category |
 
 ## Appendices
 
 | # | Chapter | What it covers |
 |---|---------|----------------|
-| 20 | [Glossary](20-glossary.md) | Terms, abbreviations and the constants they map to |
+| 17 | [Glossary](20-glossary.md) | The vocabulary this booklet adds |
 
 Appendix A, the requirements catalogue, is generated at build time from
 `documents/requirements/*.yaml` and appended after the glossary.
@@ -76,7 +61,7 @@ Appendix A, the requirements catalogue, is generated at build time from
 
 ```bash
 pip install pyyaml
-npm install -g @mermaid-js/mermaid-cli          # diagram rendering
+npm install -g @mermaid-js/mermaid-cli
 sudo apt-get install -y pandoc texlive-xetex \
     texlive-latex-extra texlive-fonts-recommended lmodern librsvg2-bin
 
@@ -91,19 +76,27 @@ Outputs land in `build/booklet/`:
 | `site/index.html` | The static site: landing page plus one page per chapter |
 | `book.md` | The assembled Markdown the PDF is rendered from |
 
-`--format pdf` and `--format html` build one output only; `--skip-diagrams`
-leaves the mermaid fences as code blocks (useful when mermaid-cli is not
-installed); `--assemble-only` stops after writing `book.md`.
+`--format pdf` and `--format html` build one output; `--skip-diagrams` leaves
+the diagram sources as code blocks when mermaid-cli is unavailable;
+`--assemble-only` stops after writing `book.md`.
 
-CI builds both outputs on every pull request that touches the booklet, publishes
-the site to GitHub Pages on `main`, and attaches the PDF to every published
-release.
+CI builds both outputs on every pull request that touches the documents,
+publishes the site to GitHub Pages on `main`, and attaches the PDF to every
+published release.
 
-## Conventions used in this booklet
+## Adding or changing a chapter
 
-| Convention | Meaning |
-|------------|---------|
-| `services::Name` | A type in the library; the `services` namespace is implied and usually dropped in prose |
-| REQ-CAN-nnn | A requirement from `documents/requirements/can-protocol.yaml`, listed in Appendix A |
-| Chapter *n* | A cross-reference; in the PDF the chapter number is authoritative, on the site the same reference is a link |
-| Code excerpts | Transcribed from the named header or source file, shortened where marked with `...` |
+1. Check first that the material does not belong to an existing document. Wire
+   format goes to `documents/spec/`, architecture decisions to
+   `documents/design/architecture.md`, authoring guidance to
+   `documents/design/extending-categories.md`, requirements to
+   `documents/requirements/`. The booklet adds the layer narrative, the
+   diagrams, the corner cases and the budgets — and links to the rest.
+2. Create the file with a single top-level heading and its own section
+   numbering (`## 1.`, `## 2.`); chapters are numbered by the renderer.
+3. Link it from the table above, under the right part — the index drives both
+   the PDF and the site.
+4. Author diagrams as ```` ```mermaid ```` fences so they render on GitHub as
+   well as in the booklet. A fence that fails to parse fails the build; avoid
+   `;` inside sequence-diagram notes and `{}` inside class-diagram members.
+5. Keep source code out. Name the components and describe the behaviour.
