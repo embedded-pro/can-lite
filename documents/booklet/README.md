@@ -59,14 +59,7 @@ Appendix A, the requirements catalogue, is generated at build time from
 
 ## Building the booklet
 
-```bash
-pip install pyyaml
-npm install -g @mermaid-js/mermaid-cli
-sudo apt-get install -y pandoc texlive-xetex \
-    texlive-latex-extra texlive-fonts-recommended lmodern librsvg2-bin
-
-python scripts/build-booklet.py --format all
-```
+Install the dependencies used by CI (PyYAML, mermaid-cli, Pandoc, and a XeLaTeX toolchain), then build both outputs with `python scripts/build-booklet.py --format all`.
 
 Outputs land in `build/booklet/`:
 
