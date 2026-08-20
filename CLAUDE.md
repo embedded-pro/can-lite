@@ -176,9 +176,19 @@ After any protocol, structural, or behavioral change, keep these aligned:
 | `documents/spec/can-protocol.md`           | Wire-format specification           |
 | `documents/requirements/can-protocol.yaml` | Formal protocol requirements        |
 | `documents/design/architecture.md`         | Architecture decisions and patterns |
+| `documents/booklet/*.md`                   | Design booklet chapters (layers, class/sequence diagrams, corner cases) |
 | `README.md`                                | Project overview, features          |
 
 Category-specific specs and requirements live alongside the main ones: `documents/spec/firmware-upgrade.md`, `documents/requirements/firmware-upgrade.yaml`. The category authoring guide is `documents/design/extending-categories.md`. Example categories keep their docs under `examples/<name>/documents/`.
+
+### Design booklet
+
+`documents/booklet/` holds the design booklet: one chapter per file, ordered by the table in `documents/booklet/README.md`. `scripts/build-booklet.py` assembles it into `build/booklet/CanLiteDesign.pdf` and a multi-page static site under `build/booklet/site/`; `.github/workflows/build-booklet.yml` publishes the site to GitHub Pages on `main` and attaches the PDF to every published release.
+
+- Diagrams are ```` ```mermaid ```` fences, rendered to SVG with `mermaid-cli` (`mmdc`) at build time. A fence that fails to parse fails the build — avoid `;` in sequence-diagram notes and `{}` inside `classDiagram` members.
+- Chapters carry their own section numbering (`## 1.`, `## 2.`); LaTeX numbers chapters only.
+- Add a chapter by creating the file and linking it from the index table under the right `## Part ...` heading — the index drives both outputs.
+- After a protocol, structural or behavioural change, update the affected booklet chapter along with the documents in the table above.
 
 ## Build System Notes
 
