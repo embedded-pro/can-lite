@@ -39,6 +39,9 @@ namespace integration
 
     void VirtualCan::Disconnect()
     {
+        if (peer)
+            peer->peer = nullptr;
+
         peer = nullptr;
     }
 }
