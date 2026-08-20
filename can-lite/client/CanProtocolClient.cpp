@@ -132,14 +132,12 @@ namespace services
             }
         }
 
-        // All slots are tracking other servers: evict the oldest tracked slot
-        // (round robin) instead of hard-faulting. The evicted server's sequence
-        // counter restarts at 0 and resynchronizes via the server's sequenceError
-        // response, the same recovery path used for any other counter mismatch.
         auto& evicted = serverStates[nextSequenceEvictIndex];
         nextSequenceEvictIndex = static_cast<uint8_t>((nextSequenceEvictIndex + 1) % serverStates.size());
         evicted.nodeId = nodeId;
         evicted.sequenceCounter = 0;
+        evicted.awaitingAck = false;
+        evicted.ackTimer.Cancel();
         return 0;
     }
 
