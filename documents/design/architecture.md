@@ -450,11 +450,11 @@ Tracing is provided by **decorators the consumer opts into in the composition ro
 
 ### Layers and seams
 
-| Layer | Seam | Class |
-|-------|------|-------|
-| HAL | `hal::Can` | `TracingCan` |
-| Transport | `IsoTpTransport` | `TracingIsoTpTransport` |
-| Protocol | `CanProtocolServerObserver` / `CanProtocolClientObserver` | `TracingCanProtocolServerObserver` / `TracingCanProtocolClientObserver` |
+| Layer     | Seam                                                      | Class                                                                   |
+|-----------|-----------------------------------------------------------|-------------------------------------------------------------------------|
+| HAL       | `hal::Can`                                                | `TracingCan`                                                            |
+| Transport | `IsoTpTransport`                                          | `TracingIsoTpTransport`                                                 |
+| Protocol  | `CanProtocolServerObserver` / `CanProtocolClientObserver` | `TracingCanProtocolServerObserver` / `TracingCanProtocolClientObserver` |
 
 `TracingCan` sees **all** traffic in both directions, including frames dropped later by node-ID filtering, rate limiting, or unregistered categories. The protocol observers cover what the frame log structurally cannot show: `OnCommandAckTimeout` and both `Offline` transitions are timer-driven and put nothing on the bus, so without them a quiet bus and a bus whose acknowledgements are being missed look identical.
 
