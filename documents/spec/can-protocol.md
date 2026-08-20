@@ -226,13 +226,15 @@ application via `CanProtocolClientObserver::OnServerOffline(nodeId)`.
 Multiple servers (up to 8) can be tracked simultaneously with
 independent liveness timers.
 
-Symmetrically, the server uses received heartbeats to track whether its
-client is still present. Receiving a heartbeat notifies the application via
-`CanProtocolServerObserver::Online()` and (re)starts the server's client
-timeout timer (default 3 s, `Config::clientTimeout`). If that timer expires
-without another client heartbeat, the server notifies
-`CanProtocolServerObserver::Offline()`. A server tracks only one client, per
-REQ-CAN-006.1.
+Symmetrically, the server uses received traffic to track whether its
+client is still present. Any frame correctly addressed to the server
+(re)starts the server's client timeout timer (default 3 s,
+`Config::clientTimeout`), the same "any message counts" rule the client
+uses for server liveness; a heartbeat specifically also notifies the
+application via `CanProtocolServerObserver::Online()`. If the timeout
+timer expires without further traffic from the client, the server
+notifies `CanProtocolServerObserver::Offline()`. A server tracks only
+one client, per REQ-CAN-006.1.
 
 #### 8.1.2 Command Acknowledgement (Type 0x02)
 

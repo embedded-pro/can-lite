@@ -382,13 +382,15 @@
     The client shall automatically begin transmitting heartbeat frames
     upon construction, broadcast to node 0x000, following the same
     quiet-period keep-alive rule as the server's own heartbeat
-    (REQ-CAN-009). The server shall use received client heartbeats to
-    determine whether its client is still present, notifying the
-    application via CanProtocolServerObserver::Online() on receipt and
-    via CanProtocolServerObserver::Offline() if no further client
-    heartbeat arrives within a configurable timeout (default 3 s). A
-    server tracks liveness for one client only, consistent with
-    REQ-CAN-006.1.
+    (REQ-CAN-009). The server shall restart its client-liveness timeout
+    (default 3 s) on any frame correctly addressed to it, not only
+    heartbeats, since a client sending commands continuously may defer
+    its own heartbeat frame indefinitely; a received heartbeat shall
+    additionally notify the application via
+    CanProtocolServerObserver::Online(). If the timeout elapses without
+    further traffic from the client, the server shall notify
+    CanProtocolServerObserver::Offline(). A server tracks liveness for
+    one client only, consistent with REQ-CAN-006.1.
 
 - id: REQ-CAN-037
   title: Sequence resynchronization on sequence error

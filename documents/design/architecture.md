@@ -169,11 +169,11 @@ The System category (ID `0x00`) is a **built-in** category that handles protocol
 
 The system category on the server is **fully automatic** — no public API is exposed to the application developer. `CanProtocolServer` creates an internal observer that reacts to system messages:
 
-| Message | Internal behavior |
-|---------|-------------------|
-| Heartbeat received | Notifies `CanProtocolServerObserver::Online()` and (re)starts the client-liveness timer (§9.2.1) |
-| Status request | Sends heartbeat response |
-| Category list request | Sends list of registered category IDs |
+| Message               | Internal behavior                              |
+|-----------------------|------------------------------------------------|
+| Heartbeat received    | Notifies `CanProtocolServerObserver::Online()` |
+| Status request        | Sends heartbeat response                       |
+| Category list request | Sends list of registered category IDs          |
 
 `RegisterCategory()` returns `false`, without registering, if the category's ID is already registered on that server or if `canMaxRegisteredCategories` (8) categories are already registered. The application interacts with `CanProtocolServer` only through `RegisterCategory()` and the `CanProtocolServerObserver` (Online/Offline). All system plumbing is hidden.
 
@@ -287,7 +287,7 @@ Applications connect a `CanProtocolClientObserver` to receive these events and r
 
 ## 9.2.1 Client Liveness Detection (Server-side)
 
-`CanProtocolServer` detects the reverse direction: whether its client is still present. `CanProtocolClient` broadcasts its own heartbeat (node ID `0x000`) following the same quiet-period rule as the server's heartbeat (§9.3). Each heartbeat the server receives restarts a `clientLivenessTimer` (configurable, default 3 s via `Config::clientTimeout`) and notifies `CanProtocolServerObserver::Online()`; if the timer fires without a further client heartbeat, `CanProtocolServerObserver::Offline()` is notified. A server tracks liveness for one client only, consistent with the single sequence counter (§9).
+`CanProtocolServer` detects the reverse direction: whether its client is still present. `CanProtocolClient` broadcasts its own heartbeat (node ID `0x000`) following the same quiet-period rule as the server's heartbeat (§9.3); since that heartbeat is deferred by any other outgoing traffic, a client sending commands continuously might not emit a dedicated heartbeat frame for a long time. `CanProtocolServer` therefore restarts its `clientLivenessTimer` (configurable, default 3 s via `Config::clientTimeout`) on any frame correctly addressed to it, not only heartbeats — mirroring how `CanProtocolClient::MarkServerAlive` treats any received frame as proof of a server's liveness (§9.2). Only a received heartbeat notifies `CanProtocolServerObserver::Online()`, since that is the specific, meaningful signal; if the timer fires without further traffic from the client, `CanProtocolServerObserver::Offline()` is notified. A server tracks liveness for one client only, consistent with the single sequence counter (§9).
 
 ## 9.3 Heartbeat Timer (Silence Guard)
 
