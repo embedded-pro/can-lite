@@ -394,7 +394,20 @@ IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
 protocolServer.AttachIsoTpTransport(isoTp);
 ```
 
-`AttachIsoTpTransport` stores a raw pointer and installs callbacks on the transport, so the transport must outlive the attachment. Because it is constructed from the protocol object's own `CanFrameTransport`, it is necessarily destroyed first; `DetachIsoTpTransport()` breaks the attachment in that case, and the protocol object's destructor deliberately does not reach into a transport it cannot know is still alive.
+`AttachIsoTpTransport` stores a raw pointer and installs callbacks on the
+transport, so the transport must outlive the attachment. Because it is
+constructed from the protocol object's own `CanFrameTransport`, it is
+necessarily destroyed first; `DetachIsoTpTransport()` breaks the attachment in
+that case, and the protocol object's destructor deliberately does not reach
+into a transport it cannot know is still alive.
+
+The same ownership rule governs the `hal::Can` receive callback. The interface
+holds one callback and cannot report who installed it, so `CanProtocolServer`
+and `CanProtocolClient` claim it unconditionally at construction and release it
+unconditionally at destruction. One protocol object owns a given `hal::Can`,
+and nothing else may register on it while that object is alive — a second
+registration silently stops the first from receiving. See the design booklet's
+corner-case chapter, §10.
 
 Abort reasons are enumerated in `IsoTpTypes.hpp` and catalogued in the design booklet's glossary. `sendFailed` is distinct from `unexpectedFrame`: the first is a local transmit condition, the second a statement about the peer's frame.
 

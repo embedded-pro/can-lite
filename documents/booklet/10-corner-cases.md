@@ -240,11 +240,23 @@ only the completion waits forever.
 | 10.1 | A server configured with the broadcast address                                  | Checked at construction                       | Assertion                                                                                                                                                          |
 | 10.2 | Two servers sharing an address                                                  | None                                          | Both accept the same commands and both answer; the client attributes every answer to one node and their counters diverge. Addresses must be unique by construction |
 | 10.3 | Two protocol objects on one bus interface                                       | The interface holds a single receive callback | The second construction replaces the first's callback, and the first stops receiving entirely                                                                      |
-| 10.7 | A protocol object destroyed while its bus interface lives on                    | Its destructor deregisters the receive callback and releases the send-notification slot | The interface is left holding nothing, rather than a callback into freed memory, and the slot can be claimed again by a replacement                                |
-| 10.8 | Segmentation destroyed before the protocol object it is attached to             | Detaching is the application's to do          | Until it is detached, the protocol object still holds the pointer its receive path dereferences. **Latent**: segmentation is built from the protocol object's own transport, so it is always the first of the two to be destroyed |
 | 10.4 | A liveness timeout no longer than the peer's heartbeat interval                 | None                                          | On an idle bus the peer times out before the heartbeat arrives, producing an online/offline flap (Chapter 11, §2)                                                  |
 | 10.5 | An acknowledgement timeout shorter than the server's worst-case handler latency | None                                          | Spurious timeouts for commands that are merely slow                                                                                                                |
 | 10.6 | A rate limit below the client's steady-state command rate                       | Rate gate                                     | Commands are dropped silently, and the client sees timeouts with no explanation on the bus                                                                         |
+| 10.7 | A protocol object destroyed while its bus interface lives on                    | Its destructor deregisters the receive callback and releases the send-notification slot | The interface holds nothing rather than a callback into freed memory, and the slot can be claimed again by a replacement                                           |
+| 10.8 | Something else claims the receive callback after a protocol object was built     | None — the interface cannot report who owns it | The protocol object stops receiving from that moment, and its destructor later clears the newcomer's callback. **Latent**: the slot has one owner (see below)      |
+| 10.9 | Segmentation destroyed before the protocol object it is attached to             | Detaching is the application's to do          | Until it is detached, the protocol object still holds the pointer its receive path dereferences. **Latent**: segmentation is built from the protocol object's own transport, so it is always the first of the two to be destroyed |
+
+**The receive callback has exactly one owner.** `hal::Can` stores a single
+callback and offers no way to read back who installed it, so neither
+registration nor deregistration can be conditional on still owning the slot.
+Construction claims it unconditionally and destruction releases it
+unconditionally, and the two are symmetric. A second claimant therefore breaks
+the arrangement at the moment it registers — entry 10.3, not at teardown — and
+the later clear in 10.8 is a consequence of that, not a separate fault. One
+protocol object per bus interface, destroyed before anything else claims the
+slot, is the supported arrangement; detecting a violation would need `hal::Can`
+to expose ownership, which is an upstream change.
 
 ## 11. What is deliberately not handled
 
