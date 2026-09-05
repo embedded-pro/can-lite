@@ -22,7 +22,7 @@ namespace services::iso_tp
         static uint8_t DecodeConsecutiveFrameSn(const hal::Can::Message& frame);
 
         static void EncodeFlowControl(FlowStatus fs, uint8_t blockSize, uint8_t stMin, hal::Can::Message& out);
-        static void DecodeFlowControl(const hal::Can::Message& frame, FlowStatus& fs, uint8_t& blockSize, uint8_t& stMin);
+        static bool DecodeFlowControl(const hal::Can::Message& frame, FlowStatus& fs, uint8_t& blockSize, uint8_t& stMin);
 
         static infra::Duration StMinToDuration(uint8_t stMin);
     };

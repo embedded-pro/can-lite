@@ -137,10 +137,29 @@ TEST(IsoTpFrameCodec, DecodeFlowControl)
     auto msg = MakeMessage({ 0x30, 0x05, 0x0A });
     FlowStatus fs;
     uint8_t bs, stMin;
-    IsoTpFrameCodec::DecodeFlowControl(msg, fs, bs, stMin);
+    EXPECT_TRUE(IsoTpFrameCodec::DecodeFlowControl(msg, fs, bs, stMin));
     EXPECT_EQ(fs, FlowStatus::continueToSend);
     EXPECT_EQ(bs, 5u);
     EXPECT_EQ(stMin, 10u);
+}
+
+TEST(IsoTpFrameCodec, DecodeFlowControl_TruncatedFrame_Fails)
+{
+    auto msg = MakeMessage({ 0x30, 0x05 });
+    FlowStatus fs;
+    uint8_t bs, stMin;
+    EXPECT_FALSE(IsoTpFrameCodec::DecodeFlowControl(msg, fs, bs, stMin));
+}
+
+TEST(IsoTpFrameCodec, DecodeFlowControl_ReservedFlowStatus_Fails)
+{
+    for (uint8_t nibble = 0x03u; nibble <= 0x0Fu; ++nibble)
+    {
+        auto msg = MakeMessage({ static_cast<uint8_t>(0x30u | nibble), 0x00, 0x00 });
+        FlowStatus fs;
+        uint8_t bs, stMin;
+        EXPECT_FALSE(IsoTpFrameCodec::DecodeFlowControl(msg, fs, bs, stMin)) << "nibble " << static_cast<int>(nibble);
+    }
 }
 
 TEST(IsoTpFrameCodec, StMinToDuration_Zero)

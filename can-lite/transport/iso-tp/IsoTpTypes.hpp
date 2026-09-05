@@ -41,7 +41,8 @@ namespace services::iso_tp
         nCrTimeout,
         overflow,
         unexpectedFrame,
-        waitLimitExceeded
+        waitLimitExceeded,
+        sendFailed
     };
 
     static constexpr infra::Duration nBsTimeout = std::chrono::milliseconds(1000);

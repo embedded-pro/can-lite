@@ -78,19 +78,23 @@ namespace services::iso_tp
         out.push_back(stMin);
     }
 
-    void IsoTpFrameCodec::DecodeFlowControl(const hal::Can::Message& frame,
+    bool IsoTpFrameCodec::DecodeFlowControl(const hal::Can::Message& frame,
         FlowStatus& fs, uint8_t& blockSize, uint8_t& stMin)
     {
+        blockSize = 0u;
+        stMin = 0u;
+
         if (frame.size() < 3u)
-        {
-            fs = FlowStatus::overflow;
-            blockSize = 0u;
-            stMin = 0u;
-            return;
-        }
-        fs = static_cast<FlowStatus>(frame[0] & 0x0Fu);
+            return false;
+
+        uint8_t nibble = frame[0] & 0x0Fu;
+        if (nibble > static_cast<uint8_t>(FlowStatus::overflow))
+            return false;
+
+        fs = static_cast<FlowStatus>(nibble);
         blockSize = frame[1];
         stMin = frame[2];
+        return true;
     }
 
     infra::Duration IsoTpFrameCodec::StMinToDuration(uint8_t stMin)

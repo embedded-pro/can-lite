@@ -34,6 +34,7 @@ namespace services::iso_tp
         void SendFirstOrSingleFrame();
         void SendNextConsecutiveFrame();
         void ScheduleNextCf();
+        void StartNBsTimer();
         void Abort(AbortReason reason);
 
         SendFrameFunc sendFrameFunc;
