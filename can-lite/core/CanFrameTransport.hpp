@@ -17,6 +17,7 @@ namespace services
         uint16_t NodeId() const;
 
         void SetOnSendNotification(infra::Function<void()> callback);
+        void ClearOnSendNotification();
 
         bool SendFrame(CanPriority priority, uint8_t category, uint8_t messageType,
             const hal::Can::Message& data, const infra::Function<void(bool success)>& onDone);

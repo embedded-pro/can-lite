@@ -8,7 +8,8 @@ namespace services
     {}
 
     CanProtocolClient::CanProtocolClient(hal::Can& can, const Config& config)
-        : config(config)
+        : can(can)
+        , config(config)
         , transport(can, 0)
         , systemCategory(transport, *this)
         , systemObserver(systemCategory, *this)
@@ -26,6 +27,12 @@ namespace services
             });
 
         ResetHeartbeatTimer();
+    }
+
+    CanProtocolClient::~CanProtocolClient()
+    {
+        can.ReceiveData(nullptr);
+        transport.ClearOnSendNotification();
     }
 
     CanProtocolClient::SystemObserver::SystemObserver(CanSystemCategoryClient& subject, CanProtocolClient& client)
@@ -82,6 +89,16 @@ namespace services
             {
                 isoTpTransport->ReleaseChannel(dataId);
             });
+    }
+
+    void CanProtocolClient::DetachIsoTpTransport()
+    {
+        if (isoTpTransport == nullptr)
+            return;
+
+        isoTpTransport->SetOnPduReceived(nullptr);
+        isoTpTransport->SetOnAbort(nullptr);
+        isoTpTransport = nullptr;
     }
 
     void CanProtocolClient::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)

@@ -43,7 +43,7 @@ namespace
             FixtureInit(hal::CanMock& canMock,
                 infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& receiveCallback)
             {
-                EXPECT_CALL(canMock, ReceiveData(_)).WillOnce([&receiveCallback](const auto& callback)
+                EXPECT_CALL(canMock, ReceiveData(_)).Times(2).WillRepeatedly([&receiveCallback](const auto& callback)
                     {
                         receiveCallback = callback;
                     });
@@ -269,7 +269,7 @@ namespace
         infra::Function<void(bool)> pendingCompletion;
         int sendCount = 0;
 
-        EXPECT_CALL(heartbeatCan, ReceiveData(_)).WillOnce([&heartbeatReceiveCallback](const auto& callback)
+        EXPECT_CALL(heartbeatCan, ReceiveData(_)).Times(2).WillRepeatedly([&heartbeatReceiveCallback](const auto& callback)
             {
                 heartbeatReceiveCallback = callback;
             });
@@ -309,7 +309,7 @@ namespace
 
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
-        EXPECT_CALL(limitedCan, ReceiveData(_)).WillOnce([&limitedReceiveCallback](const auto& callback)
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
             {
                 limitedReceiveCallback = callback;
             });
@@ -338,7 +338,7 @@ namespace
 
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
-        EXPECT_CALL(limitedCan, ReceiveData(_)).WillOnce([&limitedReceiveCallback](const auto& callback)
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
             {
                 limitedReceiveCallback = callback;
             });
@@ -731,6 +731,47 @@ namespace
 
         TestCategory oneTooMany(canMaxRegisteredCategories);
         EXPECT_FALSE(server.RegisterCategory(oneTooMany));
+
+        for (auto& category : categories)
+            EXPECT_TRUE(server.UnregisterCategory(category));
+    }
+
+    TEST_F(CanProtocolServerTest, UnregisterCategory_ClearsAcknowledgerSoAckDoesNotReachServer)
+    {
+        class TestCategory : public CanCategoryServerStub
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x06;
+            }
+
+            void Acknowledge()
+            {
+                SendCommandAck(0x50, CanAckStatus::success);
+            }
+        };
+
+        TestCategory testCategory;
+        ASSERT_TRUE(server.RegisterCategory(testCategory));
+        ASSERT_TRUE(server.UnregisterCategory(testCategory));
+
+        EXPECT_DEATH(testCategory.Acknowledge(), "");
+    }
+
+    TEST_F(CanProtocolServerTest, UnregisterCategory_UnknownCategoryReturnsFalse)
+    {
+        class TestCategory : public CanCategoryServerStub
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x07;
+            }
+        };
+
+        TestCategory neverRegistered;
+        EXPECT_FALSE(server.UnregisterCategory(neverRegistered));
     }
 
     TEST_F(CanProtocolServerTest, Construct_WithDefaultConstructedConfig_AssertsInsteadOfBroadcasting)
@@ -741,18 +782,34 @@ namespace
         EXPECT_DEATH(CanProtocolServer(unconfiguredCan, CanProtocolServer::Config{}), "");
     }
 
-    TEST_F(CanProtocolServerTest, ConstructorAutoRegistersReceiveCallback)
+    TEST_F(CanProtocolServerTest, ConstructorRegistersAndDestructorDeregistersReceiveCallback)
     {
         StrictMock<hal::CanMock> testCan;
 
-        EXPECT_CALL(testCan, ReceiveData(_));
+        bool registered = false;
+        bool deregistered = false;
+
+        EXPECT_CALL(testCan, ReceiveData(_)).Times(2).WillRepeatedly(
+            [&registered, &deregistered](const infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& callback)
+            {
+                if (callback)
+                    registered = true;
+                else
+                    deregistered = true;
+            });
         ON_CALL(testCan, SendData(_, _, _))
             .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                 {
                     cb(true);
                 }));
 
-        CanProtocolServer testServer(testCan, config);
+        {
+            CanProtocolServer testServer(testCan, config);
+            EXPECT_TRUE(registered);
+            EXPECT_FALSE(deregistered);
+        }
+
+        EXPECT_TRUE(deregistered);
     }
 
     TEST_F(CanProtocolServerTest, CategoryListRequest_RespondsWithRegisteredCategories)
@@ -856,7 +913,7 @@ namespace
 
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
-        EXPECT_CALL(limitedCan, ReceiveData(_)).WillOnce([&limitedReceiveCallback](const auto& callback)
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
             {
                 limitedReceiveCallback = callback;
             });
@@ -888,7 +945,7 @@ namespace
 
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
-        EXPECT_CALL(limitedCan, ReceiveData(_)).WillOnce([&limitedReceiveCallback](const auto& callback)
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
             {
                 limitedReceiveCallback = callback;
             });
@@ -1043,7 +1100,7 @@ namespace
         StrictMock<hal::CanMock> limitedCan;
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
-        EXPECT_CALL(limitedCan, ReceiveData(_)).WillOnce([&limitedReceiveCallback](const auto& callback)
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
             {
                 limitedReceiveCallback = callback;
             });

@@ -41,7 +41,7 @@ namespace
         {
             explicit FixtureInit(StrictMock<hal::CanMock>& canMock)
             {
-                EXPECT_CALL(canMock, ReceiveData(_));
+                EXPECT_CALL(canMock, ReceiveData(_)).Times(2);
                 EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                     {
                         cb(true);
@@ -494,7 +494,7 @@ namespace
     {
         // Use a separate blocked transport: SendData never calls back, so sendInProgress stays true
         StrictMock<hal::CanMock> blockedCan;
-        EXPECT_CALL(blockedCan, ReceiveData(_));
+        EXPECT_CALL(blockedCan, ReceiveData(_)).Times(2);
         EXPECT_CALL(blockedCan, SendData(_, _, _)).Times(AnyNumber());
         CanProtocolClient blockedProtocolClient{ blockedCan };
         CanFrameTransport blockedTransport{ blockedCan, 1 };

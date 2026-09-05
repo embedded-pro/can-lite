@@ -17,7 +17,7 @@ namespace
         CanFixtureInit(hal::CanMock& canMock,
             infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& receiveCallback)
         {
-            EXPECT_CALL(canMock, ReceiveData(_)).WillOnce([&receiveCallback](const auto& callback)
+            EXPECT_CALL(canMock, ReceiveData(_)).Times(2).WillRepeatedly([&receiveCallback](const auto& callback)
                 {
                     receiveCallback = callback;
                 });

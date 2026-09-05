@@ -58,6 +58,7 @@ namespace services
         bool RequiresSequenceValidation() const override;
 
         void SetAcknowledger(CanCommandAcknowledger& acknowledger);
+        void ClearAcknowledger();
         void SendCommandAck(uint8_t messageType, CanAckStatus status);
 
     protected:

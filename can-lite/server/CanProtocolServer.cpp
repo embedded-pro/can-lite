@@ -4,7 +4,8 @@
 namespace services
 {
     CanProtocolServer::CanProtocolServer(hal::Can& can, const Config& config)
-        : config(config)
+        : can(can)
+        , config(config)
         , transport(can, config.nodeId)
         , rateResetTimer(std::chrono::seconds(1), [this]()
               {
@@ -29,6 +30,12 @@ namespace services
             });
 
         ResetHeartbeatTimer();
+    }
+
+    CanProtocolServer::~CanProtocolServer()
+    {
+        can.ReceiveData(nullptr);
+        transport.ClearOnSendNotification();
     }
 
     CanProtocolServer::SystemObserver::SystemObserver(CanSystemCategoryServer& subject, CanProtocolServer& server)
@@ -68,9 +75,22 @@ namespace services
         return true;
     }
 
-    void CanProtocolServer::UnregisterCategory(CanCategoryServer& category)
+    bool CanProtocolServer::UnregisterCategory(CanCategoryServer& category)
     {
-        categories.erase(category);
+        if (&category == &systemCategory)
+            return false;
+
+        for (auto& existing : categories)
+        {
+            if (&existing == &category)
+            {
+                categories.erase(category);
+                category.ClearAcknowledger();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     void CanProtocolServer::AttachIsoTpTransport(IsoTpTransport& isoTp)
@@ -84,6 +104,16 @@ namespace services
             {
                 isoTpTransport->ReleaseChannel(dataId);
             });
+    }
+
+    void CanProtocolServer::DetachIsoTpTransport()
+    {
+        if (isoTpTransport == nullptr)
+            return;
+
+        isoTpTransport->SetOnPduReceived(nullptr);
+        isoTpTransport->SetOnAbort(nullptr);
+        isoTpTransport = nullptr;
     }
 
     void CanProtocolServer::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)

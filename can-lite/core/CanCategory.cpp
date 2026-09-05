@@ -48,6 +48,11 @@ namespace services
         acknowledger = &ack;
     }
 
+    void CanCategoryServer::ClearAcknowledger()
+    {
+        acknowledger = nullptr;
+    }
+
     void CanCategoryServer::SendCommandAck(uint8_t messageType, CanAckStatus status)
     {
         really_assert(acknowledger != nullptr);

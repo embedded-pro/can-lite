@@ -38,7 +38,7 @@ namespace
         {
             explicit FixtureInit(StrictMock<hal::CanMock>& canMock)
             {
-                EXPECT_CALL(canMock, ReceiveData(_));
+                EXPECT_CALL(canMock, ReceiveData(_)).Times(2);
                 EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                     {
                         cb(true);
