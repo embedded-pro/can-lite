@@ -273,8 +273,7 @@ namespace
             {
                 heartbeatReceiveCallback = callback;
             });
-        EXPECT_CALL(heartbeatCan, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke(
-            [&sendCount, &pendingCompletion](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+        EXPECT_CALL(heartbeatCan, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([&sendCount, &pendingCompletion](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
             {
                 ++sendCount;
                 pendingCompletion = cb;
@@ -789,8 +788,7 @@ namespace
         bool registered = false;
         bool deregistered = false;
 
-        EXPECT_CALL(testCan, ReceiveData(_)).Times(2).WillRepeatedly(
-            [&registered, &deregistered](const infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& callback)
+        EXPECT_CALL(testCan, ReceiveData(_)).Times(2).WillRepeatedly([&registered, &deregistered](const infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& callback)
             {
                 if (callback)
                     registered = true;

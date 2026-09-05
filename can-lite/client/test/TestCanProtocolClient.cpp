@@ -313,8 +313,7 @@ namespace
         bool registered = false;
         bool deregistered = false;
 
-        EXPECT_CALL(testCan, ReceiveData(_)).Times(2).WillRepeatedly(
-            [&registered, &deregistered](const infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& callback)
+        EXPECT_CALL(testCan, ReceiveData(_)).Times(2).WillRepeatedly([&registered, &deregistered](const infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& callback)
             {
                 if (callback)
                     registered = true;

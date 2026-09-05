@@ -605,9 +605,7 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_SendCompletionNeverArrives_StillTimesOut
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 
     EXPECT_CALL(mocks, SendFrame(_, _))
-        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>&)
-            {
-            }));
+        .WillOnce(Invoke([](const hal::Can::Message&, const infra::Function<void(bool)>&) {}));
 
     ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
     EXPECT_FALSE(sender.IsIdle());
