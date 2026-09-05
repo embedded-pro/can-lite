@@ -239,6 +239,17 @@ are already registered on that server or client — check the return value if
 registration can plausibly fail in your composition. Registered category IDs
 are reported automatically by category discovery.
 
+`UnregisterCategory()` returns `false`, changing nothing, if the category is
+not registered on that server or if it is the server's built-in system
+category. On success it clears the acknowledger the server handed the category,
+so a later acknowledgement attempt asserts rather than calling into a server
+that no longer owns it.
+
+A registered category is a node in the server's or client's intrusive list and
+does not unlink itself. Unregister a category before destroying it: otherwise
+the list holds a dangling entry, which the next frame for that category — and
+the protocol object's own destruction — will follow.
+
 ## 9. Test
 
 Unit tests use GoogleTest with `testing::StrictMock<>` only. `can_lite.test_util`

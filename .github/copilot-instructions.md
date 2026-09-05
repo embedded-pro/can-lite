@@ -13,7 +13,12 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
   - `can-lite/transport/` — ISO-TP (ISO 15765-2) segmentation layer. All classes (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`, `IsoTpTransportImpl`) are non-template with `WithStorage` aliases for zero-heap PDU buffer ownership.
   - `examples/` — Reference application categories (`foc_motor/`), not built by default (`CAN_LITE_BUILD_EXAMPLES`).
   - `embedded-infra-lib/` — Infrastructure dependency: bounded containers, build helpers, `hal::Can`, `infra::Subject`/`infra::SingleObserver`.
-- Architecture: Client initiates all requests; Server listens and responds. Built-in System category (0x0) provides heartbeat, ack, status request, and category discovery. Categories are split into server/client pairs inheriting from `CanCategoryServer`/`CanCategoryClient` for compile-time type safety. All category handlers use `infra::Subject`/`infra::SingleObserver` for event notification. Applications extend via custom category implementations.
+- Architecture: Client initiates all requests; Server listens and responds.
+  Built-in System category (0x0) provides heartbeat, ack, status request, and
+  category discovery. Categories are split into server/client pairs inheriting
+  from `CanCategoryServer`/`CanCategoryClient` for compile-time type safety.
+  All category handlers use `infra::Subject`/`infra::SingleObserver` for event
+  notification. Applications extend via custom category implementations.
 - Documents: `documents/spec/can-protocol.md` (wire-format spec), `documents/requirements/can-protocol.yaml` (formal requirements), `documents/design/architecture.md` (architecture & design decisions), `documents/design/extending-categories.md` (category authoring guide), `README.md` (project overview).
 
 2) Critical developer workflows (exact commands)

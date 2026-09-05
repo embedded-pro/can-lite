@@ -120,7 +120,7 @@ TEST_F(IsoTpChannelTest, SendPdu_RawSendRejectsSynchronously_AbortsInsteadOfWedg
     // still unstick the sender's FSM rather than leaving it permanently busy.
     EXPECT_CALL(mocks, RawSend(dataId, _, _))
         .WillOnce(Return(false));
-    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::unexpectedFrame));
+    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::sendFailed));
 
     ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
     EXPECT_TRUE(channel.IsSenderIdle());
@@ -137,7 +137,7 @@ TEST_F(IsoTpChannelTest, ProcessFrame_FirstFrame_RawSendOfFlowControlFails_Abort
 
     EXPECT_CALL(mocks, RawSend(fcId, _, _))
         .WillOnce(Return(false));
-    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::unexpectedFrame));
+    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::sendFailed));
 
     auto ff = MakeMessage({ 0x10u, 0x08u, 1u, 2u, 3u, 4u, 5u, 6u });
     EXPECT_TRUE(channel.ProcessFrame(dataId, ff));

@@ -126,7 +126,7 @@
   title: Maximum firmware size
   shall: >
     The firmware upgrade protocol shall support firmware images up
-    to 393210 bytes (65536 blocks × 6 bytes per block), limited by
+    to 393216 bytes (65536 blocks × 6 bytes per block), limited by
     the uint16 block index field. Transfers exceeding this limit
     shall be rejected during Begin Upgrade.
 

@@ -20,7 +20,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED On)
 
 include(GNUInstallDirs)
 
-set_directory_properties(PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 if (CAN_LITE_STANDALONE)
     include(FetchContent)

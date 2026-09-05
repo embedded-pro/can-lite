@@ -16,14 +16,14 @@ answers the way it does**.
 flowchart TD
     A["frame received"] --> B{"extended identifier?"}
     B -- no --> X1["drop, silently"]
-    B -- yes --> C{"segmentation attached,<br/>and it claims the frame?"}
-    C -- yes --> X2["handled by the transport layer<br/>(Chapter 8)"]
-    C -- no --> D{"addressed to this node,<br/>or broadcast?"}
+    B -- yes --> D{"addressed to this node,<br/>or broadcast?"}
     D -- no --> X3["drop, silently"]
     D -- yes --> E["mark the client alive —<br/>restart the liveness timer"]
     E --> F{"within the rate limit<br/>for this window?"}
     F -- no --> X4["drop, silently"]
-    F -- yes --> G{"a command,<br/>not a response?"}
+    F -- yes --> C{"segmentation attached,<br/>and it claims the frame?"}
+    C -- yes --> X2["handled by the transport layer<br/>(Chapter 8)"]
+    C -- no --> G{"a command,<br/>not a response?"}
     G -- no --> X5["drop, silently"]
     G -- yes --> H{"category registered?"}
     H -- no --> X6["drop, silently"]
@@ -36,7 +36,9 @@ flowchart TD
     L -- yes --> K
     K --> M{"a handler matched?"}
     M -- no --> Y3["acknowledge:<br/>unknown command"]
-    M -- yes --> Z["the handler answers<br/>as it sees fit"]
+    M -- yes --> N{"the handler accepted<br/>the payload?"}
+    N -- no --> Y4["acknowledge:<br/>invalid payload"]
+    N -- yes --> Z["the handler answers<br/>as it sees fit"]
 ```
 
 ## 2. Why some rejections are silent and others are answered
@@ -46,18 +48,19 @@ it is worth stating as a rule: **a frame is answered only when it was
 unambiguously meant for this server and this category.** If it was, silence
 would be a bug. If it was not, an answer would be noise.
 
-| Gate                                     | Answer                             | Reasoning                                                                                |
-|------------------------------------------|------------------------------------|------------------------------------------------------------------------------------------|
-| Standard identifier                      | Silent                             | The frame belongs to another protocol sharing the bus                                    |
-| Another node's address                   | Silent                             | Answering would produce noise proportional to the number of servers on the bus           |
-| Over the rate limit                      | Silent                             | An acknowledgement is itself a frame; answering a flood would double it                  |
-| A response, not a command                | Silent                             | Servers do not consume responses; answering would create a loop between servers          |
-| Unregistered category                    | Silent                             | The frame may be legitimate traffic for another server that does implement that category |
-| Empty payload, validated category        | Answered                           | Addressed here, category exists — the client deserves to know                            |
-| Sequence mismatch                        | Answered, with the expected number | The client needs that number to resynchronise without a round trip (Chapter 7)           |
-| Unknown message type in a known category | Answered                           | The client is talking to a category that does not implement that command                 |
+| Gate                                     | Answer                             | Reasoning                                                                                      |
+|------------------------------------------|------------------------------------|------------------------------------------------------------------------------------------------|
+| Standard identifier                      | Silent                             | The frame belongs to another protocol sharing the bus                                          |
+| Another node's address                   | Silent                             | Answering would produce noise proportional to the number of servers on the bus                 |
+| Over the rate limit                      | Silent                             | An acknowledgement is itself a frame; answering a flood would double it                        |
+| A response, not a command                | Silent                             | Servers do not consume responses; answering would create a loop between servers                |
+| Unregistered category                    | Silent                             | The frame may be legitimate traffic for another server that does implement that category       |
+| Empty payload, validated category        | Answered                           | Addressed here, category exists — the client deserves to know                                  |
+| Sequence mismatch                        | Answered, with the expected number | The client needs that number to resynchronise without a round trip (Chapter 7)                 |
+| Unknown message type in a known category | Answered                           | The client is talking to a category that does not implement that command                       |
+| Payload rejected by a matching handler   | Answered, as invalid payload       | The command exists; saying "unknown command" would send the client looking for the wrong fault |
 
-Two ordering choices in the pipeline are equally deliberate:
+Three ordering choices in the pipeline are equally deliberate:
 
 - **Liveness is marked before the rate limit is applied.** A client that floods
   the bus is still, evidently, alive; marking liveness afterwards would make a
@@ -65,6 +68,14 @@ Two ordering choices in the pipeline are equally deliberate:
 - **The rate limit is applied before the category is looked up.** What is being
   limited is the cost of *processing* frames, and that cost is paid before the
   category is known.
+- **The rate limit is applied before segmentation gets the frame.** Reassembly
+  is work like any other, and a frame that disappears into a segmentation
+  channel costs the node just as much as one dispatched to a category. Charging
+  after the transport layer had claimed the frame would have left the entire
+  multi-frame path uncounted: a transfer of any length would cost a single
+  credit, and consecutive frames for a transfer that never completes would cost
+  nothing at all. The reassembled unit is not charged again when it is
+  dispatched, so a transfer costs exactly what it occupied on the bus.
 
 One consequence of the rate limiter is worth designing around rather than
 discovering: it counts within a fixed window that resets on a timer, so a burst
@@ -170,12 +181,24 @@ telemetry already prove the node is alive. On an idle bus it produces exactly
 one heartbeat per interval. The same mechanism runs on the client, with the
 difference described in Chapter 7.
 
+The timer is also re-armed by the act of sending a heartbeat, independently of
+the send notification, and that redundancy is load-bearing. The notification
+fires only when the frame is accepted for transmission; a frame refused because
+the queue is full produces no notification at all. If the heartbeat relied on
+the notification alone, a heartbeat that happened to fall while the queue was
+saturated would leave the timer unarmed with nothing left to re-arm it — the
+node would fall silent permanently and every peer would eventually declare it
+offline, from a condition that resolves itself within milliseconds. Re-arming
+from the heartbeat itself makes the tick independent of whether any particular
+send succeeds. Chapter 10 catalogues this as a corner case worth testing.
+
 ## 7. Attaching segmentation
 
-Attaching the transport changes the pipeline in exactly one place — the second
-gate — and nothing else about the server. A reassembled payload runs the same
-gates in the same order, ending in the segmented dispatch path rather than the
-single-frame one, which is what makes segmentation invisible to a category.
+Attaching the transport changes the pipeline in exactly one place — the gate
+that follows the rate limit — and nothing else about the server. A reassembled
+payload runs the same gates in the same order, ending in the segmented dispatch
+path rather than the single-frame one, which is what makes segmentation
+invisible to a category.
 
 The server also arranges for a transfer that fails part-way to release its
 channel, so a failed transfer frees its slot instead of holding it forever.

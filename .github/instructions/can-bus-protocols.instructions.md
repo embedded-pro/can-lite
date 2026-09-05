@@ -50,7 +50,7 @@ Use this reference when implementing can-lite categories that map to or interact
 - Sessions: default (0x01), programming (0x02), extended diagnostic (0x03)
 - Timing: P2 (default response, ~50ms), P2* (extended after NRC 0x78, ~5000ms)
 
-### Mapping to can-lite
+### Mapping UDS to can-lite
 
 - Each UDS SID maps to a `CanMessageType` within a UDS category
 - Command SIDs (0x10–0x3E) → command message types (0x00–0x7F range)
@@ -65,7 +65,7 @@ Use this reference when implementing can-lite categories that map to or interact
 
 ### CAN ID Layout (29-bit)
 
-```
+```text
 [28:26] Priority (3 bits)
 [25]    Reserved (1 bit, set to 0)
 [24]    Data Page (1 bit)
@@ -103,7 +103,7 @@ Use this reference when implementing can-lite categories that map to or interact
 4. EOM (0x13): total size, num packets, PGN
 5. Abort (0xFF): reason code, PGN
 
-### Mapping to can-lite
+### Mapping J1939 to can-lite
 
 - J1939 uses a fundamentally different CAN ID layout than can-lite
 - Options: (a) J1939 gateway category that translates PGN addressing to can-lite's category/message-type model, (b) raw J1939 pass-through at the driver layer
@@ -152,7 +152,7 @@ Use this reference when implementing can-lite categories that map to or interact
 | N_Cs      | Time between CFs (sender) | STmin + tolerance |
 | N_Cr      | CF reception timeout      | 1000ms max        |
 
-### Mapping to can-lite
+### Mapping ISO-TP to can-lite
 
 - ISO-TP sits between the application layer (UDS, etc.) and CAN
 - Preferred: Implement as a core transport component (companion to `CanFrameTransport`) that handles segmentation/reassembly transparently
@@ -221,7 +221,7 @@ COB-ID 0x700 + NodeID, 1-byte payload:
 - 0x2000–0x5FFF: Manufacturer-specific
 - 0x6000–0x9FFF: Standardized device profile
 
-### Mapping to can-lite
+### Mapping CANopen to can-lite
 
 - CANopen natively uses 11-bit standard CAN IDs; can-lite uses 29-bit extended IDs
 - When bridging CANopen over can-lite, map: function code → category (4-bit), and embed node-ID in can-lite's node address field

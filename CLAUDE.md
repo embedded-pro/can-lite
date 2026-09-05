@@ -33,7 +33,7 @@ Warnings are treated as errors (`CMAKE_COMPILE_WARNING_AS_ERROR=On`). `compile_c
 
 ### Layer Stack
 
-```
+```text
 Application Layer  (consumer code; application categories)
 Category Layer     (system/0x00, firmware_upgrade/0x01)
 Protocol Layer     (CanProtocolServer / CanProtocolClient)
@@ -44,7 +44,13 @@ HAL                (hal::Can)
 
 ### Key Components
 
-- **`can-lite/core/`** — `CanProtocolDefinitions.hpp` (CAN ID layout, enums, constants), `CanFrameCodec` (fixed-point encode/decode), `CanPayload` (bounds-checked big-endian reader/writer), `CanFrameTransport` (async send queue), `CanCategory` base hierarchy (`CanCategoryServer`/`CanCategoryClient`), `CanMessageHandler` (binds a message type ID to a member function), `CanSequenceSource` (per-server sequence supply).
+- **`can-lite/core/`** — `CanProtocolDefinitions.hpp` (CAN ID layout, enums,
+  constants), `CanFrameCodec` (fixed-point encode/decode), `CanPayload`
+  (bounds-checked big-endian reader/writer), `CanFrameTransport` (async send
+  queue), `CanCategory` base hierarchy
+  (`CanCategoryServer`/`CanCategoryClient`), `CanMessageHandler` (binds a
+  message type ID to a member function), `CanSequenceSource` (per-server
+  sequence supply).
 - **`can-lite/categories/`** — Server/client pairs shipped with the library: `system/` (heartbeat, ack, discovery), `firmware_upgrade/`. Each pair has its own `*Definitions.hpp` with category ID and message type IDs. **Application-specific categories belong in the consuming project, not here.**
 - **`can-lite/server/`** and **`can-lite/client/`** — `CanProtocolServer`/`CanProtocolClient` handle dispatch, sequence tracking, liveness detection, and optional ISO-TP attachment. `CanProtocolClient` implements `CanSequenceSource`.
 - **`can-lite/transport/`** — ISO-TP layer (`IsoTpTransportImpl`); all classes are non-template with `WithStorage` aliases. Attach via `server.AttachIsoTpTransport(isoTp)`.
@@ -53,7 +59,7 @@ HAL                (hal::Can)
 
 ### CAN ID Layout (29-bit extended)
 
-```
+```text
 [28:24] Priority (5 bits): Emergency=0, Command=4, Response=8, Telemetry=12, Heartbeat=16
 [23:20] Category (4 bits): System=0x0, FirmwareUpgrade=0x1, application=0x2–0xF
 [19:12] Message Type (8 bits): commands 0x00–0x7F, responses 0x80–0xFF (0xFE reserved for category error)
@@ -69,7 +75,12 @@ Topology is **one client to many servers**. A server serves exactly one client a
 Every category is a **server/client pair**. Full guide: `documents/design/extending-categories.md`.
 
 - Server inherits `CanCategoryServer` + `infra::Subject<MyServerObserver>`. Takes a `CanFrameTransport&`. Registers command handlers (`0x00–0x7F`); sends via the inherited `SendResponse()` / `SendTelemetry()` / `SendCategoryError()` / `SendCommandAck()`.
-- Client inherits `CanCategoryClient` + `infra::Subject<MyClientObserver>`. Takes a `CanFrameTransport&` and a `CanSequenceSource&`. Registers response handlers (`0x80–0xFF`); sends via the inherited `SendCommand(nodeId, messageType[, payload][, priority])`, which prepends the sequence byte. Use `SendCommandWithoutSequence()` only when the paired server sets `RequiresSequenceValidation()` to `false`.
+- Client inherits `CanCategoryClient` + `infra::Subject<MyClientObserver>`.
+  Takes a `CanFrameTransport&` and a `CanSequenceSource&`. Registers response
+  handlers (`0x80–0xFF`); sends via the inherited `SendCommand(nodeId,
+  messageType[, payload][, priority])`, which prepends the sequence byte. Use
+  `SendCommandWithoutSequence()` only when the paired server sets
+  `RequiresSequenceValidation()` to `false`.
 - Message types are `CanMessageHandler<Owner>` members binding an ID to a member function, registered with `AddMessageTypes(...)` in the constructor. Do not write a nested `CanMessageType` subclass per message.
 - Payloads use `CanPayloadReader` / `CanPayloadWriter` (big-endian, bounds-checked, sticky `Valid()`), not manual byte offsets.
 - Sequence validation: server categories default `true` (byte `data[0]`, so server command handlers `Skip(1)` before reading), client categories default `false`.

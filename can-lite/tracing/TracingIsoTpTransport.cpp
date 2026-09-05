@@ -26,6 +26,8 @@ namespace services
                     return "unexpectedFrame";
                 case iso_tp::AbortReason::waitLimitExceeded:
                     return "waitLimitExceeded";
+                case iso_tp::AbortReason::sendFailed:
+                    return "sendFailed";
             }
             return "unknown";
         }

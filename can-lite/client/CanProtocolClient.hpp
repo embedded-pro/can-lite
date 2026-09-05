@@ -49,6 +49,8 @@ namespace services
         CanProtocolClient(CanProtocolClient&&) = delete;
         CanProtocolClient& operator=(CanProtocolClient&&) = delete;
 
+        ~CanProtocolClient();
+
         bool RegisterCategory(CanCategoryClient& category);
         void UnregisterCategory(CanCategoryClient& category);
 
@@ -57,6 +59,7 @@ namespace services
         void DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone);
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
+        void DetachIsoTpTransport();
 
         CanFrameTransport& Transport();
 
@@ -109,6 +112,7 @@ namespace services
 
         static constexpr uint8_t maxServers = 8;
 
+        hal::Can& can;
         Config config;
         CanFrameTransport transport;
         infra::TimerSingleShot heartbeatTimer;

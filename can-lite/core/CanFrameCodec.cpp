@@ -6,6 +6,9 @@ namespace services
 {
     int16_t CanFrameCodec::FloatToFixed16(float value, int32_t scale)
     {
+        if (std::isnan(value) || scale == 0)
+            return 0;
+
         float scaled = std::roundf(value * static_cast<float>(scale));
         if (scaled > static_cast<float>(std::numeric_limits<int16_t>::max()))
             return std::numeric_limits<int16_t>::max();
@@ -16,12 +19,15 @@ namespace services
 
     float CanFrameCodec::Fixed16ToFloat(int16_t value, int32_t scale)
     {
+        if (scale == 0)
+            return 0.0f;
+
         return static_cast<float>(value) / static_cast<float>(scale);
     }
 
     int32_t CanFrameCodec::FloatToFixed32(float value, int32_t scale)
     {
-        if (std::isnan(value))
+        if (std::isnan(value) || scale == 0)
             return 0;
 
         float scaled = std::roundf(value * static_cast<float>(scale));
@@ -39,74 +45,88 @@ namespace services
 
     float CanFrameCodec::Fixed32ToFloat(int32_t value, int32_t scale)
     {
+        if (scale == 0)
+            return 0.0f;
+
         return static_cast<float>(value) / static_cast<float>(scale);
     }
 
-    void CanFrameCodec::WriteInt16(hal::Can::Message& msg, std::size_t offset, int16_t value)
+    namespace
     {
-        while (msg.size() < offset + 2)
-            msg.push_back(0);
+        bool Grow(hal::Can::Message& msg, std::size_t offset, std::size_t width)
+        {
+            if (offset > msg.max_size() || width > msg.max_size() - offset)
+                return false;
 
-        msg[offset] = static_cast<uint8_t>(value >> 8);
-        msg[offset + 1] = static_cast<uint8_t>(value & 0xFF);
+            while (msg.size() < offset + width)
+                msg.push_back(0);
+
+            return true;
+        }
+
+        bool Readable(const hal::Can::Message& msg, std::size_t offset, std::size_t width)
+        {
+            return offset <= msg.size() && width <= msg.size() - offset;
+        }
+    }
+
+    bool CanFrameCodec::WriteInt16(hal::Can::Message& msg, std::size_t offset, int16_t value)
+    {
+        return WriteUInt16(msg, offset, static_cast<uint16_t>(value));
     }
 
     int16_t CanFrameCodec::ReadInt16(const hal::Can::Message& msg, std::size_t offset)
     {
-        return static_cast<int16_t>(
-            (static_cast<uint16_t>(msg[offset]) << 8) |
-            static_cast<uint16_t>(msg[offset + 1]));
+        return static_cast<int16_t>(ReadUInt16(msg, offset));
     }
 
-    void CanFrameCodec::WriteInt32(hal::Can::Message& msg, std::size_t offset, int32_t value)
+    bool CanFrameCodec::WriteInt32(hal::Can::Message& msg, std::size_t offset, int32_t value)
     {
-        while (msg.size() < offset + 4)
-            msg.push_back(0);
-
-        msg[offset] = static_cast<uint8_t>((value >> 24) & 0xFF);
-        msg[offset + 1] = static_cast<uint8_t>((value >> 16) & 0xFF);
-        msg[offset + 2] = static_cast<uint8_t>((value >> 8) & 0xFF);
-        msg[offset + 3] = static_cast<uint8_t>(value & 0xFF);
+        return WriteUInt32(msg, offset, static_cast<uint32_t>(value));
     }
 
     int32_t CanFrameCodec::ReadInt32(const hal::Can::Message& msg, std::size_t offset)
     {
-        return static_cast<int32_t>(
-            (static_cast<uint32_t>(msg[offset]) << 24) |
-            (static_cast<uint32_t>(msg[offset + 1]) << 16) |
-            (static_cast<uint32_t>(msg[offset + 2]) << 8) |
-            static_cast<uint32_t>(msg[offset + 3]));
+        return static_cast<int32_t>(ReadUInt32(msg, offset));
     }
 
-    void CanFrameCodec::WriteUInt16(hal::Can::Message& msg, std::size_t offset, uint16_t value)
+    bool CanFrameCodec::WriteUInt16(hal::Can::Message& msg, std::size_t offset, uint16_t value)
     {
-        while (msg.size() < offset + 2)
-            msg.push_back(0);
+        if (!Grow(msg, offset, 2))
+            return false;
 
         msg[offset] = static_cast<uint8_t>(value >> 8);
         msg[offset + 1] = static_cast<uint8_t>(value & 0xFF);
+        return true;
     }
 
     uint16_t CanFrameCodec::ReadUInt16(const hal::Can::Message& msg, std::size_t offset)
     {
+        if (!Readable(msg, offset, 2))
+            return 0;
+
         return static_cast<uint16_t>(
             (static_cast<uint16_t>(msg[offset]) << 8) |
             static_cast<uint16_t>(msg[offset + 1]));
     }
 
-    void CanFrameCodec::WriteUInt32(hal::Can::Message& msg, std::size_t offset, uint32_t value)
+    bool CanFrameCodec::WriteUInt32(hal::Can::Message& msg, std::size_t offset, uint32_t value)
     {
-        while (msg.size() < offset + 4)
-            msg.push_back(0);
+        if (!Grow(msg, offset, 4))
+            return false;
 
         msg[offset] = static_cast<uint8_t>((value >> 24) & 0xFF);
         msg[offset + 1] = static_cast<uint8_t>((value >> 16) & 0xFF);
         msg[offset + 2] = static_cast<uint8_t>((value >> 8) & 0xFF);
         msg[offset + 3] = static_cast<uint8_t>(value & 0xFF);
+        return true;
     }
 
     uint32_t CanFrameCodec::ReadUInt32(const hal::Can::Message& msg, std::size_t offset)
     {
+        if (!Readable(msg, offset, 4))
+            return 0;
+
         return (static_cast<uint32_t>(msg[offset]) << 24) |
                (static_cast<uint32_t>(msg[offset + 1]) << 16) |
                (static_cast<uint32_t>(msg[offset + 2]) << 8) |

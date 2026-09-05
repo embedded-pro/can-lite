@@ -23,15 +23,15 @@ namespace services
         return false;
     }
 
-    bool CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
+    CanPduDispatchResult CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
     {
         for (auto& handler : messageTypes)
         {
             if (handler.Id() == messageType)
-                return handler.HandlePdu(pdu);
+                return handler.HandlePdu(pdu) ? CanPduDispatchResult::handled : CanPduDispatchResult::rejected;
         }
 
-        return false;
+        return CanPduDispatchResult::unknownMessageType;
     }
 
     CanCategoryServer::CanCategoryServer(CanFrameTransport& transport)
@@ -46,6 +46,11 @@ namespace services
     void CanCategoryServer::SetAcknowledger(CanCommandAcknowledger& ack)
     {
         acknowledger = &ack;
+    }
+
+    void CanCategoryServer::ClearAcknowledger()
+    {
+        acknowledger = nullptr;
     }
 
     void CanCategoryServer::SendCommandAck(uint8_t messageType, CanAckStatus status)

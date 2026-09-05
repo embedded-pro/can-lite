@@ -16,15 +16,15 @@ protocol by registering custom category handlers on the server.
 
 ## 2. Terminology
 
-| Term            | Definition                                                          |
-|-----------------|---------------------------------------------------------------------|
-| Server          | A node on the CAN bus that listens for commands, processes them, and sends responses. Each server has a unique node ID and serves exactly one client. |
-| Client          | The initiator of all commands and queries. A single client can communicate with multiple servers. |
-| Broadcast       | A message addressed to all servers (node ID 0x000)                  |
-| Category        | A 4-bit field in the CAN identifier that groups related message types. The built-in System category (0x0) is always available; applications register additional categories. |
-| Category Handler| A `CanCategoryServer` or `CanCategoryClient` implementation registered via `RegisterCategory()` that processes all messages for a specific category. |
-| Sequence Number | An 8-bit counter in byte[0] of command frames for replay protection |
-| Scale Factor    | Integer multiplier used to convert floats to fixed-point integers   |
+| Term             | Definition                                                                                                                                                                  |
+|------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Server           | A node on the CAN bus that listens for commands, processes them, and sends responses. Each server has a unique node ID and serves exactly one client.                       |
+| Client           | The initiator of all commands and queries. A single client can communicate with multiple servers.                                                                           |
+| Broadcast        | A message addressed to all servers (node ID 0x000)                                                                                                                          |
+| Category         | A 4-bit field in the CAN identifier that groups related message types. The built-in System category (0x0) is always available; applications register additional categories. |
+| Category Handler | A `CanCategoryServer` or `CanCategoryClient` implementation registered via `RegisterCategory()` that processes all messages for a specific category.                        |
+| Sequence Number  | An 8-bit counter in byte[0] of command frames giving in-order delivery and duplicate detection; see §11 for why it is not a security mechanism                              |
+| Scale Factor     | Integer multiplier used to convert floats to fixed-point integers                                                                                                           |
 
 ## 3. Architecture
 
@@ -79,10 +79,10 @@ For payloads exceeding the 8-byte CAN frame limit, can-lite provides an optional
 
 ### Flow Control Fields
 
-| Byte | Field | Description                                                                                                                                    |
-|------|-------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| 0    | PCI   | `0x3S` — Flow Status (0=CTS, 1=Wait, 2=Overflow)                                                                                               |
-| 1    | BS    | Block Size — number of CFs before next FC (0 = unlimited)                                                                                      |
+| Byte | Field | Description                                                                                                                                                                |
+|------|-------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0    | PCI   | `0x3S` — Flow Status (0=CTS, 1=Wait, 2=Overflow; 3–15 are reserved and abort the transfer)                                                                                 |
+| 1    | BS    | Block Size — number of CFs before next FC (0 = unlimited)                                                                                                                  |
 | 2    | STmin | Minimum separation time: 0x00–0x7F = 0–127 ms; 0xF1–0xF9 = 100–900 µs (ISO-TP sub-ms range); 0x80–0xF0 and 0xFA–0xFF = reserved (treated as 0x7F / 127 ms per ISO 15765-2) |
 
 ### Timing Parameters
@@ -97,9 +97,24 @@ On `FS = Wait`, the sender restarts N_Bs and continues waiting rather than
 aborting immediately; only `N_WFTmax` consecutive `Wait` frames (or an N_Bs
 timeout) abort the transfer.
 
+A Flow Control frame the sender cannot decode — shorter than three bytes, or
+carrying a reserved Flow Status — aborts the transfer as an unexpected frame.
+It is deliberately not reported as an overflow, which is a state only the peer
+can declare.
+
+N_Bs is armed the moment the sender enters the wait-for-Flow-Control state,
+before the frame is handed to the driver, so a driver that never reports
+completion still times out rather than leaving the sender wedged.
+
 ### Integration
 
-`IsoTpTransportImpl` is attached to `CanProtocolServer` or `CanProtocolClient` via `AttachIsoTpTransport(IsoTpTransport&)`. When attached, incoming frames are first offered to the ISO-TP layer; if no registered channel claims the frame, it falls through to normal category dispatch. PDUs reassembled by the transport layer are delivered via the `SetOnPduReceived` callback. Channels are reclaimed via `ReleaseChannel(dataId)`, called automatically on abort and available for the application to call once it is done with a given `dataId`.
+`IsoTpTransportImpl` is attached to `CanProtocolServer` or `CanProtocolClient`
+via `AttachIsoTpTransport(IsoTpTransport&)`. When attached, incoming frames
+are first offered to the ISO-TP layer; if no registered channel claims the
+frame, it falls through to normal category dispatch. PDUs reassembled by the
+transport layer are delivered via the `SetOnPduReceived` callback. Channels
+are reclaimed via `ReleaseChannel(dataId)`, called automatically on abort and
+available for the application to call once it is done with a given `dataId`.
 
 The implementation uses `WithStorage` for zero-heap construction. All internal components (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`) are non-template classes that receive their PDU buffer storage via `infra::WithStorage` aliases, following the EMIL convention:
 
@@ -128,7 +143,7 @@ explicitly-managed channel is supported.
 
 All 29 bits of the extended CAN ID are structured as follows:
 
-```
+```text
 Bit:  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0
      |----  Priority  ----|-- Category --|------  Message Type  ------|----------------- Node ID -------------------|
      |     5 bits (0-31)  |  4 bits (0-F)|       8 bits (0-FF)       |             12 bits (0-FFF)                  |
@@ -144,19 +159,19 @@ packet-beta
 
 **Field Encoding:**
 
-```
+```text
 raw_id = (priority << 24) | (category << 20) | (message_type << 12) | node_id
 ```
 
 ## 6. Priority Levels
 
-| Value | Name      | Usage                            |
-|-------|-----------|----------------------------------|
-| 0     | Emergency | Safety-critical events           |
-| 4     | Command   | Commands, parameter writes       |
-| 8     | Response  | Command acknowledgements         |
-| 12    | Telemetry | Periodic measurements            |
-| 16    | Heartbeat | Node liveness                    |
+| Value | Name      | Usage                      |
+|-------|-----------|----------------------------|
+| 0     | Emergency | Safety-critical events     |
+| 4     | Command   | Commands, parameter writes |
+| 8     | Response  | Command acknowledgements   |
+| 12    | Telemetry | Periodic measurements      |
+| 16    | Heartbeat | Node liveness              |
 
 Lower numerical values have higher CAN bus arbitration priority.
 
@@ -282,11 +297,11 @@ containing the IDs of all registered category handlers.
 
 Sent by the server at CanPriority::response.
 
-| Byte | Field       | Type  | Description                            |
-|------|-------------|-------|----------------------------------------|
-| 0    | Category 0  | uint8 | First registered category ID           |
-| 1    | Category 1  | uint8 | Second registered category ID          |
-| ...  | ...         | uint8 | Additional category IDs (up to 8 max)  |
+| Byte | Field      | Type  | Description                           |
+|------|------------|-------|---------------------------------------|
+| 0    | Category 0 | uint8 | First registered category ID          |
+| 1    | Category 1 | uint8 | Second registered category ID         |
+| ...  | ...        | uint8 | Additional category IDs (up to 8 max) |
 
 Each byte contains the ID of one registered category handler. The
 System category (0x0) is always included. Categories are listed in
@@ -302,7 +317,7 @@ All multi-byte integers are encoded **big-endian** (network byte order).
 
 ### 9.1 Encoding Algorithm
 
-```
+```text
 fixed_value = clamp(round(float_value × scale_factor), INT_MIN, INT_MAX)
 float_value = fixed_value / scale_factor
 ```
@@ -317,7 +332,7 @@ Values are saturated (clamped) to the target integer range to prevent overflow.
 |-------|-----------------|-------------------------------------------------------------|
 | 0     | Success         | Command accepted and processed                              |
 | 1     | Unknown Command | Message type not recognized for category                    |
-| 2     | Invalid Payload | Payload too short or field out of range                     |
+| 2     | Invalid Payload | Payload too short, or rejected by the category's handler    |
 | 3     | Invalid State   | Command not valid in current state                          |
 | 4     | Sequence Error  | Sequence number not (previous + 1) mod 256                  |
 | 5     | Rate Limited    | Message rate limit exceeded                                 |
@@ -367,10 +382,15 @@ sequenceDiagram
 
 ## 12. Rate Limiting
 
-The server enforces a configurable maximum message rate (default: 500
-messages per period). Messages received after the limit is reached are
+The server enforces a configurable maximum number of received messages per
+second (default: 500). Messages received after the limit is reached are
 silently discarded. The rate counter resets automatically every second
 via an internal timer.
+
+Every accepted frame is charged, including one an ISO-TP channel consumes,
+so a multi-frame PDU costs one credit per frame it occupies on the bus
+rather than one credit for the whole transfer. The reassembled PDU is not
+charged again when it is dispatched.
 
 ```mermaid
 flowchart TD
@@ -381,7 +401,9 @@ flowchart TD
     C -- Yes --> D{Rate limit reached?}
     D -- Yes --> Z
     D -- No --> E[Increment counter]
-    E --> F{Find category handler?}
+    E --> Y{Consumed by ISO-TP?}
+    Y -- Yes --> X[Reassemble; dispatch PDU when complete]
+    Y -- No --> F{Find category handler?}
     F -- No --> Z
     F -- Yes --> G{Requires sequence?}
     G -- Yes --> H{Sequence valid?}

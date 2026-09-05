@@ -286,6 +286,69 @@ namespace
         EXPECT_NEAR(result, 3.14f, 0.001f);
     }
 
+    TEST(CanFrameCodecTest, FloatToFixed16_NanReturnsZero)
+    {
+        auto result = CanFrameCodec::FloatToFixed16(std::numeric_limits<float>::quiet_NaN(), 1000);
+        EXPECT_EQ(result, 0);
+    }
+
+    TEST(CanFrameCodecTest, ZeroScaleReturnsZeroInsteadOfDividingByIt)
+    {
+        EXPECT_EQ(CanFrameCodec::FloatToFixed16(1.5f, 0), 0);
+        EXPECT_EQ(CanFrameCodec::FloatToFixed32(1.5f, 0), 0);
+        EXPECT_EQ(CanFrameCodec::Fixed16ToFloat(1234, 0), 0.0f);
+        EXPECT_EQ(CanFrameCodec::Fixed32ToFloat(1234, 0), 0.0f);
+    }
+
+    TEST(CanFrameCodecTest, WritePastFrameCapacity_FailsInsteadOfOverflowing)
+    {
+        hal::Can::Message msg;
+
+        EXPECT_FALSE(CanFrameCodec::WriteInt16(msg, 7, 0x1234));
+        EXPECT_FALSE(CanFrameCodec::WriteUInt16(msg, 7, 0x1234));
+        EXPECT_FALSE(CanFrameCodec::WriteInt32(msg, 5, 0x12345678));
+        EXPECT_FALSE(CanFrameCodec::WriteUInt32(msg, 5, 0x12345678));
+        EXPECT_LE(msg.size(), msg.max_size());
+
+        EXPECT_TRUE(CanFrameCodec::WriteUInt32(msg, 4, 0x12345678));
+        EXPECT_EQ(msg.size(), 8u);
+    }
+
+    TEST(CanFrameCodecTest, WriteAtOverflowingOffset_FailsInsteadOfWrapping)
+    {
+        hal::Can::Message msg;
+
+        EXPECT_FALSE(CanFrameCodec::WriteUInt16(msg, std::numeric_limits<std::size_t>::max(), 0x1234));
+        EXPECT_FALSE(CanFrameCodec::WriteInt16(msg, std::numeric_limits<std::size_t>::max() - 1u, 0x1234));
+        EXPECT_FALSE(CanFrameCodec::WriteUInt32(msg, std::numeric_limits<std::size_t>::max() - 3u, 0x12345678));
+        EXPECT_FALSE(CanFrameCodec::WriteInt32(msg, std::numeric_limits<std::size_t>::max(), 0x12345678));
+
+        EXPECT_TRUE(msg.empty());
+    }
+
+    TEST(CanFrameCodecTest, ReadAtOverflowingOffset_ReturnsZeroInsteadOfWrapping)
+    {
+        hal::Can::Message msg;
+        for (uint8_t i = 0; i != 8u; ++i)
+            msg.push_back(i);
+
+        EXPECT_EQ(CanFrameCodec::ReadUInt16(msg, std::numeric_limits<std::size_t>::max()), 0u);
+        EXPECT_EQ(CanFrameCodec::ReadInt16(msg, std::numeric_limits<std::size_t>::max() - 1u), 0);
+        EXPECT_EQ(CanFrameCodec::ReadUInt32(msg, std::numeric_limits<std::size_t>::max() - 3u), 0u);
+        EXPECT_EQ(CanFrameCodec::ReadInt32(msg, std::numeric_limits<std::size_t>::max()), 0);
+    }
+
+    TEST(CanFrameCodecTest, ReadPastFrameEnd_ReturnsZeroInsteadOfIndexingOutOfRange)
+    {
+        hal::Can::Message msg;
+        msg.push_back(0xAA);
+
+        EXPECT_EQ(CanFrameCodec::ReadInt16(msg, 0), 0);
+        EXPECT_EQ(CanFrameCodec::ReadUInt16(msg, 0), 0u);
+        EXPECT_EQ(CanFrameCodec::ReadInt32(msg, 0), 0);
+        EXPECT_EQ(CanFrameCodec::ReadUInt32(msg, 0), 0u);
+    }
+
     TEST(CanFrameCodecTest, WriteAndReadInt16_RoundTrip)
     {
         hal::Can::Message msg;
@@ -371,12 +434,12 @@ namespace
 
         uint8_t data[] = { 0x01, 0x02, 0x03 };
 
-        EXPECT_TRUE(category.HandlePduMessage(0x10, infra::MakeRange(data)));
+        EXPECT_EQ(category.HandlePduMessage(0x10, infra::MakeRange(data)), CanPduDispatchResult::handled);
         EXPECT_EQ(msgPdu.handlePduCallCount, 1);
         EXPECT_EQ(msgPdu.lastPduSize, 3u);
     }
 
-    TEST(CanCategoryTest, HandlePduMessage_ReturnsFalseForUnknownType)
+    TEST(CanCategoryTest, HandlePduMessage_ReportsUnknownMessageType)
     {
         StubCategoryServer category(0x01);
         StubPduMessageType msgPdu(0x10);
@@ -384,7 +447,7 @@ namespace
 
         uint8_t data[] = { 0x01 };
 
-        EXPECT_FALSE(category.HandlePduMessage(0xFF, infra::MakeRange(data)));
+        EXPECT_EQ(category.HandlePduMessage(0xFF, infra::MakeRange(data)), CanPduDispatchResult::unknownMessageType);
         EXPECT_EQ(msgPdu.handlePduCallCount, 0);
     }
 
@@ -399,6 +462,6 @@ namespace
 
         uint8_t data[] = { 0xAB };
 
-        EXPECT_FALSE(category.HandlePduMessage(0x20, infra::MakeRange(data)));
+        EXPECT_EQ(category.HandlePduMessage(0x20, infra::MakeRange(data)), CanPduDispatchResult::rejected);
     }
 }

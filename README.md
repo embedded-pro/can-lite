@@ -1,9 +1,9 @@
+# can-lite
+
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=alert_status&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=coverage&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=duplicated_lines_density&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=vulnerabilities&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
-
-# can-lite
 
 A lightweight, extensible CAN bus protocol library implementing a client-server model over CAN 2.0B (29-bit extended identifiers). Designed for deterministic, low-latency communication on resource-constrained embedded systems with no heap allocation.
 
@@ -23,7 +23,7 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **Multi-Server Support**: One client can address multiple servers via node IDs
 - **Category-Based Dispatch**: Extensible message routing via pluggable category handlers (server/client pairs)
 - **Built-in System Category**: Heartbeat, command acknowledgement, status request, and category discovery out of the box
-- **Sequence Validation**: 8-bit sequence counter with per-category opt-in
+- **Sequence Validation**: 8-bit sequence counter, on by default for server categories and opt-out per category
 - **Rate Limiting**: Configurable message rate enforcement on the server
 - **Fixed-Point Codec**: Saturation-clamped encoding for float-to-integer conversion
 - **ISO-TP (ISO 15765-2)**: Optional multi-frame segmentation and reassembly for payloads > 8 bytes
@@ -46,7 +46,7 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 
 1. Clone the repository
 ```bash
-git clone --recursive https://github.com/embedded-pro/can-lite.git
+git clone https://github.com/embedded-pro/can-lite.git
 cd can-lite
 ```
 
@@ -81,7 +81,7 @@ Enable them with `-DCAN_LITE_BUILD_EXAMPLES=On` to compile them alongside the li
 
 ## Project Structure
 
-```
+```text
 ├── can-lite/
 │   ├── core/                   # Protocol definitions, frame codec, transport
 │   │   ├── CanProtocolDefinitions.hpp  # Enums, constants, CAN ID layout
@@ -145,7 +145,7 @@ Application-specific categories belong in the consuming project, not in
 - **Deterministic Execution**: No dynamic allocation or unbounded loops in message paths
 - **Input Validation**: All payloads length-checked before parsing
 - **Rate Limiting**: Configurable per-server message rate enforcement
-- **Sequence Validation**: Per-category opt-in replay protection
+- **Sequence Validation**: Per-category opt-out in-order delivery and duplicate detection (a best-effort ordering check, not a security mechanism)
 
 ## Documentation
 

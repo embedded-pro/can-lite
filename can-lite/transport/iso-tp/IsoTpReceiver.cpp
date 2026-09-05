@@ -151,7 +151,7 @@ namespace services::iso_tp
             sendFcFunc(fc, [this](bool success)
                 {
                     if (!success)
-                        Abort(AbortReason::unexpectedFrame);
+                        Abort(AbortReason::sendFailed);
                 });
     }
 

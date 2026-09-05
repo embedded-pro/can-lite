@@ -4,7 +4,8 @@
 namespace services
 {
     CanProtocolServer::CanProtocolServer(hal::Can& can, const Config& config)
-        : config(config)
+        : can(can)
+        , config(config)
         , transport(can, config.nodeId)
         , rateResetTimer(std::chrono::seconds(1), [this]()
               {
@@ -29,6 +30,12 @@ namespace services
             });
 
         ResetHeartbeatTimer();
+    }
+
+    CanProtocolServer::~CanProtocolServer()
+    {
+        can.ReceiveData(nullptr);
+        transport.ClearOnSendNotification();
     }
 
     CanProtocolServer::SystemObserver::SystemObserver(CanSystemCategoryServer& subject, CanProtocolServer& server)
@@ -68,9 +75,22 @@ namespace services
         return true;
     }
 
-    void CanProtocolServer::UnregisterCategory(CanCategoryServer& category)
+    bool CanProtocolServer::UnregisterCategory(CanCategoryServer& category)
     {
-        categories.erase(category);
+        if (&category == &systemCategory)
+            return false;
+
+        for (auto& existing : categories)
+        {
+            if (&existing == &category)
+            {
+                categories.erase(category);
+                category.ClearAcknowledger();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     void CanProtocolServer::AttachIsoTpTransport(IsoTpTransport& isoTp)
@@ -86,6 +106,16 @@ namespace services
             });
     }
 
+    void CanProtocolServer::DetachIsoTpTransport()
+    {
+        if (isoTpTransport == nullptr)
+            return;
+
+        isoTpTransport->SetOnPduReceived(nullptr);
+        isoTpTransport->SetOnAbort(nullptr);
+        isoTpTransport = nullptr;
+    }
+
     void CanProtocolServer::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
     {
         auto nodeId = ExtractCanNodeId(rawId);
@@ -93,9 +123,6 @@ namespace services
             return;
 
         MarkClientAlive();
-
-        if (!CheckAndIncrementRate())
-            return;
 
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
@@ -124,10 +151,16 @@ namespace services
             }
         }
 
-        if (!category->HandlePduMessage(messageType, pdu))
+        switch (category->HandlePduMessage(messageType, pdu))
         {
-            SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
-            return;
+            case CanPduDispatchResult::handled:
+                break;
+            case CanPduDispatchResult::rejected:
+                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                break;
+            case CanPduDispatchResult::unknownMessageType:
+                SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+                break;
         }
     }
 
@@ -138,10 +171,6 @@ namespace services
 
         uint32_t rawId = id.Get29BitId();
 
-        if (isoTpTransport != nullptr &&
-            isoTpTransport->ProcessFrame(rawId, data))
-            return;
-
         uint16_t targetNodeId = ExtractCanNodeId(rawId);
 
         if (targetNodeId != config.nodeId && targetNodeId != canBroadcastNodeId)
@@ -150,6 +179,10 @@ namespace services
         MarkClientAlive();
 
         if (!CheckAndIncrementRate())
+            return;
+
+        if (isoTpTransport != nullptr &&
+            isoTpTransport->ProcessFrame(rawId, data))
             return;
 
         auto categoryId = ExtractCanCategory(rawId);
@@ -219,6 +252,8 @@ namespace services
         msg.push_back(canProtocolVersion);
 
         transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [](bool) {});
+
+        ResetHeartbeatTimer();
     }
 
     void CanProtocolServer::ResetHeartbeatTimer()

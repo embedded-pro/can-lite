@@ -27,6 +27,11 @@ namespace services
         onSendNotification = callback;
     }
 
+    void CanFrameTransport::ClearOnSendNotification()
+    {
+        onSendNotification = nullptr;
+    }
+
     bool CanFrameTransport::SendFrame(CanPriority priority, uint8_t category, uint8_t messageType,
         const hal::Can::Message& data, const infra::Function<void(bool success)>& onDone)
     {

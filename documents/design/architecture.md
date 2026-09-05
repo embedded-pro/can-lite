@@ -46,14 +46,14 @@ block-beta
 
 ## 2. Design Principles
 
-| Principle | Rationale |
-|-----------|-----------|
-| **No heap allocation** | Target MCUs have limited SRAM; all containers use `infra::BoundedVector`, `infra::BoundedDeque`, `infra::Function`, etc. from embedded-infra-lib. |
-| **Type-safe server/client separation** | Prevents accidental registration of a client-side category handler on the server (and vice versa) at compile time. |
-| **Observer pattern over callbacks** | Consistent notification mechanism using `infra::Subject` / `infra::SingleObserver`. Avoids storing `infra::Function` objects for event dispatch; observers auto-attach and auto-detach on construction/destruction. |
-| **Fixed-point encoding** | Floating-point values are transmitted as scaled integers to avoid FPU dependencies and ensure deterministic wire representation. |
-| **Domain-neutral library** | can-lite ships only protocol-level categories (System, Firmware Upgrade). Anything application-specific lives in the consuming project as an application category. |
-| **Extensible via categories** | New functionality is added by implementing a category handler — no protocol core changes required. See [Extending can-lite with categories](extending-categories.md). |
+| Principle                              | Rationale                                                                                                                                                                                                           |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **No heap allocation**                 | Target MCUs have limited SRAM; all containers use `infra::BoundedVector`, `infra::BoundedDeque`, `infra::Function`, etc. from embedded-infra-lib.                                                                   |
+| **Type-safe server/client separation** | Prevents accidental registration of a client-side category handler on the server (and vice versa) at compile time.                                                                                                  |
+| **Observer pattern over callbacks**    | Consistent notification mechanism using `infra::Subject` / `infra::SingleObserver`. Avoids storing `infra::Function` objects for event dispatch; observers auto-attach and auto-detach on construction/destruction. |
+| **Fixed-point encoding**               | Floating-point values are transmitted as scaled integers to avoid FPU dependencies and ensure deterministic wire representation.                                                                                    |
+| **Domain-neutral library**             | can-lite ships only protocol-level categories (System, Firmware Upgrade). Anything application-specific lives in the consuming project as an application category.                                                  |
+| **Extensible via categories**          | New functionality is added by implementing a category handler — no protocol core changes required. See [Extending can-lite with categories](extending-categories.md).                                               |
 
 ## 3. Category Type Hierarchy
 
@@ -130,7 +130,15 @@ All category handlers use `infra::Subject<Observer>` / `infra::SingleObserver<Ob
 
 **Key properties:**
 - **Single observer for categories**: Every category subject supports exactly one observer (`infra::SingleObserver`). This matches the 1:1 relationship between a category instance and its consumer.
-- **Multiple observers at the protocol layer**: `CanProtocolServerObserver` and `CanProtocolClientObserver` derive from `infra::Observer`, so a `CanProtocolServer`/`CanProtocolClient` accepts more than one. The protocol subject legitimately has two interested parties — the application and an optional `TracingCanProtocol*Observer` (§13) — whereas a category has one consumer. `infra::Subject` selects its single- or multi-observer specialisation from the observer's `SingleHelper` typedef, so the two forms differ only in the base class; `NotifyObservers()` and `Attach()`/`Detach()` are identical.
+- **Multiple observers at the protocol layer**: `CanProtocolServerObserver`
+  and `CanProtocolClientObserver` derive from `infra::Observer`, so a
+  `CanProtocolServer`/`CanProtocolClient` accepts more than one. The protocol
+  subject legitimately has two interested parties — the application and an
+  optional `TracingCanProtocol*Observer` (§13) — whereas a category has one
+  consumer. `infra::Subject` selects its single- or multi-observer
+  specialisation from the observer's `SingleHelper` typedef, so the two forms
+  differ only in the base class; `NotifyObservers()` and `Attach()`/`Detach()`
+  are identical.
 - **Auto-attach/detach**: The observer attaches in its constructor and detaches in its destructor — no manual registration needed.
 - **Zero-cost when unobserved**: `NotifyObservers()` checks for a null observer pointer (single) or iterates an empty list (multiple) before dispatching, making it safe to call with no observer attached.
 
@@ -142,6 +150,8 @@ class MyCategoryServerObserver
     : public infra::SingleObserver<MyCategoryServerObserver, MyCategoryServer>
 {
 public:
+    using infra::SingleObserver<MyCategoryServerObserver, MyCategoryServer>::SingleObserver;
+
     virtual void OnSetParameters(int16_t first, const infra::Function<void()>& onDone) = 0;
 };
 
@@ -182,8 +192,8 @@ The system category on the server is **fully automatic** — no public API is ex
 
 The system category on the client exposes **only category discovery** through its observer:
 
-| Exposed via observer | Description |
-|---------------------|-------------|
+| Exposed via observer                  | Description                                             |
+|---------------------------------------|---------------------------------------------------------|
 | `OnCategoryListResponse(categoryIds)` | Notifies when a category list is received from a server |
 
 Command acknowledgement handling (§9.4) happens in `CanProtocolClient` itself, not in `CanSystemCategoryClient`, because it needs the source node ID, which the category dispatch layer does not pass down to individual message handlers. Category discovery is exposed because the application may want to enumerate a server's capabilities.
@@ -234,7 +244,7 @@ See [Extending can-lite with categories](extending-categories.md) for the full a
 
 All 29 bits of the extended CAN ID encode routing information:
 
-```
+```text
 [28:24] Priority     (5 bits)  — message urgency
 [23:20] Category     (4 bits)  — functional group (0x0 = System)
 [19:12] Message Type (8 bits)  — specific command/response within category
@@ -243,13 +253,13 @@ All 29 bits of the extended CAN ID encode routing information:
 
 Priority values (lower = higher priority on the CAN bus):
 
-| Priority | Value | Usage |
-|----------|-------|-------|
-| Emergency | 0 | Reserved for safety-critical messages |
-| Command | 4 | Client-to-server commands |
-| Response | 8 | Server-to-client responses |
-| Telemetry | 12 | Periodic data streams |
-| Heartbeat | 16 | Presence detection |
+| Priority  | Value | Usage                                 |
+|-----------|-------|---------------------------------------|
+| Emergency | 0     | Reserved for safety-critical messages |
+| Command   | 4     | Client-to-server commands             |
+| Response  | 8     | Server-to-client responses            |
+| Telemetry | 12    | Periodic data streams                 |
+| Heartbeat | 16    | Presence detection                    |
 
 ## 9. Sequence Validation
 
@@ -269,11 +279,27 @@ concurrently interleave their counters and are rejected with `sequenceError`.
 
 ## 9.1 Per-Server Sequence Tracking
 
-`CanProtocolClient` maintains **independent sequence counters per server node** in a fixed-size array (`maxServers = 8`) and exposes them through the `CanSequenceSource` interface. `PeekSequence(nodeId)` returns the next sequence byte for the given node, and `CommitSequence(nodeId, category, messageType)` advances it once the frame has been accepted by the send queue — so a rejected frame does not burn a sequence number. This ensures that commands directed to different servers do not share or interfere with each other's replay protection state. `CommitSequence` also starts that server's command-ack timeout (§9.4), which is why it takes the category and message type of the command just sent.
+`CanProtocolClient` maintains **independent sequence counters per server
+node** in a fixed-size array (`maxServers = 8`) and exposes them through the
+`CanSequenceSource` interface. `PeekSequence(nodeId)` returns the next
+sequence byte for the given node, and `CommitSequence(nodeId, category,
+messageType)` advances it once the frame has been accepted by the send queue —
+so a rejected frame does not burn a sequence number. This ensures that
+commands directed to different servers do not share or interfere with each
+other's replay protection state. `CommitSequence` also starts that server's
+command-ack timeout (§9.4), which is why it takes the category and message
+type of the command just sent.
 
 ### Sequence Resynchronization
 
-A `sequenceError` acknowledgement carries the sequence number the server expected (§9.4). `CanProtocolClient` parses every acknowledgement frame as it arrives (before category dispatch, since it still has the source node ID at that point) and, on `sequenceError`, sets that server's counter to the reported value. This recovers a client whose sequence state has drifted from the server's — for example after the client process restarts and its in-memory counter resets to 0 while the server, unaware of the restart, still expects its old counter to continue — without requiring the server to also reset.
+A `sequenceError` acknowledgement carries the sequence number the server
+expected (§9.4). `CanProtocolClient` parses every acknowledgement frame as it
+arrives (before category dispatch, since it still has the source node ID at
+that point) and, on `sequenceError`, sets that server's counter to the
+reported value. This recovers a client whose sequence state has drifted from
+the server's — for example after the client process restarts and its in-memory
+counter resets to 0 while the server, unaware of the restart, still expects
+its old counter to continue — without requiring the server to also reset.
 
 ## 9.2 Server Liveness Detection
 
@@ -288,19 +314,50 @@ Applications connect a `CanProtocolClientObserver` to receive these events and r
 
 ## 9.2.1 Client Liveness Detection (Server-side)
 
-`CanProtocolServer` detects the reverse direction: whether its client is still present. `CanProtocolClient` broadcasts its own heartbeat (node ID `0x000`) following the same quiet-period rule as the server's heartbeat (§9.3); since that heartbeat is deferred by any other outgoing traffic, a client sending commands continuously might not emit a dedicated heartbeat frame for a long time. `CanProtocolServer` therefore restarts its `clientLivenessTimer` (configurable, default 3 s via `Config::clientTimeout`) on any frame correctly addressed to it, not only heartbeats — mirroring how `CanProtocolClient::MarkServerAlive` treats any received frame as proof of a server's liveness (§9.2). Only a received heartbeat notifies `CanProtocolServerObserver::Online()`, since that is the specific, meaningful signal; if the timer fires without further traffic from the client, `CanProtocolServerObserver::Offline()` is notified. A server tracks liveness for one client only, consistent with the single sequence counter (§9).
+`CanProtocolServer` detects the reverse direction: whether its client is still
+present. `CanProtocolClient` broadcasts its own heartbeat (node ID `0x000`)
+following the same quiet-period rule as the server's heartbeat (§9.3); since
+that heartbeat is deferred by any other outgoing traffic, a client sending
+commands continuously might not emit a dedicated heartbeat frame for a long
+time. `CanProtocolServer` therefore restarts its `clientLivenessTimer`
+(configurable, default 3 s via `Config::clientTimeout`) on any frame correctly
+addressed to it, not only heartbeats — mirroring how
+`CanProtocolClient::MarkServerAlive` treats any received frame as proof of a
+server's liveness (§9.2). Only a received heartbeat notifies
+`CanProtocolServerObserver::Online()`, since that is the specific, meaningful
+signal; if the timer fires without further traffic from the client,
+`CanProtocolServerObserver::Offline()` is notified. A server tracks liveness
+for one client only, consistent with the single sequence counter (§9).
 
 ## 9.3 Heartbeat Timer (Silence Guard)
 
-Both `CanProtocolServer` and `CanProtocolClient` use a `TimerSingleShot` instead of a `TimerRepeating` for heartbeat emission. The timer is restarted (`ResetHeartbeatTimer()`) after every outgoing frame on that side. This means a heartbeat is only sent when that side has been **silent** for the full heartbeat interval, preventing unnecessary heartbeat traffic on active buses. The client's heartbeat is a broadcast, since a client has no node ID of its own on the bus.
+Both `CanProtocolServer` and `CanProtocolClient` use a `TimerSingleShot`
+instead of a `TimerRepeating` for heartbeat emission. The timer is restarted
+(`ResetHeartbeatTimer()`) after every outgoing frame on that side. This means
+a heartbeat is only sent when that side has been **silent** for the full
+heartbeat interval, preventing unnecessary heartbeat traffic on active buses.
+The client's heartbeat is a broadcast, since a client has no node ID of its
+own on the bus.
 
 ## 9.4 Command Acknowledgement Timeout
 
-When `CanCategoryClient::SendCommand` sends a sequence-validated command, `CanProtocolClient::CommitSequence` starts a per-server `ackTimer` (configurable, default 1 s via `Config::commandAckTimeout`) alongside the category and message type of the command sent. Any acknowledgement frame from that server matching that (category, messageType) cancels the timer, regardless of its status. If the timer fires first, `CanProtocolClientObserver::OnCommandAckTimeout(nodeId, category, messageType)` is notified; the command is not automatically retried. Because a server can have at most one outstanding command tracked this way, sending a second sequence-validated command to the same server before the first is acknowledged replaces the tracked (category, messageType) — an acknowledgement for the first command that arrives afterward will not match and will not cancel the timer for the second.
+When `CanCategoryClient::SendCommand` sends a sequence-validated command,
+`CanProtocolClient::CommitSequence` starts a per-server `ackTimer`
+(configurable, default 1 s via `Config::commandAckTimeout`) alongside the
+category and message type of the command sent. Any acknowledgement frame from
+that server matching that (category, messageType) cancels the timer,
+regardless of its status. If the timer fires first,
+`CanProtocolClientObserver::OnCommandAckTimeout(nodeId, category,
+messageType)` is notified; the command is not automatically retried. Because a
+server can have at most one outstanding command tracked this way, sending a
+second sequence-validated command to the same server before the first is
+acknowledged replaces the tracked (category, messageType) — an acknowledgement
+for the first command that arrives afterward will not match and will not
+cancel the timer for the second.
 
 ## 10. Directory Structure
 
-```
+```text
 can-lite/
 ├── core/                          # Protocol primitives
 │   ├── CanCategory.hpp/cpp        # Base class + Server/Client subclasses
@@ -357,15 +414,15 @@ The transport layer provides multi-frame PDU segmentation and reassembly followi
 
 **Key classes:**
 
-| Class                | Role                                                                                                                 |
-|----------------------|----------------------------------------------------------------------------------------------------------------------|
-| `IsoTpTransport`     | Abstract interface — `RegisterReceiveChannel`, `SendPdu`, `ProcessFrame`, `SetOnPduReceived`                         |
-| `IsoTpTransportImpl` | Non-template concrete implementation; channel pool via `WithStorage<MaxPduSize, MaxChannels>`                        |
-| `IsoTpChannel`       | Non-template abstract channel interface used by `IsoTpTransportImpl`                                                 |
-| `IsoTpChannelImpl`   | Non-template concrete channel; composes `IsoTpSender` + `IsoTpReceiver` via `WithStorage<MaxPduSize>`                |
-| `IsoTpSender`        | Non-template transmit FSM (SF → FF → wait-for-FC → CFs; N_Bs timeout); `WithStorage<MaxPduSize>` provides buffer     |
-| `IsoTpReceiver`      | Non-template receive FSM (SF dispatch or FF → wait-for-CFs; N_Cr timeout); `WithStorage<MaxPduSize>` provides buffer |
-| `IsoTpFrameCodec`    | Stateless PCI encode/decode helpers                                                                                  |
+| Class                | Role                                                                                                                         |
+|----------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `IsoTpTransport`     | Abstract interface — `RegisterReceiveChannel`, `ReleaseChannel`, `SendPdu`, `ProcessFrame`, `SetOnPduReceived`, `SetOnAbort` |
+| `IsoTpTransportImpl` | Non-template concrete implementation; channel pool via `WithStorage<MaxPduSize, MaxChannels>`                                |
+| `IsoTpChannel`       | Non-template abstract channel interface used by `IsoTpTransportImpl`                                                         |
+| `IsoTpChannelImpl`   | Non-template concrete channel; composes `IsoTpSender` + `IsoTpReceiver` via `WithStorage<MaxPduSize>`                        |
+| `IsoTpSender`        | Non-template transmit FSM (SF → FF → wait-for-FC → CFs; N_Bs timeout); `WithStorage<MaxPduSize>` provides buffer             |
+| `IsoTpReceiver`      | Non-template receive FSM (SF dispatch or FF → wait-for-CFs; N_Cr timeout); `WithStorage<MaxPduSize>` provides buffer         |
+| `IsoTpFrameCodec`    | Stateless PCI encode/decode helpers                                                                                          |
 
 **WithStorage pattern — zero-heap construction chain:**
 
@@ -392,6 +449,23 @@ IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
 protocolServer.AttachIsoTpTransport(isoTp);
 ```
 
+`AttachIsoTpTransport` stores a raw pointer and installs callbacks on the
+transport, so the transport must outlive the attachment. Because it is
+constructed from the protocol object's own `CanFrameTransport`, it is
+necessarily destroyed first; `DetachIsoTpTransport()` breaks the attachment in
+that case, and the protocol object's destructor deliberately does not reach
+into a transport it cannot know is still alive.
+
+The same ownership rule governs the `hal::Can` receive callback. The interface
+holds one callback and cannot report who installed it, so `CanProtocolServer`
+and `CanProtocolClient` claim it unconditionally at construction and release it
+unconditionally at destruction. One protocol object owns a given `hal::Can`,
+and nothing else may register on it while that object is alive — a second
+registration silently stops the first from receiving. See the design booklet's
+corner-case chapter, §10.
+
+Abort reasons are enumerated in `IsoTpTypes.hpp` and catalogued in the design booklet's glossary. `sendFailed` is distinct from `unexpectedFrame`: the first is a local transmit condition, the second a statement about the peer's frame.
+
 `CanProtocolServer::ProcessReceivedMessage` offers each incoming frame to the ISO-TP layer first (`isoTpTransport->ProcessFrame(canId, frame)`). If the transport claims it (a registered channel matches), normal category dispatch is skipped. This keeps the transport layer transparent to existing category handlers.
 
 ## 11. Build System
@@ -410,7 +484,7 @@ Integration tests validate end-to-end behavior across components using [cucumber
 
 All scenarios share a single fixture type — `ApplicationFixture` — that simulates a real application with a server, client, and virtual CAN bus. This ensures tests exercise the same initialization and interaction paths as production code.
 
-```
+```text
 integration_tests/
 ├── features/                      # Gherkin .feature files
 ├── hooks/                         # Scenario lifecycle hooks
@@ -446,7 +520,14 @@ All mock observers use `testing::StrictMock`. Unexpected calls cause immediate t
 
 ## 13. Observability
 
-Tracing is provided by **decorators the consumer opts into in the composition root**. Nothing in the library holds a `services::Tracer&`; a build that never constructs a decorator pays nothing. Threading a tracer through `CanFrameTransport`, the protocol classes and every category was rejected: it would change every constructor signature and add a dependency to code that currently links `can_lite.core` only. `.github/linters/goodcheck.yml` enforces the same conclusion by forbidding `services::GlobalTracer()` in production code.
+Tracing is provided by **decorators the consumer opts into in the composition
+root**. Nothing in the library holds a `services::Tracer&`; a build that never
+constructs a decorator pays nothing. Threading a tracer through
+`CanFrameTransport`, the protocol classes and every category was rejected: it
+would change every constructor signature and add a dependency to code that
+currently links `can_lite.core` only. `.github/linters/goodcheck.yml` enforces
+the same conclusion by forbidding `services::GlobalTracer()` in production
+code.
 
 ### Layers and seams
 
@@ -456,7 +537,12 @@ Tracing is provided by **decorators the consumer opts into in the composition ro
 | Transport | `IsoTpTransport`                                          | `TracingIsoTpTransport`                                                 |
 | Protocol  | `CanProtocolServerObserver` / `CanProtocolClientObserver` | `TracingCanProtocolServerObserver` / `TracingCanProtocolClientObserver` |
 
-`TracingCan` sees **all** traffic in both directions, including frames dropped later by node-ID filtering, rate limiting, or unregistered categories. The protocol observers cover what the frame log structurally cannot show: `OnCommandAckTimeout` and both `Offline` transitions are timer-driven and put nothing on the bus, so without them a quiet bus and a bus whose acknowledgements are being missed look identical.
+`TracingCan` sees **all** traffic in both directions, including frames dropped
+later by node-ID filtering, rate limiting, or unregistered categories. The
+protocol observers cover what the frame log structurally cannot show:
+`OnCommandAckTimeout` and both `Offline` transitions are timer-driven and put
+nothing on the bus, so without them a quiet bus and a bus whose
+acknowledgements are being missed look identical.
 
 The category layer has no decorator. `CanCategory::HandleMessage` and `HandlePduMessage` are non-virtual, so decorating a category would mean making dispatch virtual in core — for information already derivable from the frame trace and the decoded `commandAck` line.
 
@@ -476,7 +562,7 @@ services::TracingCanProtocolServerObserver serverTrace{ server, tracer };
 
 Every line is `<ClassName>: <message>`, so a mixed log stays attributable to a layer and filters with a single `grep Tracing`:
 
-```
+```text
 TracingCan: TX id 0x4001123 prio command cat 0x0 system type 0x1 heartbeat node 0x123 dlc 3 data 010203
 TracingCan: ack cat 0x3 type 0x5 status sequenceError expectedSeq 0x7
 TracingIsoTpTransport: Abort dataId 0x18db33f1 reason nCrTimeout

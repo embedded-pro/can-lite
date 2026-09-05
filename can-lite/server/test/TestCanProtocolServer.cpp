@@ -43,7 +43,7 @@ namespace
             FixtureInit(hal::CanMock& canMock,
                 infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& receiveCallback)
             {
-                EXPECT_CALL(canMock, ReceiveData(_)).WillOnce([&receiveCallback](const auto& callback)
+                EXPECT_CALL(canMock, ReceiveData(_)).Times(2).WillRepeatedly([&receiveCallback](const auto& callback)
                     {
                         receiveCallback = callback;
                     });
@@ -260,6 +260,47 @@ namespace
         ForwardTime(std::chrono::seconds(1));
     }
 
+    TEST_F(CanProtocolServerTest, Heartbeat_ResumesAfterSendQueueWasFull)
+    {
+        CanProtocolServer::Config heartbeatConfig{ 1, 500, std::chrono::seconds(1) };
+        StrictMock<hal::CanMock> heartbeatCan;
+
+        infra::Function<void(hal::Can::Id, const hal::Can::Message&)> heartbeatReceiveCallback;
+        infra::Function<void(bool)> pendingCompletion;
+        int sendCount = 0;
+
+        EXPECT_CALL(heartbeatCan, ReceiveData(_)).Times(2).WillRepeatedly([&heartbeatReceiveCallback](const auto& callback)
+            {
+                heartbeatReceiveCallback = callback;
+            });
+        EXPECT_CALL(heartbeatCan, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([&sendCount, &pendingCompletion](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                ++sendCount;
+                pendingCompletion = cb;
+            }));
+
+        CanProtocolServer heartbeatServer(heartbeatCan, heartbeatConfig);
+        StrictMock<CanProtocolServerObserverMock> heartbeatObserver(heartbeatServer);
+
+        for (int i = 0; i < 10; ++i)
+            ForwardTime(std::chrono::seconds(1));
+
+        EXPECT_EQ(sendCount, 1);
+
+        while (pendingCompletion)
+        {
+            auto completion = pendingCompletion;
+            pendingCompletion = nullptr;
+            completion(true);
+        }
+
+        auto sendCountAfterDrain = sendCount;
+
+        ForwardTime(std::chrono::seconds(1));
+
+        EXPECT_GT(sendCount, sendCountAfterDrain);
+    }
+
     TEST_F(CanProtocolServerTest, RateLimiting_RejectsExcessMessages)
     {
         CanProtocolServer::Config limitedConfig{ 1, 3, std::chrono::seconds(1) };
@@ -267,7 +308,7 @@ namespace
 
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
-        EXPECT_CALL(limitedCan, ReceiveData(_)).WillOnce([&limitedReceiveCallback](const auto& callback)
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
             {
                 limitedReceiveCallback = callback;
             });
@@ -296,7 +337,7 @@ namespace
 
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
-        EXPECT_CALL(limitedCan, ReceiveData(_)).WillOnce([&limitedReceiveCallback](const auto& callback)
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
             {
                 limitedReceiveCallback = callback;
             });
@@ -689,6 +730,47 @@ namespace
 
         TestCategory oneTooMany(canMaxRegisteredCategories);
         EXPECT_FALSE(server.RegisterCategory(oneTooMany));
+
+        for (auto& category : categories)
+            EXPECT_TRUE(server.UnregisterCategory(category));
+    }
+
+    TEST_F(CanProtocolServerTest, UnregisterCategory_ClearsAcknowledgerSoAckDoesNotReachServer)
+    {
+        class TestCategory : public CanCategoryServerStub
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x06;
+            }
+
+            void Acknowledge()
+            {
+                SendCommandAck(0x50, CanAckStatus::success);
+            }
+        };
+
+        TestCategory testCategory;
+        ASSERT_TRUE(server.RegisterCategory(testCategory));
+        ASSERT_TRUE(server.UnregisterCategory(testCategory));
+
+        EXPECT_DEATH(testCategory.Acknowledge(), "");
+    }
+
+    TEST_F(CanProtocolServerTest, UnregisterCategory_UnknownCategoryReturnsFalse)
+    {
+        class TestCategory : public CanCategoryServerStub
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x07;
+            }
+        };
+
+        TestCategory neverRegistered;
+        EXPECT_FALSE(server.UnregisterCategory(neverRegistered));
     }
 
     TEST_F(CanProtocolServerTest, Construct_WithDefaultConstructedConfig_AssertsInsteadOfBroadcasting)
@@ -699,18 +781,33 @@ namespace
         EXPECT_DEATH(CanProtocolServer(unconfiguredCan, CanProtocolServer::Config{}), "");
     }
 
-    TEST_F(CanProtocolServerTest, ConstructorAutoRegistersReceiveCallback)
+    TEST_F(CanProtocolServerTest, ConstructorRegistersAndDestructorDeregistersReceiveCallback)
     {
         StrictMock<hal::CanMock> testCan;
 
-        EXPECT_CALL(testCan, ReceiveData(_));
+        bool registered = false;
+        bool deregistered = false;
+
+        EXPECT_CALL(testCan, ReceiveData(_)).Times(2).WillRepeatedly([&registered, &deregistered](const infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& callback)
+            {
+                if (callback)
+                    registered = true;
+                else
+                    deregistered = true;
+            });
         ON_CALL(testCan, SendData(_, _, _))
             .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                 {
                     cb(true);
                 }));
 
-        CanProtocolServer testServer(testCan, config);
+        {
+            CanProtocolServer testServer(testCan, config);
+            EXPECT_TRUE(registered);
+            EXPECT_FALSE(deregistered);
+        }
+
+        EXPECT_TRUE(deregistered);
     }
 
     TEST_F(CanProtocolServerTest, CategoryListRequest_RespondsWithRegisteredCategories)
@@ -807,6 +904,82 @@ namespace
         SimulateRx(id, MakeMessage({ 0x01 }));
     }
 
+    TEST_F(CanProtocolServerTest, AttachIsoTpTransport_IsoTpFramesAreChargedAgainstRateLimit)
+    {
+        CanProtocolServer::Config limitedConfig{ 1, 3, std::chrono::seconds(1) };
+        StrictMock<hal::CanMock> limitedCan;
+
+        infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
+
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
+            {
+                limitedReceiveCallback = callback;
+            });
+        EXPECT_CALL(limitedCan, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
+
+        CanProtocolServer limitedServer(limitedCan, limitedConfig);
+        StrictMock<CanProtocolServerObserverMock> limitedObserver(limitedServer);
+
+        StrictMock<MockIsoTpTransport> mockIsoTp;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
+        limitedServer.AttachIsoTpTransport(mockIsoTp);
+
+        auto id = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x01, 0x01, 1));
+
+        EXPECT_CALL(mockIsoTp, ProcessFrame(_, _)).Times(3).WillRepeatedly(Return(true));
+
+        for (int i = 0; i < 4; ++i)
+            limitedReceiveCallback(id, MakeMessage({ 0x01 }));
+    }
+
+    TEST_F(CanProtocolServerTest, AttachIsoTpTransport_ReassembledPduIsNotChargedTwice)
+    {
+        CanProtocolServer::Config limitedConfig{ 1, 2, std::chrono::seconds(1) };
+        StrictMock<hal::CanMock> limitedCan;
+
+        infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
+
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
+            {
+                limitedReceiveCallback = callback;
+            });
+        EXPECT_CALL(limitedCan, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
+
+        CanProtocolServer limitedServer(limitedCan, limitedConfig);
+        StrictMock<CanProtocolServerObserverMock> limitedObserver(limitedServer);
+
+        StrictMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPdu;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPdu));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
+        limitedServer.AttachIsoTpTransport(mockIsoTp);
+
+        auto rawId = MakeCanId(CanPriority::command, 0x01, 0x01, 1);
+        auto id = hal::Can::Id::Create29BitId(rawId);
+
+        EXPECT_CALL(mockIsoTp, ProcessFrame(_, _))
+            .WillOnce(Invoke([&capturedPdu, rawId](uint32_t, const hal::Can::Message&)
+                {
+                    uint8_t pdu[] = { 0x00u, 0xAAu };
+                    capturedPdu(rawId, infra::MakeRange(pdu));
+                    return true;
+                }))
+            .WillOnce(Return(false));
+
+        limitedReceiveCallback(id, MakeMessage({ 0x01 }));
+
+        auto heartbeatId = MakeSystemId(canHeartbeatMessageTypeId);
+        EXPECT_CALL(limitedObserver, Online());
+        limitedReceiveCallback(heartbeatId, MakeMessage({ canProtocolVersion }));
+    }
+
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_OnAbort_ReleasesChannel)
     {
         StrictMock<MockIsoTpTransport> mockIsoTp;
@@ -893,6 +1066,74 @@ namespace
         server.UnregisterCategory(pduCategory);
     }
 
+    TEST_F(CanProtocolServerTest, AttachIsoTpTransport_RejectedPdu_AcksInvalidPayloadNotUnknownCommand)
+    {
+        class RejectingPduMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x42;
+            }
+
+            void Handle(const hal::Can::Message&) override
+            {}
+
+            bool HandlePdu(infra::ConstByteRange) override
+            {
+                return false;
+            }
+        };
+
+        class PduCategory : public CanCategoryServerStub
+        {
+        public:
+            PduCategory()
+            {
+                AddMessageType(msg);
+            }
+
+            uint8_t Id() const override
+            {
+                return 0x05;
+            }
+
+            bool RequiresSequenceValidation() const override
+            {
+                return false;
+            }
+
+            RejectingPduMessageType msg;
+        };
+
+        PduCategory pduCategory;
+        ASSERT_TRUE(server.RegisterCategory(pduCategory));
+
+        StrictMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
+        server.AttachIsoTpTransport(mockIsoTp);
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([&ack](hal::Can::Id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+            {
+                ack = data;
+                cb(true);
+            }));
+
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, 1);
+        uint8_t pduData[] = { 0xDE, 0xAD };
+        capturedPduCallback(rawId, infra::MakeRange(pduData));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[0], 0x05);
+        EXPECT_EQ(ack[1], 0x42);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::invalidPayload));
+
+        server.UnregisterCategory(pduCategory);
+    }
+
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_DispatchPdu_UnknownCategory_Ignored)
     {
         StrictMock<MockIsoTpTransport> mockIsoTp;
@@ -925,7 +1166,7 @@ namespace
         StrictMock<hal::CanMock> limitedCan;
         infra::Function<void(hal::Can::Id, const hal::Can::Message&)> limitedReceiveCallback;
 
-        EXPECT_CALL(limitedCan, ReceiveData(_)).WillOnce([&limitedReceiveCallback](const auto& callback)
+        EXPECT_CALL(limitedCan, ReceiveData(_)).Times(2).WillRepeatedly([&limitedReceiveCallback](const auto& callback)
             {
                 limitedReceiveCallback = callback;
             });

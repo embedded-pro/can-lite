@@ -33,7 +33,7 @@ namespace
             FixtureInit(StrictMock<hal::CanMock>& canMock,
                 infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& receiveCallback)
             {
-                EXPECT_CALL(canMock, ReceiveData(_)).WillOnce([&receiveCallback](const auto& callback)
+                EXPECT_CALL(canMock, ReceiveData(_)).Times(2).WillRepeatedly([&receiveCallback](const auto& callback)
                     {
                         receiveCallback = callback;
                     });
@@ -165,6 +165,9 @@ namespace
 
         TestCategory oneTooMany(canMaxRegisteredCategories);
         EXPECT_FALSE(client.RegisterCategory(oneTooMany));
+
+        for (auto& category : categories)
+            client.UnregisterCategory(category);
     }
 
     TEST_F(CanProtocolClientTest, UnregisterCategory_StopsDispatch)
@@ -303,18 +306,33 @@ namespace
         SimulateRx(id, MakeMessage({ 0x01 }));
     }
 
-    TEST_F(CanProtocolClientTest, ConstructorAutoRegistersReceiveCallback)
+    TEST_F(CanProtocolClientTest, ConstructorRegistersAndDestructorDeregistersReceiveCallback)
     {
         StrictMock<hal::CanMock> testCan;
 
-        EXPECT_CALL(testCan, ReceiveData(_));
+        bool registered = false;
+        bool deregistered = false;
+
+        EXPECT_CALL(testCan, ReceiveData(_)).Times(2).WillRepeatedly([&registered, &deregistered](const infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& callback)
+            {
+                if (callback)
+                    registered = true;
+                else
+                    deregistered = true;
+            });
         ON_CALL(testCan, SendData(_, _, _))
             .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                 {
                     cb(true);
                 }));
 
-        CanProtocolClient testClient(testCan);
+        {
+            CanProtocolClient testClient(testCan);
+            EXPECT_TRUE(registered);
+            EXPECT_FALSE(deregistered);
+        }
+
+        EXPECT_TRUE(deregistered);
     }
 
     // === PeekSequence / CommitSequence ===
@@ -404,7 +422,7 @@ namespace
             FixtureInit(hal::CanMock& canMock,
                 infra::Function<void(hal::Can::Id, const hal::Can::Message&)>& receiveCallback)
             {
-                EXPECT_CALL(canMock, ReceiveData(_)).WillOnce([&receiveCallback](const auto& callback)
+                EXPECT_CALL(canMock, ReceiveData(_)).Times(2).WillRepeatedly([&receiveCallback](const auto& callback)
                     {
                         receiveCallback = callback;
                     });

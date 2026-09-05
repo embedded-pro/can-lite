@@ -36,3 +36,17 @@ patterns the design is built from, and the terms used to classify behaviour.
 | **Frame transport** | The single outbound queue per node, owned by the protocol object and lent to every category (Chapter 4)                                                                                                                        |
 | **Sequence source** | The role, played by the client protocol object, through which a client category obtains sequence numbers without depending on the client library (Chapter 5)                                                                   |
 | **Observer**        | The application-side implementation of a category's or protocol object's event interface. Exactly one per subject, bound for its own lifetime                                                                                  |
+
+## Segmentation abort reasons
+
+Every abandoned transfer reports exactly one of these to the application, and
+the channel is released on all of them (Chapter 8).
+
+| Reason                  | Raised when                                                                                                                                                                                                         |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **N_Bs timeout**        | The sender waited a full N_Bs for the flow control answering its first frame or its last block, and none arrived                                                                                                    |
+| **N_Cr timeout**        | The receiver waited a full N_Cr for the next consecutive frame of a transfer already in progress                                                                                                                    |
+| **Overflow**            | The peer declared its buffer too small for the announced length, or this receiver found the announced length too large for its own buffer                                                                           |
+| **Unexpected frame**    | A frame that cannot belong to the transfer in progress: an out-of-sequence consecutive frame, an unrecognised protocol control byte, or a flow control frame too short to decode or carrying a reserved flow status |
+| **Wait limit exceeded** | The peer asked the sender to wait more consecutive times than N_WFTmax allows                                                                                                                                       |
+| **Send failed**         | The transmit path refused the frame — typically a full outbound queue. A local, transient condition, distinct from anything the peer did                                                                            |

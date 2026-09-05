@@ -39,11 +39,17 @@ namespace services
         };
 
         CanProtocolServer(hal::Can& can, const Config& config);
+        CanProtocolServer(const CanProtocolServer&) = delete;
+        CanProtocolServer(CanProtocolServer&&) = delete;
+        CanProtocolServer& operator=(const CanProtocolServer&) = delete;
+        CanProtocolServer& operator=(CanProtocolServer&&) = delete;
+        ~CanProtocolServer();
 
         bool RegisterCategory(CanCategoryServer& category);
-        void UnregisterCategory(CanCategoryServer& category);
+        bool UnregisterCategory(CanCategoryServer& category);
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
+        void DetachIsoTpTransport();
 
         CanFrameTransport& Transport();
 
@@ -84,6 +90,7 @@ namespace services
         void MarkClientAlive();
         void HandleClientTimeout();
 
+        hal::Can& can;
         Config config;
         CanFrameTransport transport;
         infra::TimerSingleShot heartbeatTimer;
