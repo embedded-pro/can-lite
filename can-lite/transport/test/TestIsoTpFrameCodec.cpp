@@ -151,6 +151,29 @@ TEST(IsoTpFrameCodec, DecodeFlowControl_TruncatedFrame_Fails)
     EXPECT_FALSE(IsoTpFrameCodec::DecodeFlowControl(msg, fs, bs, stMin));
 }
 
+TEST(IsoTpFrameCodec, DecodeFlowControl_OnFailure_StillWritesEveryOutput)
+{
+    FlowStatus fs = FlowStatus::continueToSend;
+    uint8_t bs = 0xAAu;
+    uint8_t stMin = 0xBBu;
+
+    auto truncated = MakeMessage({ 0x30, 0x05 });
+    EXPECT_FALSE(IsoTpFrameCodec::DecodeFlowControl(truncated, fs, bs, stMin));
+    EXPECT_EQ(fs, FlowStatus::wait);
+    EXPECT_EQ(bs, 0u);
+    EXPECT_EQ(stMin, 0u);
+
+    fs = FlowStatus::continueToSend;
+    bs = 0xAAu;
+    stMin = 0xBBu;
+
+    auto reserved = MakeMessage({ 0x37, 0x05, 0x0A });
+    EXPECT_FALSE(IsoTpFrameCodec::DecodeFlowControl(reserved, fs, bs, stMin));
+    EXPECT_EQ(fs, FlowStatus::wait);
+    EXPECT_EQ(bs, 0u);
+    EXPECT_EQ(stMin, 0u);
+}
+
 TEST(IsoTpFrameCodec, DecodeFlowControl_ReservedFlowStatus_Fails)
 {
     for (uint8_t nibble = 0x03u; nibble <= 0x0Fu; ++nibble)

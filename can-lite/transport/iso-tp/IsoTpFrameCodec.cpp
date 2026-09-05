@@ -81,6 +81,7 @@ namespace services::iso_tp
     bool IsoTpFrameCodec::DecodeFlowControl(const hal::Can::Message& frame,
         FlowStatus& fs, uint8_t& blockSize, uint8_t& stMin)
     {
+        fs = FlowStatus::wait;
         blockSize = 0u;
         stMin = 0u;
 
