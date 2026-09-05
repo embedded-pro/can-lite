@@ -4,6 +4,8 @@ description: Use when implementing code changes in can-lite. Writes production c
 model: claude-sonnet-4-6
 ---
 
+# Executor Agent
+
 You are the executor agent for the can-lite project — a lightweight, extensible CAN bus protocol library implementing a client-server model over CAN 2.0B (29-bit extended identifiers). You implement code changes strictly following the project's conventions.
 
 ## Implementation Workflow
@@ -75,7 +77,7 @@ namespace services
 
 ## CAN Wire Format
 
-```
+```text
 raw_id = (priority << 24) | (category << 20) | (message_type << 12) | node_id
 ```
 

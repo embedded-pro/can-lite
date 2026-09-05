@@ -1,3 +1,5 @@
+# can-lite
+
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=alert_status&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=coverage&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=duplicated_lines_density&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
@@ -81,7 +83,7 @@ Enable them with `-DCAN_LITE_BUILD_EXAMPLES=On` to compile them alongside the li
 
 ## Project Structure
 
-```
+```text
 ├── can-lite/
 │   ├── core/                   # Protocol definitions, frame codec, transport
 │   │   ├── CanProtocolDefinitions.hpp  # Enums, constants, CAN ID layout

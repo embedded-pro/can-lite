@@ -43,27 +43,27 @@ transfers (thousands of blocks).
 
 ## 2. Upgrade States
 
-| Value | State      | Description                                     |
-|-------|------------|-------------------------------------------------|
-| 0     | Idle       | No upgrade in progress                          |
-| 1     | Receiving  | Accepting data blocks                           |
-| 2     | Verifying  | CRC32 check in progress                         |
-| 3     | Complete   | Verification passed, ready to activate          |
-| 4     | Error      | Transfer or verification failed                 |
+| Value | State     | Description                            |
+|-------|-----------|----------------------------------------|
+| 0     | Idle      | No upgrade in progress                 |
+| 1     | Receiving | Accepting data blocks                  |
+| 2     | Verifying | CRC32 check in progress                |
+| 3     | Complete  | Verification passed, ready to activate |
+| 4     | Error     | Transfer or verification failed        |
 
 ## 3. Error Codes
 
-| Value | Error           | Description                              |
-|-------|-----------------|------------------------------------------|
-| 0     | Ok              | No error                                 |
-| 1     | Busy            | Upgrade already in progress              |
-| 2     | InvalidSize     | Firmware size exceeds available storage   |
-| 3     | SequenceError   | Block index out of order or duplicate     |
-| 4     | WriteError      | Flash write/erase failure                |
-| 5     | CrcMismatch     | CRC32 verification failed                |
-| 6     | NotReady        | Activate requested before verify passed  |
-| 7     | InvalidState    | Command not valid in current upgrade state|
-| 8     | SessionTimeout  | No activity within the session timeout   |
+| Value | Error          | Description                                |
+|-------|----------------|--------------------------------------------|
+| 0     | Ok             | No error                                   |
+| 1     | Busy           | Upgrade already in progress                |
+| 2     | InvalidSize    | Firmware size exceeds available storage    |
+| 3     | SequenceError  | Block index out of order or duplicate      |
+| 4     | WriteError     | Flash write/erase failure                  |
+| 5     | CrcMismatch    | CRC32 verification failed                  |
+| 6     | NotReady       | Activate requested before verify passed    |
+| 7     | InvalidState   | Command not valid in current upgrade state |
+| 8     | SessionTimeout | No activity within the session timeout     |
 
 ## 4. Message Types — Commands (Client → Server)
 
@@ -74,9 +74,9 @@ All commands are sent at `CanPriority::command`.
 Initiate a firmware upgrade session. If an upgrade is already in
 progress, the server responds with error code `Busy`.
 
-| Byte | Field        | Type   | Description                         |
-|------|--------------|--------|-------------------------------------|
-| 0–3  | FirmwareSize | uint32 | Total firmware image size in bytes  |
+| Byte | Field        | Type   | Description                        |
+|------|--------------|--------|------------------------------------|
+| 0–3  | FirmwareSize | uint32 | Total firmware image size in bytes |
 
 Total: 4 bytes.
 
@@ -87,10 +87,10 @@ Receiving state, and responds with a Begin Upgrade Response (0x80).
 
 Transfer a block of firmware data.
 
-| Byte | Field      | Type      | Description                        |
-|------|------------|-----------|------------------------------------|
-| 0–1  | BlockIndex | uint16    | Zero-based block sequence number   |
-| 2–7  | Data       | uint8\[6\]| Firmware data (up to 6 bytes)      |
+| Byte | Field      | Type       | Description                      |
+|------|------------|------------|----------------------------------|
+| 0–1  | BlockIndex | uint16     | Zero-based block sequence number |
+| 2–7  | Data       | uint8\[6\] | Firmware data (up to 6 bytes)    |
 
 Total: 2–8 bytes. The last block may contain fewer than 6 data bytes.
 
@@ -160,10 +160,10 @@ All responses are sent at `CanPriority::response`.
 
 ### 5.1 Begin Upgrade Response (0x80)
 
-| Byte | Field    | Type   | Description                          |
-|------|----------|--------|--------------------------------------|
-| 0    | Status   | uint8  | Error code (see Section 3)           |
-| 1–2  | PageSize | uint16 | Flash erase page size in bytes       |
+| Byte | Field    | Type   | Description                    |
+|------|----------|--------|--------------------------------|
+| 0    | Status   | uint8  | Error code (see Section 3)     |
+| 1–2  | PageSize | uint16 | Flash erase page size in bytes |
 
 Total: 3 bytes.
 
@@ -172,18 +172,18 @@ can be used for transfer optimization but is not required.
 
 ### 5.2 Data Block Ack (0x81)
 
-| Byte | Field      | Type   | Description                        |
-|------|------------|--------|------------------------------------|
-| 0    | Status     | uint8  | Error code (see Section 3)         |
-| 1–2  | BlockIndex | uint16 | Index of the acknowledged block    |
+| Byte | Field      | Type   | Description                     |
+|------|------------|--------|---------------------------------|
+| 0    | Status     | uint8  | Error code (see Section 3)      |
+| 1–2  | BlockIndex | uint16 | Index of the acknowledged block |
 
 Total: 3 bytes.
 
 ### 5.3 Verify Response (0x82)
 
-| Byte | Field  | Type  | Description                         |
-|------|--------|-------|-------------------------------------|
-| 0    | Status | uint8 | 0 = CRC match, 5 = CRC mismatch    |
+| Byte | Field  | Type  | Description                     |
+|------|--------|-------|---------------------------------|
+| 0    | Status | uint8 | 0 = CRC match, 5 = CRC mismatch |
 
 Total: 1 byte.
 
@@ -191,9 +191,9 @@ On success, the server transitions to Complete state.
 
 ### 5.4 Activate Response (0x83)
 
-| Byte | Field  | Type  | Description                           |
-|------|--------|-------|---------------------------------------|
-| 0    | Status | uint8 | 0 = activating, 6 = not ready         |
+| Byte | Field  | Type  | Description                   |
+|------|--------|-------|-------------------------------|
+| 0    | Status | uint8 | 0 = activating, 6 = not ready |
 
 Total: 1 byte.
 
@@ -276,7 +276,7 @@ sequenceDiagram
 
 A dual-bank (A/B) layout is recommended:
 
-```
+```text
 +-------------------+-------------------+
 |  Bank A (Active)  |  Bank B (Staging) |
 |  Running firmware |  Incoming image   |
