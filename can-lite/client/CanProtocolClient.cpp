@@ -260,6 +260,8 @@ namespace services
         msg.push_back(canProtocolVersion);
 
         transport.SendFrame(canBroadcastNodeId, CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [](bool) {});
+
+        ResetHeartbeatTimer();
     }
 
     void CanProtocolClient::ResetHeartbeatTimer()

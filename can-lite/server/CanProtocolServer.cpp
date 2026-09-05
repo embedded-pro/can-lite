@@ -94,9 +94,6 @@ namespace services
 
         MarkClientAlive();
 
-        if (!CheckAndIncrementRate())
-            return;
-
         auto categoryId = ExtractCanCategory(rawId);
         auto messageType = ExtractCanMessageType(rawId);
 
@@ -138,10 +135,6 @@ namespace services
 
         uint32_t rawId = id.Get29BitId();
 
-        if (isoTpTransport != nullptr &&
-            isoTpTransport->ProcessFrame(rawId, data))
-            return;
-
         uint16_t targetNodeId = ExtractCanNodeId(rawId);
 
         if (targetNodeId != config.nodeId && targetNodeId != canBroadcastNodeId)
@@ -150,6 +143,10 @@ namespace services
         MarkClientAlive();
 
         if (!CheckAndIncrementRate())
+            return;
+
+        if (isoTpTransport != nullptr &&
+            isoTpTransport->ProcessFrame(rawId, data))
             return;
 
         auto categoryId = ExtractCanCategory(rawId);
@@ -219,6 +216,8 @@ namespace services
         msg.push_back(canProtocolVersion);
 
         transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [](bool) {});
+
+        ResetHeartbeatTimer();
     }
 
     void CanProtocolServer::ResetHeartbeatTimer()
