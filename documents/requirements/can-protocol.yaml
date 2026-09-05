@@ -189,7 +189,10 @@
     The server shall reject any command frame whose payload is shorter
     than the minimum required length for the given message type, and
     shall respond with an invalid-payload error without applying
-    any state changes.
+    any state changes. A category handler that is registered for the
+    message type but rejects the payload shall likewise be answered with
+    an invalid-payload error, not an unknown-command error; unknown-command
+    shall be reserved for a message type no registered handler claims.
 
 # --- Sequence Number Protocol ---
 
@@ -242,7 +245,10 @@
     The server shall enforce a configurable maximum number of
     received messages per second. Messages exceeding this limit
     shall be silently discarded. The rate counter shall be reset
-    automatically every second by an internal timer.
+    automatically every second by an internal timer. Every accepted
+    frame shall be counted, including a frame consumed by the ISO-TP
+    transport, and a reassembled PDU shall not be counted a second time
+    when it is dispatched.
 
 # --- Node Addressing ---
 
@@ -270,11 +276,11 @@
     to a server. Upon receiving this message, the server shall respond
     with a category list response containing the IDs of all registered
     category handlers. The response payload shall list one category ID
-    per byte, limited to the maximum CAN frame payload size (8 bytes).
-    If more than 8 categories are registered, the server shall include
-    only the first 8 in registration order and shall drop the remainder
-    without an error indication; a server needing to expose more than 8
-    categories is not currently supported.
+    per byte, and shall always fit in a single CAN frame: RegisterCategory()
+    refuses the ninth category (REQ-CAN-014), so the number of registered
+    categories never exceeds the 8 bytes available and the response never
+    truncates. A server needing to expose more than 8 categories is not
+    currently supported.
 
 # --- Multi-Server Client ---
 
@@ -338,7 +344,10 @@
     Flow Status = Wait, the sender shall restart the N_Bs timer and
     continue waiting rather than aborting, up to N_WFTmax (16) consecutive
     Wait frames, after which it shall abort. On Flow Status = Overflow,
-    the sender shall abort immediately.
+    the sender shall abort immediately. A Flow Control frame carrying a
+    reserved Flow Status (3 to 15), or too short to decode, shall abort
+    the transfer as an unexpected frame and shall not be reported as an
+    overflow.
 
 - id: REQ-CAN-032
   title: ISO-TP N_Bs timeout

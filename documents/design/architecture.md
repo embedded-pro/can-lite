@@ -142,6 +142,8 @@ class MyCategoryServerObserver
     : public infra::SingleObserver<MyCategoryServerObserver, MyCategoryServer>
 {
 public:
+    using infra::SingleObserver<MyCategoryServerObserver, MyCategoryServer>::SingleObserver;
+
     virtual void OnSetParameters(int16_t first, const infra::Function<void()>& onDone) = 0;
 };
 
@@ -359,7 +361,7 @@ The transport layer provides multi-frame PDU segmentation and reassembly followi
 
 | Class                | Role                                                                                                                 |
 |----------------------|----------------------------------------------------------------------------------------------------------------------|
-| `IsoTpTransport`     | Abstract interface — `RegisterReceiveChannel`, `SendPdu`, `ProcessFrame`, `SetOnPduReceived`                         |
+| `IsoTpTransport`     | Abstract interface — `RegisterReceiveChannel`, `ReleaseChannel`, `SendPdu`, `ProcessFrame`, `SetOnPduReceived`, `SetOnAbort` |
 | `IsoTpTransportImpl` | Non-template concrete implementation; channel pool via `WithStorage<MaxPduSize, MaxChannels>`                        |
 | `IsoTpChannel`       | Non-template abstract channel interface used by `IsoTpTransportImpl`                                                 |
 | `IsoTpChannelImpl`   | Non-template concrete channel; composes `IsoTpSender` + `IsoTpReceiver` via `WithStorage<MaxPduSize>`                |
@@ -391,6 +393,10 @@ IsoTpTransportImpl::WithStorage<MaxPduSize, MaxChannels>  // IS-A IsoTpTransport
 IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
 protocolServer.AttachIsoTpTransport(isoTp);
 ```
+
+`AttachIsoTpTransport` stores a raw pointer and installs callbacks on the transport, so the transport must outlive the attachment. Because it is constructed from the protocol object's own `CanFrameTransport`, it is necessarily destroyed first; `DetachIsoTpTransport()` breaks the attachment in that case, and the protocol object's destructor deliberately does not reach into a transport it cannot know is still alive.
+
+Abort reasons are enumerated in `IsoTpTypes.hpp` and catalogued in the design booklet's glossary. `sendFailed` is distinct from `unexpectedFrame`: the first is a local transmit condition, the second a statement about the peer's frame.
 
 `CanProtocolServer::ProcessReceivedMessage` offers each incoming frame to the ISO-TP layer first (`isoTpTransport->ProcessFrame(canId, frame)`). If the transport claims it (a registered channel matches), normal category dispatch is skipped. This keeps the transport layer transparent to existing category handlers.
 

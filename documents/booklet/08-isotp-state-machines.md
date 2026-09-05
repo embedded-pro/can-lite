@@ -55,6 +55,7 @@ stateDiagram-v2
     waitingForFlowControl --> sendingConsecutive : peer says continue —<br/>adopt its block size and separation time
     waitingForFlowControl --> waitingForFlowControl : peer says wait —<br/>N_Bs restarted, up to the wait limit
     waitingForFlowControl --> idle : peer says overflow — abort
+    waitingForFlowControl --> idle : flow control undecodable or reserved —<br/>abort as an unexpected frame
     waitingForFlowControl --> idle : N_Bs expires, or the wait limit<br/>is exceeded — abort
     sendingConsecutive --> sendingConsecutive : frame sent, block not exhausted —<br/>next one after the separation time
     sendingConsecutive --> waitingForFlowControl : block exhausted —<br/>N_Bs armed again
@@ -68,6 +69,16 @@ buffer, or a second transfer while the channel's sender is busy are all refused
 at the point of asking. What is accepted is then **copied into the channel's own
 buffer**, so the caller's buffer may be reused immediately — which matters when
 the source is a stack temporary or a flash read buffer.
+
+**N_Bs is armed on entering the wait, not on leaving the driver.** The timer
+starts at the moment the sender decides it is waiting for flow control, before
+the frame is handed down for transmission. Arming it from the send completion
+instead would leave a window in which the sender is waiting with no timer at
+all — and a driver that never reports completion would strand it there
+permanently, the one failure a timeout exists to catch. It also lets a flow
+control frame that arrives inside that window cancel a timer that was never
+started, after which the late completion would arm N_Bs against a transfer that
+has already moved on to sending, aborting a healthy transfer.
 
 **Pacing is the peer's to choose.** can-lite's own receiver never asks a peer to
 slow down or to pause between blocks, because reassembly is a copy into a
@@ -85,11 +96,22 @@ the standard's conservative reading: an unparseable request must not be read as
 > completion will wait forever — which is why the protocol layer subscribes to
 > the abort path and releases the channel there.
 
-The abort reasons and what raises each are listed in the glossary. One deserves
-a note: a failure to hand a frame to the bus reports the same reason as an
-unparseable frame, because the sender genuinely cannot distinguish a full queue
-from a bus problem. The reason code is diagnostic; the outcome — abort, release,
-tell the application — is what matters.
+The abort reasons and what raises each are listed in the glossary. Two are
+worth stating here because they are easy to get wrong.
+
+A failure to hand a frame to the bus reports its own reason rather than
+borrowing the one used for an unparseable frame. The two say different things to
+an application — a saturated transmit queue is a local condition that will pass,
+a malformed frame is a statement about the peer — and collapsing them costs the
+only diagnosis the abort path can offer.
+
+An overflow is likewise a state only the peer can declare. A flow control frame
+that is too short to decode, or that carries one of the reserved flow statuses,
+is therefore an unexpected frame and not an overflow: reporting it as an
+overflow would tell the application the peer ran out of buffer when in fact the
+frame never parsed. The standard requires the reserved values to abort rather
+than be read as permission to continue, which is the failure mode that matters
+— a corrupted nibble must never be mistaken for "carry on".
 
 ## 3. The receiver
 

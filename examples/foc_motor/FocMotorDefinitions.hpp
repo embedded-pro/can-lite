@@ -27,11 +27,6 @@ namespace services
     static constexpr uint8_t focSetSpeedSetpointId = 0x10;
     static constexpr uint8_t focSetPositionSetpointId = 0x11;
 
-    // Response message type IDs (Server → Client):
-    //   Solicited responses follow the 0x80 + command_id convention where a paired
-    //   response is defined. Command outcomes (success/failure with reason) are
-    //   conveyed via the universal CanAckStatus ACK frame defined in
-    //   CanProtocolDefinitions.hpp; no category-specific rejection frame is used.
     static constexpr uint8_t focMotorTypeResponseId = 0x80;
     static constexpr uint8_t focElectricalParamsResponseId = 0x86;
     static constexpr uint8_t focMechanicalParamsResponseId = 0x87;

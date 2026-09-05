@@ -23,7 +23,7 @@ protocol by registering custom category handlers on the server.
 | Broadcast       | A message addressed to all servers (node ID 0x000)                  |
 | Category        | A 4-bit field in the CAN identifier that groups related message types. The built-in System category (0x0) is always available; applications register additional categories. |
 | Category Handler| A `CanCategoryServer` or `CanCategoryClient` implementation registered via `RegisterCategory()` that processes all messages for a specific category. |
-| Sequence Number | An 8-bit counter in byte[0] of command frames for replay protection |
+| Sequence Number | An 8-bit counter in byte[0] of command frames giving in-order delivery and duplicate detection; see §11 for why it is not a security mechanism |
 | Scale Factor    | Integer multiplier used to convert floats to fixed-point integers   |
 
 ## 3. Architecture
@@ -81,7 +81,7 @@ For payloads exceeding the 8-byte CAN frame limit, can-lite provides an optional
 
 | Byte | Field | Description                                                                                                                                    |
 |------|-------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| 0    | PCI   | `0x3S` — Flow Status (0=CTS, 1=Wait, 2=Overflow)                                                                                               |
+| 0    | PCI   | `0x3S` — Flow Status (0=CTS, 1=Wait, 2=Overflow; 3–15 are reserved and abort the transfer)                                                      |
 | 1    | BS    | Block Size — number of CFs before next FC (0 = unlimited)                                                                                      |
 | 2    | STmin | Minimum separation time: 0x00–0x7F = 0–127 ms; 0xF1–0xF9 = 100–900 µs (ISO-TP sub-ms range); 0x80–0xF0 and 0xFA–0xFF = reserved (treated as 0x7F / 127 ms per ISO 15765-2) |
 
@@ -96,6 +96,15 @@ For payloads exceeding the 8-byte CAN frame limit, can-lite provides an optional
 On `FS = Wait`, the sender restarts N_Bs and continues waiting rather than
 aborting immediately; only `N_WFTmax` consecutive `Wait` frames (or an N_Bs
 timeout) abort the transfer.
+
+A Flow Control frame the sender cannot decode — shorter than three bytes, or
+carrying a reserved Flow Status — aborts the transfer as an unexpected frame.
+It is deliberately not reported as an overflow, which is a state only the peer
+can declare.
+
+N_Bs is armed the moment the sender enters the wait-for-Flow-Control state,
+before the frame is handed to the driver, so a driver that never reports
+completion still times out rather than leaving the sender wedged.
 
 ### Integration
 
@@ -317,7 +326,7 @@ Values are saturated (clamped) to the target integer range to prevent overflow.
 |-------|-----------------|-------------------------------------------------------------|
 | 0     | Success         | Command accepted and processed                              |
 | 1     | Unknown Command | Message type not recognized for category                    |
-| 2     | Invalid Payload | Payload too short or field out of range                     |
+| 2     | Invalid Payload | Payload too short, or rejected by the category's handler     |
 | 3     | Invalid State   | Command not valid in current state                          |
 | 4     | Sequence Error  | Sequence number not (previous + 1) mod 256                  |
 | 5     | Rate Limited    | Message rate limit exceeded                                 |
@@ -367,10 +376,15 @@ sequenceDiagram
 
 ## 12. Rate Limiting
 
-The server enforces a configurable maximum message rate (default: 500
-messages per period). Messages received after the limit is reached are
+The server enforces a configurable maximum number of received messages per
+second (default: 500). Messages received after the limit is reached are
 silently discarded. The rate counter resets automatically every second
 via an internal timer.
+
+Every accepted frame is charged, including one an ISO-TP channel consumes,
+so a multi-frame PDU costs one credit per frame it occupies on the bus
+rather than one credit for the whole transfer. The reassembled PDU is not
+charged again when it is dispatched.
 
 ```mermaid
 flowchart TD
@@ -381,7 +395,9 @@ flowchart TD
     C -- Yes --> D{Rate limit reached?}
     D -- Yes --> Z
     D -- No --> E[Increment counter]
-    E --> F{Find category handler?}
+    E --> Y{Consumed by ISO-TP?}
+    Y -- Yes --> X[Reassemble; dispatch PDU when complete]
+    Y -- No --> F{Find category handler?}
     F -- No --> Z
     F -- Yes --> G{Requires sequence?}
     G -- Yes --> H{Sequence valid?}
