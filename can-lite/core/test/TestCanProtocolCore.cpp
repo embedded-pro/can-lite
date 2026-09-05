@@ -314,6 +314,30 @@ namespace
         EXPECT_EQ(msg.size(), 8u);
     }
 
+    TEST(CanFrameCodecTest, WriteAtOverflowingOffset_FailsInsteadOfWrapping)
+    {
+        hal::Can::Message msg;
+
+        EXPECT_FALSE(CanFrameCodec::WriteUInt16(msg, std::numeric_limits<std::size_t>::max(), 0x1234));
+        EXPECT_FALSE(CanFrameCodec::WriteInt16(msg, std::numeric_limits<std::size_t>::max() - 1u, 0x1234));
+        EXPECT_FALSE(CanFrameCodec::WriteUInt32(msg, std::numeric_limits<std::size_t>::max() - 3u, 0x12345678));
+        EXPECT_FALSE(CanFrameCodec::WriteInt32(msg, std::numeric_limits<std::size_t>::max(), 0x12345678));
+
+        EXPECT_TRUE(msg.empty());
+    }
+
+    TEST(CanFrameCodecTest, ReadAtOverflowingOffset_ReturnsZeroInsteadOfWrapping)
+    {
+        hal::Can::Message msg;
+        for (uint8_t i = 0; i != 8u; ++i)
+            msg.push_back(i);
+
+        EXPECT_EQ(CanFrameCodec::ReadUInt16(msg, std::numeric_limits<std::size_t>::max()), 0u);
+        EXPECT_EQ(CanFrameCodec::ReadInt16(msg, std::numeric_limits<std::size_t>::max() - 1u), 0);
+        EXPECT_EQ(CanFrameCodec::ReadUInt32(msg, std::numeric_limits<std::size_t>::max() - 3u), 0u);
+        EXPECT_EQ(CanFrameCodec::ReadInt32(msg, std::numeric_limits<std::size_t>::max()), 0);
+    }
+
     TEST(CanFrameCodecTest, ReadPastFrameEnd_ReturnsZeroInsteadOfIndexingOutOfRange)
     {
         hal::Can::Message msg;

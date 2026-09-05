@@ -53,12 +53,12 @@ namespace services
 
     namespace
     {
-        bool Grow(hal::Can::Message& msg, std::size_t requiredSize)
+        bool Grow(hal::Can::Message& msg, std::size_t offset, std::size_t width)
         {
-            if (requiredSize > msg.max_size())
+            if (offset > msg.max_size() || width > msg.max_size() - offset)
                 return false;
 
-            while (msg.size() < requiredSize)
+            while (msg.size() < offset + width)
                 msg.push_back(0);
 
             return true;
@@ -66,7 +66,7 @@ namespace services
 
         bool Readable(const hal::Can::Message& msg, std::size_t offset, std::size_t width)
         {
-            return offset + width <= msg.size();
+            return offset <= msg.size() && width <= msg.size() - offset;
         }
     }
 
@@ -92,7 +92,7 @@ namespace services
 
     bool CanFrameCodec::WriteUInt16(hal::Can::Message& msg, std::size_t offset, uint16_t value)
     {
-        if (!Grow(msg, offset + 2))
+        if (!Grow(msg, offset, 2))
             return false;
 
         msg[offset] = static_cast<uint8_t>(value >> 8);
@@ -112,7 +112,7 @@ namespace services
 
     bool CanFrameCodec::WriteUInt32(hal::Can::Message& msg, std::size_t offset, uint32_t value)
     {
-        if (!Grow(msg, offset + 4))
+        if (!Grow(msg, offset, 4))
             return false;
 
         msg[offset] = static_cast<uint8_t>((value >> 24) & 0xFF);
