@@ -5,8 +5,6 @@
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=duplicated_lines_density&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=embedded-pro_can-lite&metric=vulnerabilities&token=2d1b7ae361d044a96ba29c5afcbdb009cac319d2)](https://sonarcloud.io/summary/new_code?id=embedded-pro_can-lite)
 
-# can-lite
-
 A lightweight, extensible CAN bus protocol library implementing a client-server model over CAN 2.0B (29-bit extended identifiers). Designed for deterministic, low-latency communication on resource-constrained embedded systems with no heap allocation.
 
 ## Overview
