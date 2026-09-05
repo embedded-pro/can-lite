@@ -172,7 +172,7 @@ TEST(CanMessageHandlerTest, PduDispatchReachesTheBoundHandler)
     HandlerCategory category;
     auto pdu = MakeMessage({ 0x01, 0x02 });
 
-    EXPECT_TRUE(category.HandlePduMessage(0x02, infra::MakeRange(pdu)));
+    EXPECT_EQ(category.HandlePduMessage(0x02, infra::MakeRange(pdu)), CanPduDispatchResult::handled);
     EXPECT_EQ(category.secondPduCount, 1);
 }
 
@@ -181,7 +181,7 @@ TEST(CanMessageHandlerTest, PduDispatchForUnregisteredTypeIsNotHandled)
     HandlerCategory category;
     auto pdu = MakeMessage({ 0x01 });
 
-    EXPECT_FALSE(category.HandlePduMessage(0x7F, infra::MakeRange(pdu)));
+    EXPECT_EQ(category.HandlePduMessage(0x7F, infra::MakeRange(pdu)), CanPduDispatchResult::unknownMessageType);
     EXPECT_EQ(category.secondPduCount, 0);
 }
 

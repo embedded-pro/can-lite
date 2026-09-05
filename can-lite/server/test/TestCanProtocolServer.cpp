@@ -1068,6 +1068,74 @@ namespace
         server.UnregisterCategory(pduCategory);
     }
 
+    TEST_F(CanProtocolServerTest, AttachIsoTpTransport_RejectedPdu_AcksInvalidPayloadNotUnknownCommand)
+    {
+        class RejectingPduMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x42;
+            }
+
+            void Handle(const hal::Can::Message&) override
+            {}
+
+            bool HandlePdu(infra::ConstByteRange) override
+            {
+                return false;
+            }
+        };
+
+        class PduCategory : public CanCategoryServerStub
+        {
+        public:
+            PduCategory()
+            {
+                AddMessageType(msg);
+            }
+
+            uint8_t Id() const override
+            {
+                return 0x05;
+            }
+
+            bool RequiresSequenceValidation() const override
+            {
+                return false;
+            }
+
+            RejectingPduMessageType msg;
+        };
+
+        PduCategory pduCategory;
+        ASSERT_TRUE(server.RegisterCategory(pduCategory));
+
+        StrictMock<MockIsoTpTransport> mockIsoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
+        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
+        server.AttachIsoTpTransport(mockIsoTp);
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([&ack](hal::Can::Id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+            {
+                ack = data;
+                cb(true);
+            }));
+
+        uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, 1);
+        uint8_t pduData[] = { 0xDE, 0xAD };
+        capturedPduCallback(rawId, infra::MakeRange(pduData));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[0], 0x05);
+        EXPECT_EQ(ack[1], 0x42);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::invalidPayload));
+
+        server.UnregisterCategory(pduCategory);
+    }
+
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_DispatchPdu_UnknownCategory_Ignored)
     {
         StrictMock<MockIsoTpTransport> mockIsoTp;

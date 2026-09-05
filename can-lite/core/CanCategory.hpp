@@ -23,6 +23,13 @@ namespace services
         ~CanCommandAcknowledger() = default;
     };
 
+    enum class CanPduDispatchResult : uint8_t
+    {
+        handled,
+        rejected,
+        unknownMessageType
+    };
+
     class CanCategory
     {
     public:
@@ -38,7 +45,7 @@ namespace services
         }
 
         bool HandleMessage(uint8_t messageType, const hal::Can::Message& data);
-        bool HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu);
+        CanPduDispatchResult HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu);
 
     protected:
         CanCategory() = default;

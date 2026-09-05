@@ -151,10 +151,16 @@ namespace services
             }
         }
 
-        if (!category->HandlePduMessage(messageType, pdu))
+        switch (category->HandlePduMessage(messageType, pdu))
         {
-            SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
-            return;
+            case CanPduDispatchResult::handled:
+                break;
+            case CanPduDispatchResult::rejected:
+                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                break;
+            case CanPduDispatchResult::unknownMessageType:
+                SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+                break;
         }
     }
 
