@@ -13,7 +13,7 @@ if (CAN_LITE_BUILD_TESTS)
     set(CAN_LITE_BUILD_EXAMPLES On)
 endif()
 
-project(can_lite LANGUAGES C CXX ASM VERSION 0.0.1) # x-release-please-version
+project(can_lite LANGUAGES C CXX ASM VERSION 1.0.0) # x-release-please-version
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
