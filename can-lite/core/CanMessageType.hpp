@@ -13,11 +13,8 @@ namespace services
     {
     public:
         virtual uint8_t Id() const = 0;
-        virtual void Handle(const hal::Can::Message& data) = 0;
+        virtual bool Handle(const hal::Can::Message& data) = 0;
 
-        // Default: message types that don't opt in to PDU (ISO-TP) handling via
-        // the 4-argument CanMessageHandler constructor simply don't support
-        // multi-frame payloads; reject rather than crash.
         virtual bool HandlePdu(infra::ConstByteRange)
         {
             return false;

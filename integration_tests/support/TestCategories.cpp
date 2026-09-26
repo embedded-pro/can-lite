@@ -14,7 +14,7 @@ namespace integration
         return demoCategoryId;
     }
 
-    void DemoCategoryServer::HandlePing(const hal::Can::Message&)
+    bool DemoCategoryServer::HandlePing(const hal::Can::Message&)
     {
         NotifyObservers([this](auto& observer)
             {
@@ -23,19 +23,18 @@ namespace integration
                         SendCommandAck(demoPingId, services::CanAckStatus::success);
                     });
             });
+
+        return true;
     }
 
-    void DemoCategoryServer::HandleSetParameters(const hal::Can::Message& data)
+    bool DemoCategoryServer::HandleSetParameters(const hal::Can::Message& data)
     {
         services::CanPayloadReader reader{ data };
         reader.Skip(1);
         DemoParameters parameters{ reader.ReadInt16(), reader.ReadInt16(), reader.ReadInt16() };
 
         if (!reader.Valid())
-        {
-            SendCommandAck(demoSetParametersId, services::CanAckStatus::invalidPayload);
-            return;
-        }
+            return false;
 
         NotifyObservers([this, parameters](auto& observer)
             {
@@ -44,9 +43,11 @@ namespace integration
                         SendCommandAck(demoSetParametersId, services::CanAckStatus::success);
                     });
             });
+
+        return true;
     }
 
-    void DemoCategoryServer::HandleQueryValue(const hal::Can::Message&)
+    bool DemoCategoryServer::HandleQueryValue(const hal::Can::Message&)
     {
         NotifyObservers([this](auto& observer)
             {
@@ -56,9 +57,11 @@ namespace integration
                         SendCommandAck(demoQueryValueId, services::CanAckStatus::success);
                     });
             });
+
+        return true;
     }
 
-    void DemoCategoryServer::HandleFail(const hal::Can::Message&)
+    bool DemoCategoryServer::HandleFail(const hal::Can::Message&)
     {
         NotifyObservers([this](auto& observer)
             {
@@ -68,6 +71,8 @@ namespace integration
                         SendCommandAck(demoFailId, services::CanAckStatus::categoryError);
                     });
             });
+
+        return true;
     }
 
     void DemoCategoryServer::SendValueResponse(int16_t value)
@@ -112,33 +117,37 @@ namespace integration
         return SendCommand(targetNodeId, demoFailId);
     }
 
-    void DemoCategoryClient::HandleValueResponse(const hal::Can::Message& data)
+    bool DemoCategoryClient::HandleValueResponse(const hal::Can::Message& data)
     {
         services::CanPayloadReader reader{ data };
         auto value = reader.ReadInt16();
 
         if (!reader.Valid())
-            return;
+            return false;
 
         NotifyObservers([value](auto& observer)
             {
                 observer.OnValueResponse(value);
             });
+
+        return true;
     }
 
-    void DemoCategoryClient::HandleCategoryError(const hal::Can::Message& data)
+    bool DemoCategoryClient::HandleCategoryError(const hal::Can::Message& data)
     {
         services::CanPayloadReader reader{ data };
         auto originatingCommandId = reader.ReadUInt8();
         auto error = static_cast<DemoError>(reader.ReadUInt8());
 
         if (!reader.Valid())
-            return;
+            return false;
 
         NotifyObservers([originatingCommandId, error](auto& observer)
             {
                 observer.OnCategoryError(originatingCommandId, error);
             });
+
+        return true;
     }
 
     TestMessageType::TestMessageType(uint8_t id)
@@ -150,9 +159,10 @@ namespace integration
         return msgId;
     }
 
-    void TestMessageType::Handle(const hal::Can::Message&)
+    bool TestMessageType::Handle(const hal::Can::Message&)
     {
         handleCount++;
+        return true;
     }
 
     SequencedTestCategory::SequencedTestCategory(services::CanFrameTransport& transport, uint8_t id)

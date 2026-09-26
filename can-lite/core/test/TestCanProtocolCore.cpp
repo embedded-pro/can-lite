@@ -25,10 +25,11 @@ namespace
             return id;
         }
 
-        void Handle(const hal::Can::Message& data) override
+        bool Handle(const hal::Can::Message& data) override
         {
             lastDataSize = data.size();
             handleCallCount++;
+            return true;
         }
 
         std::size_t lastDataSize = 0;
@@ -74,6 +75,47 @@ namespace
         uint8_t id;
     };
 
+    class FaultReportingCategoryServer
+        : public CanCategoryServer
+    {
+    public:
+        explicit FaultReportingCategoryServer(CanFrameTransport& transport)
+            : CanCategoryServer(transport)
+        {}
+
+        uint8_t Id() const override
+        {
+            return 0x03;
+        }
+
+        bool ReportFault(uint8_t code)
+        {
+            CanPayloadWriter payload;
+            payload.WriteUInt8(code);
+            return SendEmergency(0x90, payload);
+        }
+    };
+
+    TEST(CanCategoryTest, SendEmergencyUsesEmergencyPriority)
+    {
+        testing::StrictMock<hal::CanMock> can;
+        CanFrameTransport transport{ can, 0x042 };
+        FaultReportingCategoryServer category{ transport };
+
+        hal::Can::Id sentId{ hal::Can::Id::Create29BitId(0) };
+        hal::Can::Message sentData;
+        EXPECT_CALL(can, SendData(testing::_, testing::_, testing::_)).WillOnce(testing::DoAll(testing::SaveArg<0>(&sentId), testing::SaveArg<1>(&sentData)));
+
+        EXPECT_TRUE(category.ReportFault(0x07));
+
+        EXPECT_EQ(ExtractCanPriority(sentId.Get29BitId()), CanPriority::emergency);
+        EXPECT_EQ(ExtractCanCategory(sentId.Get29BitId()), 0x03);
+        EXPECT_EQ(ExtractCanMessageType(sentId.Get29BitId()), 0x90);
+        EXPECT_EQ(ExtractCanNodeId(sentId.Get29BitId()), 0x042);
+        ASSERT_EQ(sentData.size(), 1u);
+        EXPECT_EQ(sentData[0], 0x07);
+    }
+
     TEST(CanCategoryTest, ServerDefaultRequiresSequenceValidation)
     {
         StubCategoryServer category(0x01);
@@ -109,7 +151,7 @@ namespace
         data.push_back(0xAA);
         data.push_back(0xBB);
 
-        EXPECT_TRUE(category.HandleMessage(0x01, data));
+        EXPECT_EQ(category.HandleMessage(0x01, data), CanDispatchResult::handled);
         EXPECT_EQ(msg1.handleCallCount, 1);
         EXPECT_EQ(msg1.lastDataSize, 2u);
         EXPECT_EQ(msg2.handleCallCount, 0);
@@ -122,7 +164,7 @@ namespace
         category.AddMessageType(msg1);
 
         hal::Can::Message data;
-        EXPECT_FALSE(category.HandleMessage(0xFF, data));
+        EXPECT_EQ(category.HandleMessage(0xFF, data), CanDispatchResult::unknownMessageType);
         EXPECT_EQ(msg1.handleCallCount, 0);
     }
 
@@ -135,7 +177,7 @@ namespace
         category.AddMessageType(msg2);
 
         hal::Can::Message data;
-        EXPECT_TRUE(category.HandleMessage(0x02, data));
+        EXPECT_EQ(category.HandleMessage(0x02, data), CanDispatchResult::handled);
         EXPECT_EQ(msg1.handleCallCount, 0);
         EXPECT_EQ(msg2.handleCallCount, 1);
     }
@@ -409,8 +451,10 @@ namespace
             return id;
         }
 
-        void Handle(const hal::Can::Message&) override
-        {}
+        bool Handle(const hal::Can::Message&) override
+        {
+            return true;
+        }
 
         bool HandlePdu(infra::ConstByteRange data) override
         {
@@ -434,7 +478,7 @@ namespace
 
         uint8_t data[] = { 0x01, 0x02, 0x03 };
 
-        EXPECT_EQ(category.HandlePduMessage(0x10, infra::MakeRange(data)), CanPduDispatchResult::handled);
+        EXPECT_EQ(category.HandlePduMessage(0x10, infra::MakeRange(data)), CanDispatchResult::handled);
         EXPECT_EQ(msgPdu.handlePduCallCount, 1);
         EXPECT_EQ(msgPdu.lastPduSize, 3u);
     }
@@ -447,7 +491,7 @@ namespace
 
         uint8_t data[] = { 0x01 };
 
-        EXPECT_EQ(category.HandlePduMessage(0xFF, infra::MakeRange(data)), CanPduDispatchResult::unknownMessageType);
+        EXPECT_EQ(category.HandlePduMessage(0xFF, infra::MakeRange(data)), CanDispatchResult::unknownMessageType);
         EXPECT_EQ(msgPdu.handlePduCallCount, 0);
     }
 
@@ -462,6 +506,6 @@ namespace
 
         uint8_t data[] = { 0xAB };
 
-        EXPECT_EQ(category.HandlePduMessage(0x20, infra::MakeRange(data)), CanPduDispatchResult::rejected);
+        EXPECT_EQ(category.HandlePduMessage(0x20, infra::MakeRange(data)), CanDispatchResult::rejected);
     }
 }

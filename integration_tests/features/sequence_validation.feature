@@ -46,3 +46,23 @@ Feature: Sequence Validation
     When the client sends a command to category 3 with empty payload
     Then the server category handler shall have received 0 commands
     And the server shall send an acknowledgement with status "invalidPayload"
+
+  @REQ-CAN-042
+  Scenario: An emergency command is accepted whatever the sequence state
+    When the client sends a command to category 3 with sequence number 1
+    And the client sends an emergency command to category 3 with sequence number 200
+    Then the server category handler shall have received 2 commands
+
+  @REQ-CAN-042
+  Scenario: Ordinary commands continue from an accepted emergency command
+    When the client sends a command to category 3 with sequence number 1
+    And the client sends an emergency command to category 3 with sequence number 200
+    And the client sends a command to category 3 with sequence number 201
+    Then the server category handler shall have received 3 commands
+
+  @REQ-CAN-043
+  Scenario: A command the category does not recognise does not advance the sequence
+    When the client sends a command to category 3 with sequence number 1
+    And the client sends an unknown command to category 3 with sequence number 2
+    And the client sends a command to category 3 with sequence number 2
+    Then the server category handler shall have received 2 commands

@@ -41,18 +41,26 @@ flowchart TD
     C --> D["protocol layer answers<br/>'unknown command'"]
     B -- yes --> E["handler runs"]
     E --> F{"payload parses?"}
-    F -- no --> G["handler answers<br/>'invalid payload'"]
-    F -- yes --> H["handler notifies its observer,<br/>with a completion to call"]
+    F -- no --> G["handler reports 'rejected'"]
+    G --> G2["protocol layer answers<br/>'invalid payload'"]
+    F -- yes --> H["handler notifies its observer,<br/>with a completion to call,<br/>and reports 'handled'"]
     H --> I["observer completes —<br/>now, or after asynchronous work"]
     I --> J["handler sends its response<br/>and acknowledges"]
 ```
 
-The distinction that catches people out is between the two failure paths. **Not
-handled** means the category has no binding for that message type, and the
-protocol layer turns it into an acknowledgement on the category's behalf. A
-handler that runs and fails reports *itself* — through an acknowledgement status
-or, when the fixed statuses cannot express the failure, through the category
-error message type that every category reserves for the purpose.
+Dispatch has three outcomes, and every handler, single-frame or segmented,
+reports one of them: **handled**, **rejected** or **not handled**. **Not handled**
+means the category has no binding for that message type. **Rejected** means a
+binding matched but its handler refused the payload. In both cases the protocol
+layer, not the handler, sends the acknowledgement: "unknown command" for the
+first, "invalid payload" for the second. Only a **handled** command counts as
+accepted, which is what the protocol layer's sequence and liveness bookkeeping
+relies on (Chapter 6).
+
+A handler that accepted its payload and later fails reports that failure
+*itself*: through an acknowledgement status, or, when the fixed statuses cannot
+express the failure, through the category error message type that every
+category reserves for the purpose.
 
 ## 3. The segmented path
 
@@ -61,7 +69,7 @@ payload. One that does not opt in inherits a default that **declines**.
 
 That default is a deliberate choice with a visible consequence: sending a
 multi-frame payload to a message type that only understands single frames yields
-an "unknown command" acknowledgement rather than a truncated read of the first
+an "invalid payload" acknowledgement rather than a truncated read of the first
 eight bytes. Silence would have been worse; a partial read would have been much
 worse.
 

@@ -23,7 +23,7 @@ namespace services
         ~CanCommandAcknowledger() = default;
     };
 
-    enum class CanPduDispatchResult : uint8_t
+    enum class CanDispatchResult : uint8_t
     {
         handled,
         rejected,
@@ -44,8 +44,8 @@ namespace services
             (AddMessageType(messageTypes), ...);
         }
 
-        bool HandleMessage(uint8_t messageType, const hal::Can::Message& data);
-        CanPduDispatchResult HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu);
+        CanDispatchResult HandleMessage(uint8_t messageType, const hal::Can::Message& data);
+        CanDispatchResult HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu);
 
     protected:
         CanCategory() = default;
@@ -78,6 +78,8 @@ namespace services
         bool SendResponse(uint8_t messageType, const CanPayloadWriter& payload);
         bool SendTelemetry(uint8_t messageType, const hal::Can::Message& data);
         bool SendTelemetry(uint8_t messageType, const CanPayloadWriter& payload);
+        bool SendEmergency(uint8_t messageType, const hal::Can::Message& data);
+        bool SendEmergency(uint8_t messageType, const CanPayloadWriter& payload);
         bool SendCategoryError(uint8_t originatingCommandId, uint8_t categoryErrorCode);
 
     private:

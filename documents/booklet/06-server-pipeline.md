@@ -18,10 +18,13 @@ flowchart TD
     B -- no --> X1["drop, silently"]
     B -- yes --> D{"addressed to this node,<br/>or broadcast?"}
     D -- no --> X3["drop, silently"]
-    D -- yes --> E["mark the client alive —<br/>restart the liveness timer"]
-    E --> F{"within the rate limit<br/>for this window?"}
-    F -- no --> X4["drop, silently"]
+    D -- yes --> P{"emergency priority?"}
+    P -- yes --> FE{"within the emergency<br/>budget for this window?"}
+    P -- no --> F{"within the ordinary<br/>budget for this window?"}
+    FE -- no --> X4["drop, silently, and count"]
+    F -- no --> X4
     F -- yes --> C{"segmentation attached,<br/>and it claims the frame?"}
+    FE -- yes --> C
     C -- yes --> X2["handled by the transport layer<br/>(Chapter 8)"]
     C -- no --> G{"a command,<br/>not a response?"}
     G -- no --> X5["drop, silently"]
@@ -31,14 +34,17 @@ flowchart TD
     I -- no --> K["dispatch to the category"]
     I -- yes --> J{"payload present?"}
     J -- no --> Y1["acknowledge:<br/>invalid payload"]
-    J -- yes --> L{"sequence as expected?"}
+    J -- yes --> Q{"emergency priority?"}
+    Q -- yes --> K
+    Q -- no --> L{"sequence as expected?"}
     L -- no --> Y2["acknowledge: sequence error,<br/>carrying the expected number"]
     L -- yes --> K
     K --> M{"a handler matched?"}
     M -- no --> Y3["acknowledge:<br/>unknown command"]
     M -- yes --> N{"the handler accepted<br/>the payload?"}
     N -- no --> Y4["acknowledge:<br/>invalid payload"]
-    N -- yes --> Z["the handler answers<br/>as it sees fit"]
+    N -- yes --> R["record the sequence number,<br/>restart the liveness timer"]
+    R --> Z["the handler answers<br/>as it sees fit"]
 ```
 
 ## 2. Why some rejections are silent and others are answered
@@ -60,14 +66,22 @@ would be a bug. If it was not, an answer would be noise.
 | Unknown message type in a known category | Answered                           | The client is talking to a category that does not implement that command                       |
 | Payload rejected by a matching handler   | Answered, as invalid payload       | The command exists; saying "unknown command" would send the client looking for the wrong fault |
 
-Three ordering choices in the pipeline are equally deliberate:
+Four ordering choices in the pipeline are equally deliberate:
 
-- **Liveness is marked before the rate limit is applied.** A client that floods
-  the bus is still, evidently, alive; marking liveness afterwards would make a
-  flooding client appear to vanish.
+- **Liveness and the sequence number move last, and only for an accepted
+  command.** A frame that was refused, discarded or answered with an error
+  proves nothing about the client. If such frames counted, a flood of garbage
+  could keep a departed client "online" and hold off the application's offline
+  fallback, or push the expected sequence number away from the one the real
+  client will send next. A client that floods with *valid* commands still has
+  those it gets through accepted, and so still stays alive.
 - **The rate limit is applied before the category is looked up.** What is being
   limited is the cost of *processing* frames, and that cost is paid before the
   category is known.
+- **Emergency priority draws on its own budget.** The ordinary budget is shared
+  by everything else, so a flood can exhaust it. A separate small budget means
+  an emergency stop is still admitted when that happens, and the emergency
+  budget is itself bounded, so it does not turn into a way past the limiter.
 - **The rate limit is applied before segmentation gets the frame.** Reassembly
   is work like any other, and a frame that disappears into a segmentation
   channel costs the node just as much as one dispatched to a category. Charging
@@ -110,15 +124,23 @@ stateDiagram-v2
     Uninitialised --> Synchronised : first validated command —<br/>its number is adopted as the baseline
     Synchronised --> Synchronised : expected number —<br/>accepted, counter advances
     Synchronised --> Synchronised : unexpected number — rejected,<br/>counter unchanged, expected number returned
+    Synchronised --> Synchronised : expected number, but payload rejected<br/>or command unknown — counter unchanged
+    Uninitialised --> Synchronised : accepted emergency command —<br/>its number is adopted
+    Synchronised --> Synchronised : accepted emergency command, any number —<br/>its number is adopted
 ```
 
-Four properties define the behaviour, and each is a deliberate simplification:
+Five properties define the behaviour, and each is a deliberate simplification:
 
 - **The first command sets the baseline.** A client that restarts from zero does
   not need the server to restart too — but only until the server has seen its
   first command.
 - **Rejection is idempotent.** A rejected command does not advance the counter,
-  so ten misordered commands produce ten identical answers rather than drift.
+  whether the sequence check, the category or the handler rejected it. Ten
+  misordered or malformed commands produce ten answers and no drift.
+- **Emergency commands are exempt, not ignored.** Their number is never
+  checked, so an emergency stop cannot be refused as out of sequence. Once
+  accepted, their number becomes the baseline, which keeps the server in step
+  with a client that counted it.
 - **The counter wraps naturally** at the end of its range.
 - **One counter is shared by every validated category.** Interleaving commands
   across two categories is therefore fine — they share one ordering — but two
@@ -131,21 +153,24 @@ Four properties define the behaviour, and each is a deliberate simplification:
 ```mermaid
 stateDiagram-v2
     [*] --> Unknown
-    Unknown --> Alive : any frame addressed here —<br/>liveness timer restarted
-    Alive --> Alive : any frame addressed here —<br/>timer restarted
+    Unknown --> Alive : accepted command —<br/>liveness timer restarted
+    Alive --> Alive : accepted command —<br/>timer restarted
     Alive --> Offline : timer expires —<br/>observer notified once
-    Offline --> Alive : any frame addressed here
+    Offline --> Alive : accepted command
     Unknown --> Online : heartbeat received —<br/>observer notified
     Alive --> Online : heartbeat received —<br/>observer notified
 ```
 
 Two distinct signals are in play, and conflating them is the usual confusion:
 
-- **Any correctly addressed frame** proves the client is present and restarts
-  the timer. This matters because the client's heartbeat is itself deferred by
-  its own outgoing traffic: a client that commands continuously may not send a
+- **Any accepted command** proves the client is present and restarts the
+  timer. This matters because the client's heartbeat is itself deferred by its
+  own outgoing traffic: a client that commands continuously may not send a
   dedicated heartbeat for a long time, and must not be declared offline for
-  being busy.
+  being busy. A frame the server refuses restarts nothing (§2). The identifier
+  names only the destination, so "the client" is whichever controller produced
+  the accepted command. The protocol specification (§8.1.1) states this
+  single-trusted-controller assumption.
 - **Only a heartbeat** raises the "online" notification, because that is the
   specific, meaningful announcement.
 

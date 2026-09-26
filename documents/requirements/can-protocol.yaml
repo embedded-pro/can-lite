@@ -248,7 +248,11 @@
     automatically every second by an internal timer. Every accepted
     frame shall be counted, including a frame consumed by the ISO-TP
     transport, and a reassembled PDU shall not be counted a second time
-    when it is dispatched.
+    when it is dispatched. Frames carrying emergency priority shall be
+    counted against a separate, configurable budget (default 20 per
+    second) and shall not consume, or be refused by, the budget for
+    other traffic. Rate limiting shall be applied before any other
+    validation, so that its cost stays bounded under a flood.
 
 # --- Node Addressing ---
 
@@ -311,9 +315,43 @@
   title: Send queue overflow indication
   shall: >
     The CanFrameTransport::SendFrame() method shall return true if the
-    frame was successfully sent or enqueued, and false if the internal
-    send queue was full and the frame was dropped. The onDone callback
+    frame was successfully sent or enqueued, and false if the frame was
+    refused under the admission rules of REQ-CAN-040. The onDone callback
     shall not be called when false is returned.
+
+- id: REQ-CAN-039
+  title: Send queue priority ordering
+  shall: >
+    Frames waiting in the send queue shall be transmitted in order of
+    their CAN identifier priority field, most urgent first, once the
+    frame currently being transmitted completes. Frames of equal
+    priority shall be transmitted in the order they were accepted.
+
+- id: REQ-CAN-040
+  title: Send queue emergency reservation
+  shall: >
+    The send queue shall hold at most 8 frames, of which at most 6 may
+    carry a priority other than emergency, so that 2 slots are always
+    available to emergency-priority frames. A non-emergency frame that
+    would exceed its share, or that arrives when all 8 slots are
+    occupied, shall be refused. An emergency-priority frame
+    arriving at a full queue shall displace the lowest-priority,
+    most recently accepted non-emergency frame; the displaced frame's
+    onDone callback shall be invoked exactly once with false. An
+    emergency-priority frame arriving at a queue that holds only
+    emergency-priority frames shall be refused.
+
+- id: REQ-CAN-041
+  title: Bounded send failure handling and transport counters
+  shall: >
+    When the controller reports that an emergency-priority frame failed
+    to transmit, the transport shall retransmit it, ahead of any queued
+    frame, at most 2 times before completing it with false. A failed
+    frame of any other priority shall complete with false without
+    retransmission. The transport shall count refused and failed
+    emergency frames, emergency retransmissions, displaced frames,
+    refused non-emergency frames and failed non-emergency frames, and
+    shall expose these counts to the application.
 
 # --- ISO-TP Multi-Frame Transport ---
 
@@ -392,14 +430,21 @@
     upon construction, broadcast to node 0x000, following the same
     quiet-period keep-alive rule as the server's own heartbeat
     (REQ-CAN-009). The server shall restart its client-liveness timeout
-    (default 3 s) on any frame correctly addressed to it, not only
-    heartbeats, since a client sending commands continuously may defer
-    its own heartbeat frame indefinitely; a received heartbeat shall
-    additionally notify the application via
-    CanProtocolServerObserver::Online(). If the timeout elapses without
-    further traffic from the client, the server shall notify
+    (default 3 s) on every command it accepts, not only heartbeats,
+    since a client sending commands continuously may defer its own
+    heartbeat frame indefinitely. A command is accepted when it is
+    addressed to the server, is in the command range of a registered
+    category, passes sequence validation where the category requires
+    it, and its handler accepts the payload. A frame that is rate
+    limited, discarded or answered with an error shall not restart the
+    timeout. A received heartbeat shall additionally notify the
+    application via CanProtocolServerObserver::Online(). If the timeout
+    elapses without a further accepted command, the server shall notify
     CanProtocolServerObserver::Offline(). A server tracks liveness for
-    one client only, consistent with REQ-CAN-006.1.
+    one client only, consistent with REQ-CAN-006.1. Because the CAN
+    identifier carries the destination but not the source, the server
+    assumes a single trusted controller on the bus and treats any
+    accepted command as coming from it.
 
 - id: REQ-CAN-037
   title: Sequence resynchronization on sequence error
@@ -423,3 +468,34 @@
     messageType). Receiving a matching acknowledgement before the timer
     elapses shall cancel it. The client shall not automatically retry the
     timed-out command.
+
+# --- Emergency Admission and Accepted-Command Bookkeeping ---
+
+- id: REQ-CAN-042
+  title: Emergency command admission
+  shall: >
+    A command whose CAN identifier carries emergency priority shall be
+    exempt from sequence validation, so that it is accepted whatever the
+    server's sequence state. It shall still carry the sequence byte when
+    its category requires sequence validation. When such a command is
+    accepted, the server shall adopt its sequence byte as the last
+    accepted sequence number, so that ordinary commands from a client
+    that counted it continue without a sequence error. The same rules
+    shall apply to single frames and to reassembled ISO-TP PDUs.
+
+- id: REQ-CAN-043
+  title: Sequence advance only on accepted commands
+  shall: >
+    The server shall advance its sequence counter only when a command is
+    accepted as defined in REQ-CAN-036. A command answered with
+    sequenceError, invalidPayload or unknownCommand, or discarded, shall
+    leave the counter unchanged, on both the single-frame and the ISO-TP
+    receive paths.
+
+- id: REQ-CAN-044
+  title: Server receive counters
+  shall: >
+    The server shall count frames refused by the ordinary rate limit,
+    frames refused by the emergency rate limit, addressed frames it
+    discarded or answered with an error, and accepted emergency-priority
+    commands, and shall expose these counts to the application.

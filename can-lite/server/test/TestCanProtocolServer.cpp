@@ -1,3 +1,5 @@
+#include "can-lite/core/CanMessageHandler.hpp"
+#include "can-lite/core/CanPayload.hpp"
 #include "can-lite/core/test/CanCategoryStubs.hpp"
 #include "can-lite/core/test/CanMock.hpp"
 #include "can-lite/server/CanProtocolServer.hpp"
@@ -88,6 +90,44 @@ namespace
         StrictMock<CanProtocolServerObserverMock> observerMock{ server };
     };
 
+    class SequenceValidatedPduCategory : public CanCategoryServerStub
+    {
+    public:
+        SequenceValidatedPduCategory()
+        {
+            AddMessageType(msg);
+        }
+
+        uint8_t Id() const override
+        {
+            return 0x06;
+        }
+
+        class PduMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x50;
+            }
+
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
+
+            bool HandlePdu(infra::ConstByteRange) override
+            {
+                pduReceived = true;
+                return true;
+            }
+
+            bool pduReceived = false;
+        };
+
+        PduMessageType msg;
+    };
+
     TEST_F(CanProtocolServerTest, HeartbeatReceived_NotifiesOnline)
     {
         auto id = MakeSystemId(canHeartbeatMessageTypeId);
@@ -143,6 +183,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, CommandTraffic_RefreshesClientLivenessWithoutHeartbeat)
     {
+        SequenceValidatedPduCategory category;
+        server.RegisterCategory(category);
         auto id = MakeCommandId(0x06, 0x50);
 
         SimulateRx(id, MakeMessage({ 0x00 }));
@@ -152,10 +194,14 @@ namespace
 
         EXPECT_CALL(observerMock, Offline());
         ForwardTime(std::chrono::seconds(1));
+
+        server.UnregisterCategory(category);
     }
 
     TEST_F(CanProtocolServerTest, DispatchPdu_CommandTraffic_RefreshesClientLiveness)
     {
+        SequenceValidatedPduCategory category;
+        server.RegisterCategory(category);
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
@@ -163,15 +209,18 @@ namespace
         server.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x06, 0x50, 1);
-        uint8_t payload[] = { 0x00 };
-        capturedPduCallback(rawId, infra::MakeRange(payload));
+        uint8_t firstPayload[] = { 0x00 };
+        uint8_t secondPayload[] = { 0x01 };
+        capturedPduCallback(rawId, infra::MakeRange(firstPayload));
 
         ForwardTime(std::chrono::seconds(2));
-        capturedPduCallback(rawId, infra::MakeRange(payload));
+        capturedPduCallback(rawId, infra::MakeRange(secondPayload));
         ForwardTime(std::chrono::seconds(2));
 
         EXPECT_CALL(observerMock, Offline());
         ForwardTime(std::chrono::seconds(1));
+
+        server.UnregisterCategory(category);
     }
 
     TEST_F(CanProtocolServerTest, StatusRequestReceived_SendsHeartbeat)
@@ -374,9 +423,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -424,9 +474,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -478,9 +529,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -530,9 +582,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -582,9 +635,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -646,9 +700,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message& data) override
+            bool Handle(const hal::Can::Message& data) override
             {
                 handled = true;
+                return true;
             }
 
             bool handled = false;
@@ -686,6 +741,63 @@ namespace
         EXPECT_TRUE(testCategory.msg.handled);
 
         server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, RejectedFrame_AcksInvalidPayloadNotUnknownCommand)
+    {
+        class RejectingMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x42;
+            }
+
+            bool Handle(const hal::Can::Message&) override
+            {
+                return false;
+            }
+        };
+
+        class RejectingCategory : public CanCategoryServerStub
+        {
+        public:
+            RejectingCategory()
+            {
+                AddMessageType(msg);
+            }
+
+            uint8_t Id() const override
+            {
+                return 0x05;
+            }
+
+            bool RequiresSequenceValidation() const override
+            {
+                return false;
+            }
+
+            RejectingMessageType msg;
+        };
+
+        RejectingCategory category;
+        ASSERT_TRUE(server.RegisterCategory(category));
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([&ack](hal::Can::Id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+            {
+                ack = data;
+                cb(true);
+            }));
+
+        SimulateRx(MakeCommandId(0x05, 0x42), MakeMessage({ 0xDE }));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[0], 0x05);
+        EXPECT_EQ(ack[1], 0x42);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::invalidPayload));
+
+        server.UnregisterCategory(category);
     }
 
     TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdReturnsFalse)
@@ -1016,8 +1128,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {
@@ -1076,8 +1190,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {
@@ -1190,42 +1306,6 @@ namespace
         capturedPduCallback(rawId, infra::ConstByteRange{});
     }
 
-    class SequenceValidatedPduCategory : public CanCategoryServerStub
-    {
-    public:
-        SequenceValidatedPduCategory()
-        {
-            AddMessageType(msg);
-        }
-
-        uint8_t Id() const override
-        {
-            return 0x06;
-        }
-
-        class PduMessageType : public CanMessageType
-        {
-        public:
-            uint8_t Id() const override
-            {
-                return 0x50;
-            }
-
-            void Handle(const hal::Can::Message&) override
-            {}
-
-            bool HandlePdu(infra::ConstByteRange) override
-            {
-                pduReceived = true;
-                return true;
-            }
-
-            bool pduReceived = false;
-        };
-
-        PduMessageType msg;
-    };
-
     TEST_F(CanProtocolServerTest, DispatchPdu_SequenceValidatedCategory_EmptyPayload_SendsInvalidPayloadAck)
     {
         SequenceValidatedPduCategory category;
@@ -1300,8 +1380,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {
@@ -1361,8 +1443,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {
@@ -1451,5 +1535,428 @@ namespace
 
         capturedPduCallback(rawId, infra::MakeRange(pduData));
         server.UnregisterCategory(emptyCategory);
+    }
+
+    class SafetyCategory
+        : public CanCategoryServerStub
+    {
+    public:
+        static constexpr uint8_t categoryId = 0x07;
+        static constexpr uint8_t emergencyStopId = 0x10;
+        static constexpr uint8_t setValueId = 0x20;
+        static constexpr uint8_t unhandledId = 0x30;
+
+        SafetyCategory()
+        {
+            AddMessageTypes(emergencyStop, setValue);
+        }
+
+        uint8_t Id() const override
+        {
+            return categoryId;
+        }
+
+        int emergencyStops = 0;
+        int valuesSet = 0;
+
+    private:
+        bool HandleEmergencyStop(const hal::Can::Message&)
+        {
+            ++emergencyStops;
+            return true;
+        }
+
+        bool HandleEmergencyStopPdu(infra::ConstByteRange)
+        {
+            ++emergencyStops;
+            return true;
+        }
+
+        bool HandleSetValue(const hal::Can::Message& data)
+        {
+            CanPayloadReader reader{ data };
+            reader.Skip(1);
+            reader.ReadUInt16();
+            if (!reader.Valid())
+                return false;
+
+            ++valuesSet;
+            return true;
+        }
+
+        bool HandleSetValuePdu(infra::ConstByteRange pdu)
+        {
+            if (pdu.size() < 3)
+                return false;
+
+            ++valuesSet;
+            return true;
+        }
+
+        CanMessageHandler<SafetyCategory> emergencyStop{ emergencyStopId, *this, &SafetyCategory::HandleEmergencyStop, &SafetyCategory::HandleEmergencyStopPdu };
+        CanMessageHandler<SafetyCategory> setValue{ setValueId, *this, &SafetyCategory::HandleSetValue, &SafetyCategory::HandleSetValuePdu };
+    };
+
+    class CanProtocolServerSafetyTest
+        : public ::testing::Test
+        , public infra::ClockFixture
+    {
+    public:
+        bool ExpectBusTraffic()
+        {
+            EXPECT_CALL(canMock, ReceiveData(_)).Times(2).WillRepeatedly([this](const auto& callback)
+                {
+                    receiveCallback = callback;
+                });
+            EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([this](hal::Can::Id id, const hal::Can::Message& data, const infra::Function<void(bool)>& onDone)
+                {
+                    if (ExtractCanMessageType(id.Get29BitId()) == canCommandAckMessageTypeId && data.size() == canCommandAckSize)
+                    {
+                        lastAckStatus = static_cast<CanAckStatus>(data[2]);
+                        lastAckExpectedSequence = data[3];
+                        ++ackCount;
+                    }
+                    onDone(true);
+                }));
+            return true;
+        }
+
+        ~CanProtocolServerSafetyTest() override
+        {
+            server.DetachIsoTpTransport();
+            server.UnregisterCategory(safety);
+        }
+
+        void Register()
+        {
+            ASSERT_TRUE(server.RegisterCategory(safety));
+        }
+
+        void AttachIsoTp()
+        {
+            EXPECT_CALL(isoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&pduCallback));
+            EXPECT_CALL(isoTp, SetOnAbort(_));
+            server.AttachIsoTpTransport(isoTp);
+            EXPECT_CALL(isoTp, SetOnPduReceived(_)).Times(AnyNumber());
+            EXPECT_CALL(isoTp, SetOnAbort(_)).Times(AnyNumber());
+        }
+
+        static uint32_t RawId(CanPriority priority, uint8_t messageType, uint8_t category = SafetyCategory::categoryId)
+        {
+            return MakeCanId(priority, category, messageType, 1);
+        }
+
+        void Receive(CanPriority priority, uint8_t messageType, std::initializer_list<uint8_t> bytes, uint8_t category = SafetyCategory::categoryId)
+        {
+            hal::Can::Message message;
+            for (auto byte : bytes)
+                message.push_back(byte);
+            receiveCallback(hal::Can::Id::Create29BitId(RawId(priority, messageType, category)), message);
+        }
+
+        void ReceivePdu(CanPriority priority, uint8_t messageType, std::initializer_list<uint8_t> bytes)
+        {
+            std::array<uint8_t, 16> buffer{};
+            std::copy(bytes.begin(), bytes.end(), buffer.begin());
+            pduCallback(RawId(priority, messageType), infra::ConstByteRange(buffer.data(), buffer.data() + bytes.size()));
+        }
+
+        void ReceiveEmergencyStop(uint8_t sequence)
+        {
+            Receive(CanPriority::emergency, SafetyCategory::emergencyStopId, { sequence });
+        }
+
+        void ReceiveSetValue(uint8_t sequence)
+        {
+            Receive(CanPriority::command, SafetyCategory::setValueId, { sequence, 0x12, 0x34 });
+        }
+
+        void ReceiveMalformedTraffic(uint8_t sequence)
+        {
+            Receive(CanPriority::command, SafetyCategory::setValueId, { sequence });
+            Receive(CanPriority::command, SafetyCategory::unhandledId, { sequence });
+            Receive(CanPriority::command, 0x90, { sequence });
+            Receive(CanPriority::command, SafetyCategory::setValueId, {});
+            Receive(CanPriority::command, 0x01, { sequence }, 0x0E);
+        }
+
+        void ReceiveOutOfSequenceSetValue(uint8_t lastAccepted)
+        {
+            ReceiveSetValue(static_cast<uint8_t>(lastAccepted + 7));
+        }
+
+        static constexpr uint16_t ordinaryLimit = 50;
+        static constexpr uint16_t emergencyLimit = 2;
+
+        CanProtocolServer::Config config{ 1, ordinaryLimit, std::chrono::seconds(1), std::chrono::seconds(3), emergencyLimit };
+        StrictMock<hal::CanMock> canMock;
+        infra::Function<void(hal::Can::Id, const hal::Can::Message&)> receiveCallback;
+        CanAckStatus lastAckStatus{ CanAckStatus::success };
+        uint8_t lastAckExpectedSequence{ 0 };
+        int ackCount{ 0 };
+        bool busTrafficExpected{ ExpectBusTraffic() };
+        CanProtocolServer server{ canMock, config };
+        StrictMock<CanProtocolServerObserverMock> observer{ server };
+        SafetyCategory safety;
+        StrictMock<MockIsoTpTransport> isoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> pduCallback;
+    };
+
+    TEST_F(CanProtocolServerSafetyTest, EmergencyStopIsAcceptedAfterTheOrdinaryQuotaIsExhausted)
+    {
+        Register();
+        for (uint8_t sequence = 0; sequence != ordinaryLimit + 1; ++sequence)
+            ReceiveSetValue(sequence);
+        ASSERT_EQ(safety.valuesSet, ordinaryLimit);
+        ASSERT_EQ(server.Statistics().rateLimited, 1u);
+
+        ReceiveEmergencyStop(0x55);
+
+        EXPECT_EQ(safety.emergencyStops, 1);
+        EXPECT_EQ(server.Statistics().emergencyAdmitted, 1u);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, EmergencyTrafficHasItsOwnBoundedBudget)
+    {
+        Register();
+        ReceiveEmergencyStop(0);
+        ReceiveEmergencyStop(1);
+        ReceiveEmergencyStop(2);
+
+        EXPECT_EQ(safety.emergencyStops, 2);
+        EXPECT_EQ(server.Statistics().emergencyRateLimited, 1u);
+        EXPECT_EQ(server.Statistics().rateLimited, 0u);
+
+        ReceiveSetValue(2);
+        EXPECT_EQ(safety.valuesSet, 1);
+
+        ForwardTime(std::chrono::seconds(1));
+        ReceiveEmergencyStop(3);
+        EXPECT_EQ(safety.emergencyStops, 3);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, EmergencyStopIgnoresStaleFutureAndArbitraryOrdinarySequenceState)
+    {
+        CanProtocolServer::Config generous{ 1, 100, std::chrono::seconds(1), std::chrono::seconds(3), 10 };
+        StrictMock<hal::CanMock> generousCan;
+        infra::Function<void(hal::Can::Id, const hal::Can::Message&)> generousReceive;
+        EXPECT_CALL(generousCan, ReceiveData(_)).Times(2).WillRepeatedly([&generousReceive](const auto& callback)
+            {
+                generousReceive = callback;
+            });
+        EXPECT_CALL(generousCan, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& onDone)
+            {
+                onDone(true);
+            }));
+        CanProtocolServer generousServer{ generousCan, generous };
+        StrictMock<CanProtocolServerObserverMock> generousObserver{ generousServer };
+        SafetyCategory category;
+        ASSERT_TRUE(generousServer.RegisterCategory(category));
+
+        auto receive = [&generousReceive](CanPriority priority, uint8_t messageType, std::initializer_list<uint8_t> bytes)
+        {
+            hal::Can::Message message;
+            for (auto byte : bytes)
+                message.push_back(byte);
+            generousReceive(hal::Can::Id::Create29BitId(RawId(priority, messageType)), message);
+        };
+
+        receive(CanPriority::command, SafetyCategory::setValueId, { 10, 0, 0 });
+        receive(CanPriority::command, SafetyCategory::setValueId, { 11, 0, 0 });
+        receive(CanPriority::command, SafetyCategory::setValueId, { 12 });
+        receive(CanPriority::command, SafetyCategory::unhandledId, { 12 });
+        receive(CanPriority::command, SafetyCategory::setValueId, { 99, 0, 0 });
+
+        for (uint8_t sequence : { uint8_t{ 11 }, uint8_t{ 200 }, uint8_t{ 0 }, uint8_t{ 0 }, uint8_t{ 37 } })
+            receive(CanPriority::emergency, SafetyCategory::emergencyStopId, { sequence });
+
+        EXPECT_EQ(category.emergencyStops, 5);
+        EXPECT_EQ(generousServer.Statistics().emergencyAdmitted, 5u);
+
+        generousServer.UnregisterCategory(category);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, OrdinarySequenceContinuesFromTheAcceptedEmergencyStop)
+    {
+        Register();
+        ReceiveSetValue(5);
+        ReceiveEmergencyStop(6);
+
+        ReceiveSetValue(7);
+
+        EXPECT_EQ(safety.valuesSet, 2);
+        EXPECT_EQ(ackCount, 0);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, MalformedPayloadDoesNotAdvanceTheSequence)
+    {
+        Register();
+        ReceiveSetValue(1);
+
+        Receive(CanPriority::command, SafetyCategory::setValueId, { 2 });
+        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+
+        ReceiveSetValue(2);
+        EXPECT_EQ(safety.valuesSet, 2);
+        EXPECT_EQ(ackCount, 1);
+        EXPECT_EQ(server.Statistics().invalidFrames, 1u);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, UnknownCommandDoesNotAdvanceTheSequence)
+    {
+        Register();
+        ReceiveSetValue(1);
+
+        Receive(CanPriority::command, SafetyCategory::unhandledId, { 2 });
+        EXPECT_EQ(lastAckStatus, CanAckStatus::unknownCommand);
+
+        ReceiveSetValue(2);
+        EXPECT_EQ(safety.valuesSet, 2);
+        EXPECT_EQ(ackCount, 1);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, SequenceErrorReportsTheSequenceStillExpected)
+    {
+        Register();
+        ReceiveSetValue(1);
+        Receive(CanPriority::command, SafetyCategory::setValueId, { 2 });
+
+        ReceiveSetValue(9);
+
+        EXPECT_EQ(lastAckStatus, CanAckStatus::sequenceError);
+        EXPECT_EQ(lastAckExpectedSequence, 2);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, InvalidTrafficNeverBringsTheClientOnline)
+    {
+        Register();
+
+        for (int second = 0; second != 10; ++second)
+        {
+            ReceiveMalformedTraffic(static_cast<uint8_t>(second));
+            ForwardTime(std::chrono::seconds(1));
+        }
+
+        EXPECT_EQ(safety.valuesSet, 0);
+        EXPECT_EQ(server.Statistics().invalidFrames, 50u);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, InvalidTrafficDoesNotKeepTheClientOnline)
+    {
+        Register();
+        ReceiveSetValue(1);
+
+        EXPECT_CALL(observer, Offline());
+        for (int tick = 0; tick != 20; ++tick)
+        {
+            ReceiveMalformedTraffic(1);
+            ReceiveOutOfSequenceSetValue(1);
+            ForwardTime(std::chrono::milliseconds(200));
+        }
+
+        EXPECT_EQ(safety.valuesSet, 1);
+
+        EXPECT_EQ(server.Statistics().rateLimited, 0u);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, ResponseTypeFramesAreCountedAsInvalidWithoutAnAnswer)
+    {
+        Register();
+
+        Receive(CanPriority::command, 0x90, { 0 });
+
+        EXPECT_EQ(ackCount, 0);
+        EXPECT_EQ(server.Statistics().invalidFrames, 1u);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, IsoTpEmergencyFrameIsChargedToTheEmergencyBudget)
+    {
+        Register();
+        AttachIsoTp();
+        EXPECT_CALL(isoTp, ProcessFrame(_, _)).WillRepeatedly(Return(true));
+        for (int i = 0; i != ordinaryLimit + 1; ++i)
+            Receive(CanPriority::command, SafetyCategory::setValueId, { 0x10, 0x09 });
+        ASSERT_EQ(server.Statistics().rateLimited, 1u);
+
+        EXPECT_CALL(isoTp, ProcessFrame(RawId(CanPriority::emergency, SafetyCategory::emergencyStopId), _)).WillOnce(Return(true));
+        Receive(CanPriority::emergency, SafetyCategory::emergencyStopId, { 0x10, 0x09 });
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, IsoTpEmergencyStopIgnoresOrdinarySequenceState)
+    {
+        Register();
+        AttachIsoTp();
+        ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 20, 1, 2 });
+        ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 21 });
+        ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 99, 1, 2 });
+
+        ReceivePdu(CanPriority::emergency, SafetyCategory::emergencyStopId, { 3 });
+        ReceivePdu(CanPriority::emergency, SafetyCategory::emergencyStopId, { 3 });
+
+        EXPECT_EQ(safety.emergencyStops, 2);
+        EXPECT_EQ(server.Statistics().emergencyAdmitted, 2u);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, IsoTpMalformedPduDoesNotAdvanceTheSequence)
+    {
+        Register();
+        AttachIsoTp();
+        ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 1, 0, 0 });
+
+        ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 2 });
+        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+
+        ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 2, 0, 0 });
+        EXPECT_EQ(safety.valuesSet, 2);
+        EXPECT_EQ(ackCount, 1);
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, IsoTpInvalidTrafficDoesNotKeepTheClientOnline)
+    {
+        Register();
+        AttachIsoTp();
+        ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 1, 0, 0 });
+
+        EXPECT_CALL(observer, Offline());
+        for (int tick = 0; tick != 40; ++tick)
+        {
+            ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 2 });
+            ReceivePdu(CanPriority::command, SafetyCategory::unhandledId, { 2 });
+            ReceivePdu(CanPriority::command, 0x90, { 2 });
+            ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { 50, 0, 0 });
+            ForwardTime(std::chrono::milliseconds(100));
+        }
+    }
+
+    TEST_F(CanProtocolServerSafetyTest, EmergencyStopGetsThroughAMalformedFloodOnBothPaths)
+    {
+        Register();
+        AttachIsoTp();
+        EXPECT_CALL(isoTp, ProcessFrame(_, _)).WillRepeatedly(Return(false));
+        ReceiveSetValue(0);
+
+        EXPECT_CALL(observer, Offline());
+        for (int tick = 0; tick != 50; ++tick)
+        {
+            for (int burst = 0; burst != 20; ++burst)
+            {
+                ReceiveMalformedTraffic(static_cast<uint8_t>(burst));
+                ReceiveOutOfSequenceSetValue(0);
+                ReceivePdu(CanPriority::command, SafetyCategory::setValueId, { static_cast<uint8_t>(burst) });
+            }
+
+            if (tick == 9 || tick == 19)
+            {
+                ReceiveEmergencyStop(static_cast<uint8_t>(tick));
+                ReceivePdu(CanPriority::emergency, SafetyCategory::emergencyStopId, { static_cast<uint8_t>(tick * 3) });
+            }
+
+            ForwardTime(std::chrono::milliseconds(100));
+        }
+
+        EXPECT_EQ(safety.emergencyStops, 4);
+        EXPECT_EQ(safety.valuesSet, 1);
+        EXPECT_GT(server.Statistics().rateLimited, 0u);
+        EXPECT_EQ(server.Statistics().emergencyRateLimited, 0u);
     }
 }

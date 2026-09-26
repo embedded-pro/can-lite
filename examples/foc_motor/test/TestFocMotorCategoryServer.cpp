@@ -183,8 +183,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(6, 0);
-        server.HandleMessage(focSetPidCurrentId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSetPidCurrentId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServerWithObserver, SetPidSpeed_ParsesGains)
@@ -205,8 +205,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(6, 0);
-        server.HandleMessage(focSetPidSpeedId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSetPidSpeedId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServerWithObserver, SetPidPosition_ParsesGains)
@@ -227,8 +227,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(6, 0);
-        server.HandleMessage(focSetPidPositionId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSetPidPositionId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServerWithObserver, IdentifyElectrical_CallbackSendsResponse)
@@ -300,13 +300,13 @@ namespace
     {
         hal::Can::Message data;
         data.resize(2, 0);
-        server.HandleMessage(focSetEncoderResolutionId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSetEncoderResolutionId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServer, UnknownMessageType_ReturnsFalse)
     {
-        EXPECT_FALSE(server.HandleMessage(0xFF, hal::Can::Message{}));
+        EXPECT_EQ(server.HandleMessage(0xFF, hal::Can::Message{}), CanDispatchResult::unknownMessageType);
     }
 
     TEST_F(TestFocMotorCategoryServerWithObserver, SelectControlMode_CallbackSendsResponseAndAck)
@@ -346,8 +346,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(2, 0);
-        server.HandleMessage(focSetTorqueSetpointId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSetTorqueSetpointId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServer, SelectControlMode_InvalidModeRejected)
@@ -355,8 +355,8 @@ namespace
         hal::Can::Message data;
         data.resize(2, 0);
         data[1] = 0xFF;
-        server.HandleMessage(focSelectControlModeId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSelectControlModeId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServerWithObserver, ClearFault_CallbackSendsAck)
@@ -403,16 +403,16 @@ namespace
     {
         hal::Can::Message data;
         data.push_back(0);
-        server.HandleMessage(focConfigureTelemetryRateId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focConfigureTelemetryRateId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServer, SelectControlMode_TooShortRejected)
     {
         hal::Can::Message data;
         data.resize(1, 0);
-        server.HandleMessage(focSelectControlModeId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSelectControlModeId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServerWithObserver, SetSpeedSetpoint_CallbackSendsAck)
@@ -434,8 +434,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(2, 0);
-        server.HandleMessage(focSetSpeedSetpointId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSetSpeedSetpointId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServerWithObserver, SetSpeedSetpoint_32000RpmDecodesCorrectly)
@@ -473,8 +473,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(2, 0);
-        server.HandleMessage(focSetPositionSetpointId, data);
-        EXPECT_EQ(lastAckStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(focSetPositionSetpointId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(ackCount, 0u);
     }
 
     TEST_F(TestFocMotorCategoryServer, SendCategoryError_EmitsFrameAndAck)

@@ -190,8 +190,10 @@ stateDiagram-v2
 ```
 
 Any frame from a server counts as proof of life — responses, telemetry and
-heartbeats alike — matching the server's rule and for the same reason: a busy
-peer defers its heartbeat.
+heartbeats alike — because a busy peer defers its heartbeat. The server's rule
+is stricter: only commands it accepts count (Chapter 6, §5). A server's offline
+verdict triggers the application's fallback, and invalid traffic must not be
+able to hold that off.
 
 Eviction is explicit rather than "ignore the newcomer", and it reports **both**
 transitions, so the application's picture stays consistent: at most eight

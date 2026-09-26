@@ -81,9 +81,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message& data) override
+            bool Handle(const hal::Can::Message& data) override
             {
                 handled = true;
+                return true;
             }
 
             bool handled = false;
@@ -180,9 +181,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -650,8 +652,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {

@@ -67,7 +67,8 @@ classDiagram
         +RequiresSequenceValidation() bool*
         +AddMessageType(CanMessageType&)
         +AddMessageTypes(...)
-        +HandleMessage(messageType, data) bool
+        +HandleMessage(messageType, data) CanDispatchResult
+        +HandlePduMessage(messageType, pdu) CanDispatchResult
     }
 
     class CanCategoryServer {
@@ -106,7 +107,14 @@ Each category contains a set of `CanMessageType` handlers, registered via `AddMe
 1. `CanProtocolServer`/`CanProtocolClient` extracts the category ID and message type from the 29-bit CAN identifier.
 2. The corresponding category's `HandleMessage()` is called.
 3. `HandleMessage()` iterates the registered message types and dispatches to the matching handler.
-4. The handler parses the payload and notifies the observer.
+4. The handler parses the payload, notifies the observer and returns `true`. If
+   the payload is invalid, it returns `false` instead and sends nothing.
+5. `HandleMessage()` reports `handled`, `rejected` (a handler returned `false`)
+   or `unknownMessageType` (no handler matched). The server answers `rejected`
+   with `invalidPayload` and `unknownMessageType` with `unknownCommand`.
+   Handlers never acknowledge an invalid payload themselves, so the single-frame
+   and ISO-TP paths report outcomes the same way, and the server knows whether a
+   command was accepted.
 
 ```mermaid
 sequenceDiagram
@@ -277,6 +285,20 @@ is deliberate: the supported topology is one client to many servers, and a serve
 serves exactly one client (REQ-CAN-006.1). Two clients commanding the same server
 concurrently interleave their counters and are rejected with `sequenceError`.
 
+The counter only moves for accepted commands (REQ-CAN-043). `CanProtocolServer`
+records the incoming sequence byte **before** dispatching to the handler and
+restores the previous value if the handler rejects the payload or no handler
+matches. Recording first matters on synchronous buses and in the integration
+tests: an accepted handler's acknowledgement can make the client send its next
+command before dispatch returns. A rejecting handler sends nothing, so nothing
+can re-enter between the record and the restore.
+
+Commands at emergency priority skip the check and, once accepted, set the
+counter to their own sequence byte (REQ-CAN-042). That keeps an emergency stop
+independent of whatever sequence state earlier traffic left behind. Because
+the client's `SendCommand()` counted that byte, the next ordinary command
+follows on without a `sequenceError`.
+
 ## 9.1 Per-Server Sequence Tracking
 
 `CanProtocolClient` maintains **independent sequence counters per server
@@ -320,14 +342,38 @@ following the same quiet-period rule as the server's heartbeat (§9.3); since
 that heartbeat is deferred by any other outgoing traffic, a client sending
 commands continuously might not emit a dedicated heartbeat frame for a long
 time. `CanProtocolServer` therefore restarts its `clientLivenessTimer`
-(configurable, default 3 s via `Config::clientTimeout`) on any frame correctly
-addressed to it, not only heartbeats — mirroring how
-`CanProtocolClient::MarkServerAlive` treats any received frame as proof of a
-server's liveness (§9.2). Only a received heartbeat notifies
+(configurable, default 3 s via `Config::clientTimeout`) on every command it
+accepts, not only heartbeats. It does this only after the category, the
+command type, the sequence and the handler have all accepted the frame. A
+frame that is rate-limited, discarded or answered with an error proves
+nothing about the client, and counting it would let a flood of invalid
+traffic keep a departed client "online" and suppress the application's
+offline fallback. The CAN identifier has no source field, so this rests on
+the single-trusted-controller assumption stated in the protocol
+specification (§8.1.1). Only a received heartbeat notifies
 `CanProtocolServerObserver::Online()`, since that is the specific, meaningful
 signal; if the timer fires without further traffic from the client,
 `CanProtocolServerObserver::Offline()` is notified. A server tracks liveness
 for one client only, consistent with the single sequence counter (§9).
+
+## 9.2.2 Receive Admission Order
+
+`CanProtocolServer` runs the direct-frame and ISO-TP paths through the same
+steps, so the two paths are equally safe:
+
+1. address filter;
+2. rate limit, charged per CAN frame to the ordinary or the emergency budget
+   depending on the identifier's priority (a reassembled PDU is not charged
+   again);
+3. command range and category lookup;
+4. empty-payload and sequence checks (skipped for emergency priority);
+5. handler dispatch;
+6. only for a `handled` result: record the sequence and restart the client
+   liveness timer.
+
+Rate limiting stays first because it exists to bound processing cost, and
+giving emergency traffic its own small budget keeps that bound. Every refusal
+is counted and exposed through `CanProtocolServer::Statistics()`.
 
 ## 9.3 Heartbeat Timer (Silence Guard)
 
@@ -354,6 +400,22 @@ second sequence-validated command to the same server before the first is
 acknowledged replaces the tracked (category, messageType) — an acknowledgement
 for the first command that arrives afterward will not match and will not
 cancel the timer for the second.
+
+## 9.5 Outbound Frame Priority
+
+`CanFrameTransport` orders its send queue by the identifier's priority field
+instead of by arrival. Bus arbitration can only rank frames that have already
+reached the controller, so a first-in-first-out queue would let queued
+telemetry delay an emergency frame, and a queue full of telemetry would refuse
+it. Two slots of the fixed eight are reserved for emergency frames. When the
+queue is full, an emergency frame displaces the newest frame of the lowest
+queued priority, and that frame's completion reports failure. A failed
+emergency transmission is retried a bounded number of times. Everything is
+counted and exposed through `CanFrameTransport::Statistics()`, and server
+categories send fault frames through `SendEmergency()`. The exact rules are
+REQ-CAN-039 to REQ-CAN-041. Displacement was chosen over a separate emergency
+queue so that the storage stays one fixed-size container and the order of
+same-priority frames stays FIFO.
 
 ## 10. Directory Structure
 

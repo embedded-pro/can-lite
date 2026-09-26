@@ -29,8 +29,8 @@ namespace services
         uint8_t Id() const override;
 
     private:
-        void HandleCommandAck(const hal::Can::Message& data);
-        void HandleCategoryListResponse(const hal::Can::Message& data);
+        bool HandleCommandAck(const hal::Can::Message& data);
+        bool HandleCategoryListResponse(const hal::Can::Message& data);
 
         CanMessageHandler<CanSystemCategoryClient> commandAck{ canCommandAckMessageTypeId, *this, &CanSystemCategoryClient::HandleCommandAck };
         CanMessageHandler<CanSystemCategoryClient> categoryListResponse{ canCategoryListResponseMessageTypeId, *this, &CanSystemCategoryClient::HandleCategoryListResponse };

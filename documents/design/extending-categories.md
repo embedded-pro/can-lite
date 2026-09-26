@@ -82,8 +82,8 @@ public:
     uint8_t Id() const override;
 
 private:
-    void HandleSetParameters(const hal::Can::Message& data);
-    void HandleQueryValue(const hal::Can::Message& data);
+    bool HandleSetParameters(const hal::Can::Message& data);
+    bool HandleQueryValue(const hal::Can::Message& data);
 
     CanMessageHandler<MyCategoryServer> setParameters{ mySetParametersId, *this, &MyCategoryServer::HandleSetParameters };
     CanMessageHandler<MyCategoryServer> queryValue{ myQueryValueId, *this, &MyCategoryServer::HandleQueryValue };
@@ -100,8 +100,16 @@ MyCategoryServer::MyCategoryServer(CanFrameTransport& transport)
 }
 ```
 
+A handler returns `true` when it accepted the payload and `false` when it
+rejected it. On `false` the server answers `invalidPayload` for you, so do not
+also acknowledge it. A command rejected this way does not advance the
+sequence counter. Return `true` whenever the payload was valid, even if the
+command then fails for another reason and you report that with a different
+status.
+
 For a message that also arrives as a reassembled ISO-TP PDU, pass a second
 member function: `CanMessageHandler<Owner>{ id, *this, &Owner::HandleFrame, &Owner::HandlePdu }`.
+The PDU handler follows the same `true`/`false` contract.
 
 ## 4. Read and write payloads with `CanPayload`
 
@@ -110,7 +118,7 @@ byte offsets are computed by hand. Both track validity as a **sticky flag**: one
 check covers the whole payload.
 
 ```cpp
-void MyCategoryServer::HandleSetParameters(const hal::Can::Message& data)
+bool MyCategoryServer::HandleSetParameters(const hal::Can::Message& data)
 {
     CanPayloadReader reader{ data };
     reader.Skip(1);                       // sequence byte
@@ -118,12 +126,10 @@ void MyCategoryServer::HandleSetParameters(const hal::Can::Message& data)
     auto second = reader.ReadInt16();
 
     if (!reader.Valid())
-    {
-        SendCommandAck(mySetParametersId, CanAckStatus::invalidPayload);
-        return;
-    }
+        return false;
 
     // ...
+    return true;
 }
 ```
 
@@ -145,8 +151,13 @@ The base classes own the transport and fill in the category ID and priority.
 |-------------------------------------------------|-------------|--------------|
 | `SendResponse(messageType, payload)`            | `response`  | as given     |
 | `SendTelemetry(messageType, payload)`           | `telemetry` | as given     |
+| `SendEmergency(messageType, payload)`           | `emergency` | as given     |
 | `SendCategoryError(originatingCommandId, code)` | `response`  | `0xFE`       |
 | `SendCommandAck(messageType, status)`           | `response`  | system ACK   |
+
+Report faults with `SendEmergency()`. Emergency frames leave the node's send
+queue ahead of all other traffic and have reserved queue capacity
+(REQ-CAN-039, REQ-CAN-040).
 
 **Client:**
 

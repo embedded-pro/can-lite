@@ -232,7 +232,7 @@ Total: 2 bytes.
 
 Select the active closed-loop control mode. Must be sent before the
 first setpoint command of a given mode. Invalid mode bytes (> 2) are
-silently rejected.
+rejected with an `invalidPayload` acknowledgement.
 
 | Byte | Field    | Type  | Description                   |
 |------|----------|-------|-------------------------------|
@@ -253,7 +253,8 @@ Set the torque (quadrature current) setpoint for torque control mode.
 | 1–2  | Value    | int16 | 10    | Torque setpoint (A) |
 
 Resolution: 0.1 A. Range: ±3276.7 A. Total: 3 bytes.
-Payload shorter than 3 bytes is silently rejected.
+Payload shorter than 3 bytes is rejected with an `invalidPayload`
+acknowledgement.
 
 ### 6.16 Set Speed Setpoint (0x10)
 
@@ -265,7 +266,8 @@ Set the speed setpoint for speed control mode.
 | 1–2  | Value    | int16 | 1     | Speed setpoint (RPM) |
 
 Resolution: 1 RPM. Range: ±32767 RPM. Total: 3 bytes.
-Payload shorter than 3 bytes is silently rejected.
+Payload shorter than 3 bytes is rejected with an `invalidPayload`
+acknowledgement.
 
 ### 6.17 Set Position Setpoint (0x11)
 
@@ -277,7 +279,8 @@ Set the position setpoint for position control mode.
 | 1–2  | Value    | int16 | 100   | Position setpoint (rad) |
 
 Resolution: 0.01 rad. Range: ±327.67 rad. Total: 3 bytes.
-Payload shorter than 3 bytes is silently rejected.
+Payload shorter than 3 bytes is rejected with an `invalidPayload`
+acknowledgement.
 
 ## 7. Message Types — Responses (Server → Client)
 

@@ -56,10 +56,10 @@ namespace integration
         uint8_t Id() const override;
 
     private:
-        void HandlePing(const hal::Can::Message& data);
-        void HandleSetParameters(const hal::Can::Message& data);
-        void HandleQueryValue(const hal::Can::Message& data);
-        void HandleFail(const hal::Can::Message& data);
+        bool HandlePing(const hal::Can::Message& data);
+        bool HandleSetParameters(const hal::Can::Message& data);
+        bool HandleQueryValue(const hal::Can::Message& data);
+        bool HandleFail(const hal::Can::Message& data);
 
         void SendValueResponse(int16_t value);
 
@@ -96,8 +96,8 @@ namespace integration
         bool SendFail(uint16_t targetNodeId);
 
     private:
-        void HandleValueResponse(const hal::Can::Message& data);
-        void HandleCategoryError(const hal::Can::Message& data);
+        bool HandleValueResponse(const hal::Can::Message& data);
+        bool HandleCategoryError(const hal::Can::Message& data);
 
         services::CanMessageHandler<DemoCategoryClient> valueResponse{ demoValueResponseId, *this, &DemoCategoryClient::HandleValueResponse };
         services::CanMessageHandler<DemoCategoryClient> categoryError{ services::canCategoryErrorResponseMessageTypeId, *this, &DemoCategoryClient::HandleCategoryError };
@@ -109,7 +109,7 @@ namespace integration
         explicit TestMessageType(uint8_t id);
 
         uint8_t Id() const override;
-        void Handle(const hal::Can::Message&) override;
+        bool Handle(const hal::Can::Message&) override;
 
         int handleCount = 0;
 

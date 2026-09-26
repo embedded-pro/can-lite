@@ -29,6 +29,25 @@ GIVEN(R"(the client reconnects)")
     fixture.clientCan.ConnectTo(fixture.serverCan);
 }
 
+WHEN(R"(frames the server cannot accept arrive every 500 ms for {int} seconds)", (std::int32_t seconds))
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+
+    auto unknownCategory = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x0E, 0x01, fixture.config.nodeId));
+    auto unknownMessageType = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, canSystemCategoryId, 0x7E, fixture.config.nodeId));
+    auto responseType = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, canSystemCategoryId, 0x90, fixture.config.nodeId));
+    hal::Can::Message msg;
+    msg.push_back(0x00);
+
+    for (std::int32_t tick = 0; tick != seconds * 2; ++tick)
+    {
+        fixture.serverCan.InjectFrame(unknownCategory, msg);
+        fixture.serverCan.InjectFrame(unknownMessageType, msg);
+        fixture.serverCan.InjectFrame(responseType, msg);
+        fixture.ForwardTime(std::chrono::milliseconds(500));
+    }
+}
+
 THEN(R"(the server shall consider the client online)")
 {
     auto& fixture = context.Get<ApplicationFixture>();

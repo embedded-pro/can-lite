@@ -211,7 +211,7 @@ namespace
 
     TEST_F(TestFocMotorCategoryClient, UnknownMessageType_ReturnsFalse)
     {
-        EXPECT_FALSE(client.HandleMessage(0x81, hal::Can::Message{}));
+        EXPECT_EQ(client.HandleMessage(0x81, hal::Can::Message{}), CanDispatchResult::unknownMessageType);
     }
 
     // --- Command sending ---
@@ -492,7 +492,6 @@ namespace
 
     TEST_F(TestFocMotorCategoryClient, Send_QueueFull_ReturnsFalseAndDoesNotAdvanceSequence)
     {
-        // Use a separate blocked transport: SendData never calls back, so sendInProgress stays true
         StrictMock<hal::CanMock> blockedCan;
         EXPECT_CALL(blockedCan, ReceiveData(_)).Times(2);
         EXPECT_CALL(blockedCan, SendData(_, _, _)).Times(AnyNumber());
@@ -500,16 +499,13 @@ namespace
         CanFrameTransport blockedTransport{ blockedCan, 1 };
         FocMotorCategoryClient focClient{ blockedTransport, blockedProtocolClient };
 
-        // 1 in-progress + 8 queued = 9 accepted frames
-        for (int i = 0; i < 9; ++i)
+        constexpr auto acceptedFrames = 1 + CanFrameTransport::queueDepth - CanFrameTransport::emergencyReserve;
+        for (std::size_t i = 0; i < acceptedFrames; ++i)
             EXPECT_TRUE(focClient.SendStart(1));
 
-        // 10th send fails: queue full
         EXPECT_FALSE(focClient.SendStart(1));
 
-        // Sequence must NOT have advanced after the failure:
-        // 9 successful commits left the counter at 9, failure left it there
-        EXPECT_EQ(blockedProtocolClient.PeekSequence(1), 9u);
+        EXPECT_EQ(blockedProtocolClient.PeekSequence(1), acceptedFrames);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendSetTorqueSetpoint_SendsCorrectFrame)

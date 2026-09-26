@@ -9,10 +9,11 @@ namespace
     class Owner
     {
     public:
-        void HandleFrame(const hal::Can::Message& data)
+        bool HandleFrame(const hal::Can::Message& data)
         {
             frameCount++;
             lastFrameSize = data.size();
+            return frameAccepted;
         }
 
         bool HandlePdu(infra::ConstByteRange pdu)
@@ -26,6 +27,7 @@ namespace
         int pduCount = 0;
         std::size_t lastFrameSize = 0;
         std::size_t lastPduSize = 0;
+        bool frameAccepted = true;
         bool pduAccepted = true;
     };
 
@@ -51,14 +53,16 @@ namespace
             return 0x03;
         }
 
-        void HandleFirst(const hal::Can::Message&)
+        bool HandleFirst(const hal::Can::Message&)
         {
             firstCount++;
+            return true;
         }
 
-        void HandleSecond(const hal::Can::Message&)
+        bool HandleSecond(const hal::Can::Message& data)
         {
             secondCount++;
+            return !data.empty();
         }
 
         bool HandleSecondPdu(infra::ConstByteRange)
@@ -90,11 +94,21 @@ TEST(CanMessageHandlerTest, HandleForwardsFrameToBoundMemberFunction)
     Owner owner;
     CanMessageHandler<Owner> handler{ 0x01, owner, &Owner::HandleFrame };
 
-    handler.Handle(MakeMessage({ 0xAA, 0xBB }));
+    EXPECT_TRUE(handler.Handle(MakeMessage({ 0xAA, 0xBB })));
 
     EXPECT_EQ(owner.frameCount, 1);
     EXPECT_EQ(owner.lastFrameSize, 2u);
     EXPECT_EQ(owner.pduCount, 0);
+}
+
+TEST(CanMessageHandlerTest, HandlePropagatesFrameRejection)
+{
+    Owner owner;
+    owner.frameAccepted = false;
+    CanMessageHandler<Owner> handler{ 0x01, owner, &Owner::HandleFrame };
+
+    EXPECT_FALSE(handler.Handle(MakeMessage({ 0xAA })));
+    EXPECT_EQ(owner.frameCount, 1);
 }
 
 TEST(CanMessageHandlerTest, HandlePduForwardsToBoundMemberFunction)
@@ -142,8 +156,6 @@ TEST(CanMessageHandlerTest, HandlerWithoutPduSupportRejectsPdu)
 
     auto pdu = MakeMessage({ 0x01 });
 
-    // A message type registered via the 3-argument constructor doesn't opt in
-    // to PDU (ISO-TP) handling; it must reject rather than crash.
     EXPECT_FALSE(handler.HandlePdu(infra::MakeRange(pdu)));
 }
 
@@ -151,8 +163,8 @@ TEST(CanMessageHandlerTest, AddMessageTypesRegistersEveryHandler)
 {
     HandlerCategory category;
 
-    EXPECT_TRUE(category.HandleMessage(0x01, hal::Can::Message{}));
-    EXPECT_TRUE(category.HandleMessage(0x02, hal::Can::Message{}));
+    EXPECT_EQ(category.HandleMessage(0x01, hal::Can::Message{}), CanDispatchResult::handled);
+    EXPECT_EQ(category.HandleMessage(0x02, MakeMessage({ 0x01 })), CanDispatchResult::handled);
 
     EXPECT_EQ(category.firstCount, 1);
     EXPECT_EQ(category.secondCount, 1);
@@ -162,9 +174,17 @@ TEST(CanMessageHandlerTest, UnregisteredMessageTypeIsNotDispatched)
 {
     HandlerCategory category;
 
-    EXPECT_FALSE(category.HandleMessage(0x7F, hal::Can::Message{}));
+    EXPECT_EQ(category.HandleMessage(0x7F, hal::Can::Message{}), CanDispatchResult::unknownMessageType);
     EXPECT_EQ(category.firstCount, 0);
     EXPECT_EQ(category.secondCount, 0);
+}
+
+TEST(CanMessageHandlerTest, FrameRejectedByItsHandlerIsReportedAsRejected)
+{
+    HandlerCategory category;
+
+    EXPECT_EQ(category.HandleMessage(0x02, hal::Can::Message{}), CanDispatchResult::rejected);
+    EXPECT_EQ(category.secondCount, 1);
 }
 
 TEST(CanMessageHandlerTest, PduDispatchReachesTheBoundHandler)
@@ -172,7 +192,7 @@ TEST(CanMessageHandlerTest, PduDispatchReachesTheBoundHandler)
     HandlerCategory category;
     auto pdu = MakeMessage({ 0x01, 0x02 });
 
-    EXPECT_EQ(category.HandlePduMessage(0x02, infra::MakeRange(pdu)), CanPduDispatchResult::handled);
+    EXPECT_EQ(category.HandlePduMessage(0x02, infra::MakeRange(pdu)), CanDispatchResult::handled);
     EXPECT_EQ(category.secondPduCount, 1);
 }
 
@@ -181,7 +201,7 @@ TEST(CanMessageHandlerTest, PduDispatchForUnregisteredTypeIsNotHandled)
     HandlerCategory category;
     auto pdu = MakeMessage({ 0x01 });
 
-    EXPECT_EQ(category.HandlePduMessage(0x7F, infra::MakeRange(pdu)), CanPduDispatchResult::unknownMessageType);
+    EXPECT_EQ(category.HandlePduMessage(0x7F, infra::MakeRange(pdu)), CanDispatchResult::unknownMessageType);
     EXPECT_EQ(category.secondPduCount, 0);
 }
 

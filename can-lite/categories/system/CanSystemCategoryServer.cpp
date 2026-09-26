@@ -18,7 +18,7 @@ namespace services
         return false;
     }
 
-    void CanSystemCategoryServer::HandleHeartbeat(const hal::Can::Message& data)
+    bool CanSystemCategoryServer::HandleHeartbeat(const hal::Can::Message& data)
     {
         auto version = data.empty() ? uint8_t{ 0 } : data[0];
 
@@ -26,21 +26,27 @@ namespace services
             {
                 observer.OnHeartbeatReceived(version);
             });
+
+        return true;
     }
 
-    void CanSystemCategoryServer::HandleStatusRequest(const hal::Can::Message&)
+    bool CanSystemCategoryServer::HandleStatusRequest(const hal::Can::Message&)
     {
         NotifyObservers([](auto& observer)
             {
                 observer.OnStatusRequest();
             });
+
+        return true;
     }
 
-    void CanSystemCategoryServer::HandleCategoryListRequest(const hal::Can::Message&)
+    bool CanSystemCategoryServer::HandleCategoryListRequest(const hal::Can::Message&)
     {
         NotifyObservers([](auto& observer)
             {
                 observer.OnCategoryListRequest();
             });
+
+        return true;
     }
 }

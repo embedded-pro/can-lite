@@ -32,9 +32,9 @@ namespace services
         bool RequiresSequenceValidation() const override;
 
     private:
-        void HandleHeartbeat(const hal::Can::Message& data);
-        void HandleStatusRequest(const hal::Can::Message& data);
-        void HandleCategoryListRequest(const hal::Can::Message& data);
+        bool HandleHeartbeat(const hal::Can::Message& data);
+        bool HandleStatusRequest(const hal::Can::Message& data);
+        bool HandleCategoryListRequest(const hal::Can::Message& data);
 
         CanMessageHandler<CanSystemCategoryServer> heartbeat{ canHeartbeatMessageTypeId, *this, &CanSystemCategoryServer::HandleHeartbeat };
         CanMessageHandler<CanSystemCategoryServer> statusRequest{ canStatusRequestMessageTypeId, *this, &CanSystemCategoryServer::HandleStatusRequest };

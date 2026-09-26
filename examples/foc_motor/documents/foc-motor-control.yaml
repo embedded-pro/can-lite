@@ -258,7 +258,8 @@
     (0x0D) containing a uint8 rate value in bytes 1 (0 = disabled).
     The server's observer shall be notified via
     OnConfigureTelemetryRate(rateHz). Payloads shorter than 2 bytes
-    shall be silently rejected.
+    shall be rejected by the
+    handler, which the server acknowledges as invalidPayload.
   tests:
     - TestFocMotorCategoryServerWithObserver.ConfigureTelemetryRate_ParsesRate
     - TestFocMotorCategoryServer.ConfigureTelemetryRate_TooShortRejected
@@ -272,7 +273,8 @@
     contain: sequence byte (byte 0) and a big-endian fixed-point int16
     value (bytes 1–2, scale 10, unit A). The server shall notify the
     observer via OnSetTorqueSetpoint(value) after decoding. Payloads
-    shorter than 3 bytes shall be silently rejected.
+    shorter than 3 bytes shall be rejected by the
+    handler, which the server acknowledges as invalidPayload.
   tests:
     - TestFocMotorCategoryServerWithObserver.SetTorqueSetpoint_CallbackSendsAck
     - TestFocMotorCategoryServer.SetTorqueSetpoint_TooShortRejected
@@ -286,7 +288,8 @@
     sequence byte (byte 0) and a big-endian fixed-point int16 value (bytes
     1–2, scale 1, unit RPM). The server shall notify the observer via
     OnSetSpeedSetpoint(value) after decoding. Payloads shorter than 3 bytes
-    shall be silently rejected.
+    shall be rejected by the
+    handler, which the server acknowledges as invalidPayload.
   tests:
     - TestFocMotorCategoryServerWithObserver.SetSpeedSetpoint_CallbackSendsAck
     - TestFocMotorCategoryServer.SetSpeedSetpoint_TooShortRejected
@@ -302,7 +305,8 @@
     sequence byte (byte 0) and a big-endian fixed-point int16 value (bytes
     1–2, scale 100, unit rad). The server shall notify the observer via
     OnSetPositionSetpoint(value) after decoding. Payloads shorter than 3
-    bytes shall be silently rejected.
+    bytes shall be rejected by the
+    handler, which the server acknowledges as invalidPayload.
   tests:
     - TestFocMotorCategoryServerWithObserver.SetPositionSetpoint_CallbackSendsAck
     - TestFocMotorCategoryServer.SetPositionSetpoint_TooShortRejected

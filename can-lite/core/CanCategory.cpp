@@ -9,29 +9,30 @@ namespace services
         messageTypes.push_back(messageType);
     }
 
-    bool CanCategory::HandleMessage(uint8_t messageType, const hal::Can::Message& data)
+    CanDispatchResult CanCategory::HandleMessage(uint8_t messageType, const hal::Can::Message& data)
     {
+        using enum CanDispatchResult;
+
         for (auto& handler : messageTypes)
         {
             if (handler.Id() == messageType)
-            {
-                handler.Handle(data);
-                return true;
-            }
+                return handler.Handle(data) ? handled : rejected;
         }
 
-        return false;
+        return unknownMessageType;
     }
 
-    CanPduDispatchResult CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
+    CanDispatchResult CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
     {
+        using enum CanDispatchResult;
+
         for (auto& handler : messageTypes)
         {
             if (handler.Id() == messageType)
-                return handler.HandlePdu(pdu) ? CanPduDispatchResult::handled : CanPduDispatchResult::rejected;
+                return handler.HandlePdu(pdu) ? handled : rejected;
         }
 
-        return CanPduDispatchResult::unknownMessageType;
+        return unknownMessageType;
     }
 
     CanCategoryServer::CanCategoryServer(CanFrameTransport& transport)
@@ -82,6 +83,16 @@ namespace services
     bool CanCategoryServer::SendTelemetry(uint8_t messageType, const CanPayloadWriter& payload)
     {
         return payload.Valid() && SendTelemetry(messageType, payload.Message());
+    }
+
+    bool CanCategoryServer::SendEmergency(uint8_t messageType, const hal::Can::Message& data)
+    {
+        return transport.SendFrame(CanPriority::emergency, Id(), messageType, data, [](bool) {});
+    }
+
+    bool CanCategoryServer::SendEmergency(uint8_t messageType, const CanPayloadWriter& payload)
+    {
+        return payload.Valid() && SendEmergency(messageType, payload.Message());
     }
 
     bool CanCategoryServer::SendCategoryError(uint8_t originatingCommandId, uint8_t categoryErrorCode)

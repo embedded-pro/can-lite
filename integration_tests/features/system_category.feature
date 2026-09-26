@@ -44,6 +44,14 @@ Feature: System Category
     Then the server shall consider the client offline
 
   @REQ-CAN-036
+  Scenario: Frames the server cannot accept do not keep a silent client online
+    When 1 second elapses
+    Then the server shall consider the client online
+    Given the client goes silent
+    When frames the server cannot accept arrive every 500 ms for 4 seconds
+    Then the server shall consider the client offline
+
+  @REQ-CAN-036
   Scenario: A client that reconnects after going silent is seen online again
     Given the client goes silent
     When 3 seconds elapse
