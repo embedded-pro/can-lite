@@ -355,6 +355,22 @@ acknowledged replaces the tracked (category, messageType) — an acknowledgement
 for the first command that arrives afterward will not match and will not
 cancel the timer for the second.
 
+## 9.5 Outbound Frame Priority
+
+`CanFrameTransport` orders its send queue by the identifier's priority field
+instead of by arrival. Bus arbitration can only rank frames that have already
+reached the controller, so a first-in-first-out queue would let queued
+telemetry delay an emergency frame, and a queue full of telemetry would refuse
+it. Two slots of the fixed eight are reserved for emergency frames. When the
+queue is full, an emergency frame displaces the newest frame of the lowest
+queued priority, and that frame's completion reports failure. A failed
+emergency transmission is retried a bounded number of times. Everything is
+counted and exposed through `CanFrameTransport::Statistics()`, and server
+categories send fault frames through `SendEmergency()`. The exact rules are
+REQ-CAN-039 to REQ-CAN-041. Displacement was chosen over a separate emergency
+queue so that the storage stays one fixed-size container and the order of
+same-priority frames stays FIFO.
+
 ## 10. Directory Structure
 
 ```text

@@ -25,6 +25,7 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **Built-in System Category**: Heartbeat, command acknowledgement, status request, and category discovery out of the box
 - **Sequence Validation**: 8-bit sequence counter, on by default for server categories and opt-out per category
 - **Rate Limiting**: Configurable message rate enforcement on the server
+- **Prioritised Send Queue**: Outbound frames leave in priority order, with capacity reserved for emergency frames
 - **Fixed-Point Codec**: Saturation-clamped encoding for float-to-integer conversion
 - **ISO-TP (ISO 15765-2)**: Optional multi-frame segmentation and reassembly for payloads > 8 bytes
 - **Tracing Decorators**: Opt-in, per-layer observability — decoded bus frames, ISO-TP segmentation events, and protocol-layer timeouts, with no tracer dependency in the library itself

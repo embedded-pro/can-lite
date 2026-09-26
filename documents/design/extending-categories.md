@@ -145,8 +145,13 @@ The base classes own the transport and fill in the category ID and priority.
 |-------------------------------------------------|-------------|--------------|
 | `SendResponse(messageType, payload)`            | `response`  | as given     |
 | `SendTelemetry(messageType, payload)`           | `telemetry` | as given     |
+| `SendEmergency(messageType, payload)`           | `emergency` | as given     |
 | `SendCategoryError(originatingCommandId, code)` | `response`  | `0xFE`       |
 | `SendCommandAck(messageType, status)`           | `response`  | system ACK   |
+
+Report faults with `SendEmergency()`. Emergency frames leave the node's send
+queue ahead of all other traffic and have reserved queue capacity
+(REQ-CAN-039, REQ-CAN-040).
 
 **Client:**
 

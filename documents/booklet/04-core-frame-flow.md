@@ -42,24 +42,43 @@ wanting to send two frames back to back would have to know whether the
 controller was busy — so the core layer owns that knowledge, once, for the whole
 node.
 
+Arbitration only orders frames that have reached the controller. A queue that
+released frames first-in-first-out would let an emergency frame sit behind
+telemetry that was queued earlier, and a queue full of telemetry would refuse it
+outright. The queue therefore sorts what it holds by the identifier's priority
+and keeps part of its capacity for emergency traffic alone. The admission and
+retry rules are REQ-CAN-039 to REQ-CAN-041 in the
+[Protocol Requirements](../requirements/can-protocol.yaml).
+
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
     Idle --> Sending : send requested —<br/>handed straight to the bus
-    Sending --> Sending : send requested —<br/>appended to the queue
-    Sending --> Sending : completion —<br/>queue not empty, next frame starts
+    Sending --> Sending : send requested —<br/>inserted behind frames of equal or higher priority
+    Sending --> Sending : ordinary send, ordinary share full —<br/>refused and counted
+    Sending --> Sending : emergency send, queue full —<br/>newest lowest-priority ordinary frame displaced
+    Sending --> Sending : emergency send, queue all emergency —<br/>refused and counted
+    Sending --> Sending : emergency frame failed, retries left —<br/>same frame sent again
+    Sending --> Sending : completion —<br/>queue not empty, most urgent frame starts
     Sending --> Idle : completion —<br/>queue empty
-    Sending --> Sending : send requested with a full queue —<br/>refused, frame dropped
 ```
 
-Four behaviours of that small machine are load-bearing:
+The behaviours of that machine that the rest of the library relies on:
 
-| Behaviour                                                                              | Why it matters                                                                                                                                                                                |
-|----------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| The queue advances **before** the finished frame's completion runs                     | A completion that itself sends finds the transport in a consistent state, so chained sends are safe                                                                                           |
-| The queue holds a fixed eight frames; the ninth is **refused, not buffered elsewhere** | Refusal is visible to the caller, who decides. A category's send reports failure; a client command reports failure **without consuming a sequence number**; an acknowledgement is simply lost |
-| Every accepted frame — queued or immediate — raises a send notification                | This is the hook the protocol layer uses to defer its heartbeat, and it is why a refused frame does not postpone one                                                                          |
-| The notification has exactly one owner, enforced at run time                           | The protocol object claims it at construction; a second claimant is a programming error, and fails loudly                                                                                     |
+| Behaviour                                                                                            | Why it matters                                                                                                                                                                                                                                      |
+|------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| The queue advances **before** the finished frame's completion runs                                   | A completion that itself sends finds the transport in a consistent state, so chained sends are safe                                                                                                                                                 |
+| Queued frames leave in priority order, ties in arrival order                                         | Once the frame on the bus completes, an emergency frame goes next, ahead of every queued command, response, telemetry or heartbeat frame. The tie rule keeps a category's own frames in the order it sent them                                      |
+| Eight slots, six of them open to ordinary traffic; the rest is **refused, not buffered elsewhere**   | Ordinary traffic can never occupy the last two slots. Refusal is visible to the caller, who decides. A category's send reports failure; a client command reports failure **without consuming a sequence number**; an acknowledgement is simply lost |
+| An emergency frame arriving at a full queue displaces the newest frame of the lowest queued priority | The displaced frame's completion runs exactly once, reporting failure, after the queue is consistent again. So a displaced sender learns what happened, and a completion that sends again behaves as it would anywhere else                         |
+| A failed emergency frame is sent again at most twice; any other failed frame is reported at once     | A bus fault cannot trap the queue in unbounded retries, and a transient error does not cost the one frame that must get out                                                                                                                         |
+| Refusals, displacements, retries and failures are counted                                            | A dropped or delayed emergency frame can be observed without a debugger. The counters live on the transport, which the protocol object exposes                                                                                                      |
+| Every accepted frame — queued or immediate — raises a send notification                              | This is the hook the protocol layer uses to defer its heartbeat, and it is why a refused frame does not postpone one                                                                                                                                |
+| The notification has exactly one owner, enforced at run time                                         | The protocol object claims it at construction; a second claimant is a programming error, and fails loudly                                                                                                                                           |
+
+Server categories have a dedicated emergency send alongside response and
+telemetry, so a fault report reaches this queue at emergency priority without
+the category touching the transport directly.
 
 The address stamped into an outbound frame differs by role, and the asymmetry is
 worth fixing in mind: a **server** stamps its own address, because a response

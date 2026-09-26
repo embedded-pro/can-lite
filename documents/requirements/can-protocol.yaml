@@ -311,9 +311,42 @@
   title: Send queue overflow indication
   shall: >
     The CanFrameTransport::SendFrame() method shall return true if the
-    frame was successfully sent or enqueued, and false if the internal
-    send queue was full and the frame was dropped. The onDone callback
+    frame was successfully sent or enqueued, and false if the frame was
+    refused under the admission rules of REQ-CAN-040. The onDone callback
     shall not be called when false is returned.
+
+- id: REQ-CAN-039
+  title: Send queue priority ordering
+  shall: >
+    Frames waiting in the send queue shall be transmitted in order of
+    their CAN identifier priority field, most urgent first, once the
+    frame currently being transmitted completes. Frames of equal
+    priority shall be transmitted in the order they were accepted.
+
+- id: REQ-CAN-040
+  title: Send queue emergency reservation
+  shall: >
+    The send queue shall hold at most 8 frames, of which at most 6 may
+    carry a priority other than emergency, so that 2 slots are always
+    available to emergency-priority frames. A non-emergency frame that
+    would exceed its share shall be refused. An emergency-priority frame
+    arriving at a full queue shall displace the lowest-priority,
+    most recently accepted non-emergency frame; the displaced frame's
+    onDone callback shall be invoked exactly once with false. An
+    emergency-priority frame arriving at a queue that holds only
+    emergency-priority frames shall be refused.
+
+- id: REQ-CAN-041
+  title: Bounded send failure handling and transport counters
+  shall: >
+    When the controller reports that an emergency-priority frame failed
+    to transmit, the transport shall retransmit it, ahead of any queued
+    frame, at most 2 times before completing it with false. A failed
+    frame of any other priority shall complete with false without
+    retransmission. The transport shall count refused and failed
+    emergency frames, emergency retransmissions, displaced frames,
+    refused non-emergency frames and failed non-emergency frames, and
+    shall expose these counts to the application.
 
 # --- ISO-TP Multi-Frame Transport ---
 

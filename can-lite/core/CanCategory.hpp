@@ -78,6 +78,8 @@ namespace services
         bool SendResponse(uint8_t messageType, const CanPayloadWriter& payload);
         bool SendTelemetry(uint8_t messageType, const hal::Can::Message& data);
         bool SendTelemetry(uint8_t messageType, const CanPayloadWriter& payload);
+        bool SendEmergency(uint8_t messageType, const hal::Can::Message& data);
+        bool SendEmergency(uint8_t messageType, const CanPayloadWriter& payload);
         bool SendCategoryError(uint8_t originatingCommandId, uint8_t categoryErrorCode);
 
     private:

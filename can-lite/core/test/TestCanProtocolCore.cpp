@@ -74,6 +74,47 @@ namespace
         uint8_t id;
     };
 
+    class FaultReportingCategoryServer
+        : public CanCategoryServer
+    {
+    public:
+        explicit FaultReportingCategoryServer(CanFrameTransport& transport)
+            : CanCategoryServer(transport)
+        {}
+
+        uint8_t Id() const override
+        {
+            return 0x03;
+        }
+
+        bool ReportFault(uint8_t code)
+        {
+            CanPayloadWriter payload;
+            payload.WriteUInt8(code);
+            return SendEmergency(0x90, payload);
+        }
+    };
+
+    TEST(CanCategoryTest, SendEmergencyUsesEmergencyPriority)
+    {
+        testing::StrictMock<hal::CanMock> can;
+        CanFrameTransport transport{ can, 0x042 };
+        FaultReportingCategoryServer category{ transport };
+
+        hal::Can::Id sentId{ hal::Can::Id::Create29BitId(0) };
+        hal::Can::Message sentData;
+        EXPECT_CALL(can, SendData(testing::_, testing::_, testing::_)).WillOnce(testing::DoAll(testing::SaveArg<0>(&sentId), testing::SaveArg<1>(&sentData)));
+
+        EXPECT_TRUE(category.ReportFault(0x07));
+
+        EXPECT_EQ(ExtractCanPriority(sentId.Get29BitId()), CanPriority::emergency);
+        EXPECT_EQ(ExtractCanCategory(sentId.Get29BitId()), 0x03);
+        EXPECT_EQ(ExtractCanMessageType(sentId.Get29BitId()), 0x90);
+        EXPECT_EQ(ExtractCanNodeId(sentId.Get29BitId()), 0x042);
+        ASSERT_EQ(sentData.size(), 1u);
+        EXPECT_EQ(sentData[0], 0x07);
+    }
+
     TEST(CanCategoryTest, ServerDefaultRequiresSequenceValidation)
     {
         StubCategoryServer category(0x01);

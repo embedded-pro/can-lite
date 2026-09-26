@@ -84,6 +84,16 @@ namespace services
         return payload.Valid() && SendTelemetry(messageType, payload.Message());
     }
 
+    bool CanCategoryServer::SendEmergency(uint8_t messageType, const hal::Can::Message& data)
+    {
+        return transport.SendFrame(CanPriority::emergency, Id(), messageType, data, [](bool) {});
+    }
+
+    bool CanCategoryServer::SendEmergency(uint8_t messageType, const CanPayloadWriter& payload)
+    {
+        return payload.Valid() && SendEmergency(messageType, payload.Message());
+    }
+
     bool CanCategoryServer::SendCategoryError(uint8_t originatingCommandId, uint8_t categoryErrorCode)
     {
         CanPayloadWriter payload;
