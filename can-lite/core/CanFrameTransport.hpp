@@ -52,6 +52,10 @@ namespace services
             uint8_t priority;
 
             PendingFrame(hal::Can::Id id, const hal::Can::Message& data, const infra::Function<void(bool success)>& onDone);
+            PendingFrame(PendingFrame&&) noexcept = default;
+            PendingFrame& operator=(PendingFrame&&) noexcept = default;
+            PendingFrame(const PendingFrame&) = default;
+            PendingFrame& operator=(const PendingFrame&) = default;
 
             bool IsEmergency() const;
         };
@@ -65,7 +69,7 @@ namespace services
         void OnSendComplete(bool success);
         bool RetryCurrent(bool success);
         void SendNextQueued();
-        void NotifySend();
+        void NotifySend() const;
 
         hal::Can& can;
         uint16_t nodeId;

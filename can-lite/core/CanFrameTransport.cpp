@@ -135,7 +135,7 @@ namespace services
         {
             return queued.priority > frame.priority;
         };
-        auto index = std::find_if(sendQueue.begin(), sendQueue.end(), isLessUrgent) - sendQueue.begin();
+        auto index = std::ranges::find_if(sendQueue, isLessUrgent) - sendQueue.begin();
 
         sendQueue.push_back(frame);
         std::rotate(sendQueue.begin() + index, sendQueue.end() - 1, sendQueue.end());
@@ -143,7 +143,7 @@ namespace services
 
     std::size_t CanFrameTransport::OrdinaryCount() const
     {
-        return static_cast<std::size_t>(std::count_if(sendQueue.begin(), sendQueue.end(), [](const PendingFrame& queued)
+        return static_cast<std::size_t>(std::ranges::count_if(sendQueue, [](const PendingFrame& queued)
             {
                 return !queued.IsEmergency();
             }));
@@ -207,7 +207,7 @@ namespace services
         Transmit();
     }
 
-    void CanFrameTransport::NotifySend()
+    void CanFrameTransport::NotifySend() const
     {
         if (onSendNotification)
             onSendNotification();

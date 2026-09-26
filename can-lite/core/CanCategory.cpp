@@ -11,24 +11,28 @@ namespace services
 
     CanDispatchResult CanCategory::HandleMessage(uint8_t messageType, const hal::Can::Message& data)
     {
+        using enum CanDispatchResult;
+
         for (auto& handler : messageTypes)
         {
             if (handler.Id() == messageType)
-                return handler.Handle(data) ? CanDispatchResult::handled : CanDispatchResult::rejected;
+                return handler.Handle(data) ? handled : rejected;
         }
 
-        return CanDispatchResult::unknownMessageType;
+        return unknownMessageType;
     }
 
     CanDispatchResult CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
     {
+        using enum CanDispatchResult;
+
         for (auto& handler : messageTypes)
         {
             if (handler.Id() == messageType)
-                return handler.HandlePdu(pdu) ? CanDispatchResult::handled : CanDispatchResult::rejected;
+                return handler.HandlePdu(pdu) ? handled : rejected;
         }
 
-        return CanDispatchResult::unknownMessageType;
+        return unknownMessageType;
     }
 
     CanCategoryServer::CanCategoryServer(CanFrameTransport& transport)
