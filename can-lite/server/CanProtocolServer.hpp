@@ -36,6 +36,15 @@ namespace services
             uint16_t maxMessagesPerSecond{ 500 };
             infra::Duration heartbeatInterval = std::chrono::seconds(1);
             infra::Duration clientTimeout = std::chrono::seconds(3);
+            uint16_t maxEmergencyMessagesPerSecond{ 20 };
+        };
+
+        struct Counters
+        {
+            uint32_t rateLimited{};
+            uint32_t emergencyRateLimited{};
+            uint32_t invalidFrames{};
+            uint32_t emergencyAdmitted{};
         };
 
         CanProtocolServer(hal::Can& can, const Config& config);
@@ -52,6 +61,7 @@ namespace services
         void DetachIsoTpTransport();
 
         CanFrameTransport& Transport();
+        const Counters& Statistics() const;
 
         // CanCommandAcknowledger
         void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status) override;
@@ -71,23 +81,30 @@ namespace services
             CanProtocolServer& server;
         };
 
-        struct SequenceValidationResult
+        struct SequenceCheckpoint
         {
-            bool accepted;
-            uint8_t expected;
+            uint8_t lastSequenceNumber;
+            bool sequenceInitialized;
         };
 
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
+        void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
+        bool IsAddressedToThisNode(uint32_t rawId) const;
+        bool CheckAndIncrementRate(uint32_t rawId);
+        void ResetRateCounter();
+        CanCategoryServer* AdmitCommand(uint32_t rawId, infra::ConstByteRange payload);
+        bool IsExpectedSequence(uint8_t sequenceNumber) const;
+        uint8_t ExpectedSequence() const;
+        SequenceCheckpoint CommitSequence(const CanCategoryServer& category, infra::ConstByteRange payload);
+        void RestoreSequence(const SequenceCheckpoint& checkpoint);
+        void Conclude(uint32_t rawId, const SequenceCheckpoint& checkpoint, CanDispatchResult result);
+        void AcceptCommand(uint32_t rawId);
+        void RejectCommand(uint32_t rawId, CanAckStatus status, uint8_t expectedSequence);
         void SendHeartbeat();
         void SendCategoryList();
-        bool CheckAndIncrementRate();
-        void ResetRateCounter();
-        SequenceValidationResult ValidateSequence(uint8_t sequenceNumber);
         void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status, uint8_t expectedSequence);
         CanCategoryServer* FindCategory(uint8_t categoryId);
         void ResetHeartbeatTimer();
-        void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
-        void ConcludeDispatch(uint8_t categoryId, uint8_t messageType, CanDispatchResult result);
         void MarkClientAlive();
         void HandleClientTimeout();
 
@@ -98,6 +115,8 @@ namespace services
         infra::TimerRepeating rateResetTimer;
         infra::TimerSingleShot clientLivenessTimer;
         uint16_t messageCountThisPeriod = 0;
+        uint16_t emergencyMessageCountThisPeriod = 0;
+        Counters counters;
         uint8_t lastSequenceNumber = 0;
         bool sequenceInitialized = false;
         bool clientOnline = false;

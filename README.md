@@ -24,7 +24,8 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **Category-Based Dispatch**: Extensible message routing via pluggable category handlers (server/client pairs)
 - **Built-in System Category**: Heartbeat, command acknowledgement, status request, and category discovery out of the box
 - **Sequence Validation**: 8-bit sequence counter, on by default for server categories and opt-out per category
-- **Rate Limiting**: Configurable message rate enforcement on the server
+- **Rate Limiting**: Configurable message rate enforcement on the server, with a separate budget so emergency commands still get through a flood
+- **Emergency Admission**: Emergency-priority commands bypass ordinary sequence state; only accepted commands advance the sequence or prove client liveness
 - **Prioritised Send Queue**: Outbound frames leave in priority order, with capacity reserved for emergency frames
 - **Fixed-Point Codec**: Saturation-clamped encoding for float-to-integer conversion
 - **ISO-TP (ISO 15765-2)**: Optional multi-frame segmentation and reassembly for payloads > 8 bytes

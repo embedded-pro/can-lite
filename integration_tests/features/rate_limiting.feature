@@ -22,3 +22,13 @@ Feature: Rate Limiting
     And 1 second elapses
     And the client sends 1 heartbeat messages to the server
     Then the server shall have processed 3 messages
+
+  @REQ-CAN-022
+  Scenario: An emergency command is accepted after the ordinary rate limit is exhausted
+    Given a CAN bus with a server at node 1 and rate limit 3
+    And a CAN bus client connected to the same bus
+    And a sequenced test category with ID 3 is registered on the server
+    When the client sends 3 heartbeat messages to the server
+    And the client sends a command to category 3 with sequence number 1
+    And the client sends an emergency command to category 3 with sequence number 1
+    Then the server category handler shall have received 1 command

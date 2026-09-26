@@ -175,6 +175,11 @@ raw_id = (priority << 24) | (category << 20) | (message_type << 12) | node_id
 
 Lower numerical values have higher CAN bus arbitration priority.
 
+Emergency priority means more than arbitration. A server admits an
+emergency command outside the ordinary sequence and rate-limit rules (§11,
+§12), and every node sends queued emergency frames first, from queue
+capacity kept for them (REQ-CAN-039, REQ-CAN-040).
+
 ## 7. Message Categories
 
 | Value     | Name             | Description                                                            |
@@ -242,14 +247,24 @@ Multiple servers (up to 8) can be tracked simultaneously with
 independent liveness timers.
 
 Symmetrically, the server uses received traffic to track whether its
-client is still present. Any frame correctly addressed to the server
-(re)starts the server's client timeout timer (default 3 s,
-`Config::clientTimeout`), the same "any message counts" rule the client
-uses for server liveness; a heartbeat specifically also notifies the
-application via `CanProtocolServerObserver::Online()`. If the timeout
-timer expires without further traffic from the client, the server
-notifies `CanProtocolServerObserver::Offline()`. A server tracks only
-one client, per REQ-CAN-006.1.
+client is still present. Every command the server **accepts** (re)starts
+its client timeout timer (default 3 s, `Config::clientTimeout`). A command
+is accepted when it is addressed to the server, belongs to a registered
+category, is a known command type, passes sequence validation where the
+category requires it (§11), and has a payload its handler accepts. A client
+heartbeat is an accepted command, and it also notifies the application via
+`CanProtocolServerObserver::Online()`. A frame the server rate-limits,
+discards or answers with an error does not restart the timer, so invalid
+traffic cannot keep a departed client online. If the timer expires without
+a further accepted command, the server notifies
+`CanProtocolServerObserver::Offline()`.
+
+A server tracks only one client, per REQ-CAN-006.1. The identifier carries
+the destination node but not the source, so the server cannot tell
+controllers apart. It assumes a **single trusted controller** on the bus and
+treats any accepted command as proof that this controller is present. A bus
+with several controllers would need a source or session identity in the
+frame, which this protocol does not define.
 
 #### 8.1.2 Command Acknowledgement (Type 0x02)
 
@@ -362,6 +377,16 @@ sequenceDiagram
 - Each subsequent command should have sequence = (previous + 1) mod 256.
 - Out-of-order or duplicated commands are rejected with a `sequenceError`
   acknowledgement.
+- The recorded sequence advances only when a command is **accepted**
+  (§8.1.1). A command answered with `sequenceError`, `invalidPayload` or
+  `unknownCommand` leaves it unchanged, so malformed or unrecognised traffic
+  cannot shift the sequence the client's next command must carry.
+- A command sent at **emergency** priority still carries the sequence byte,
+  but the byte is not checked. The command is accepted whatever the recorded
+  sequence is, so an emergency stop cannot fail with `sequenceError`. Once it
+  is accepted, the server records its sequence byte as the last accepted
+  one, so the client's next ordinary command follows on without a sequence
+  error.
 - Individual category handlers declare whether they require sequence
   validation via `RequiresSequenceValidation()`. Categories that opt out
   bypass validation entirely.
@@ -387,6 +412,16 @@ second (default: 500). Messages received after the limit is reached are
 silently discarded. The rate counter resets automatically every second
 via an internal timer.
 
+Frames at emergency priority are charged to a separate budget (default: 20
+per second, `Config::maxEmergencyMessagesPerSecond`), reset by the same
+timer. Ordinary traffic cannot use up the emergency budget, and emergency
+traffic does not use the ordinary one. So an emergency stop is still
+admitted when a flood has exhausted the ordinary limit. Rate limiting is the
+first check after addressing, so a flood of any kind costs only a counter
+comparison per frame. The server counts every refusal and every admitted
+emergency command, and exposes these counts through
+`CanProtocolServer::Statistics()` (REQ-CAN-044).
+
 Every accepted frame is charged, including one an ISO-TP channel consumes,
 so a multi-frame PDU costs one credit per frame it occupies on the bus
 rather than one credit for the whole transfer. The reassembled PDU is not
@@ -398,19 +433,25 @@ flowchart TD
     B -- No --> Z[Discard]
     B -- Yes --> C{Node ID match?}
     C -- No --> Z
-    C -- Yes --> D{Rate limit reached?}
-    D -- Yes --> Z
-    D -- No --> E[Increment counter]
-    E --> Y{Consumed by ISO-TP?}
+    C -- Yes --> P{Emergency priority?}
+    P -- Yes --> DE{Emergency budget left?}
+    P -- No --> D{Ordinary budget left?}
+    DE -- No --> Z
+    D -- No --> Z
+    DE -- Yes --> Y{Consumed by ISO-TP?}
+    D -- Yes --> Y
     Y -- Yes --> X[Reassemble; dispatch PDU when complete]
-    Y -- No --> F{Find category handler?}
+    Y -- No --> F{Command type in a registered category?}
+    X --> F
     F -- No --> Z
     F -- Yes --> G{Requires sequence?}
-    G -- Yes --> H{Sequence valid?}
+    G -- Yes --> H{Emergency, or sequence valid?}
     H -- No --> I[Send sequenceError Ack]
     H -- Yes --> J[Dispatch to handler]
     G -- No --> J
-    J --> K[Notify observer + Send Ack]
+    J --> K{Handler accepted?}
+    K -- No --> L[Send invalidPayload or unknownCommand Ack, sequence unchanged]
+    K -- Yes --> M[Record sequence, restart client timeout]
 ```
 
 ## 13. Node Addressing
@@ -470,7 +511,11 @@ a registered category but an unknown message type receive an
   not a security mechanism — see §11's caveat: sequence numbers are
   transmitted in the clear and MUST NOT be relied upon to prevent malicious
   replay on an untrusted CAN bus.
-- **Bus flooding protection:** Configurable rate limiting discards excess messages.
+- **Bus flooding protection:** Configurable rate limiting discards excess
+  messages. Emergency-priority traffic has its own budget, so a flood of
+  ordinary frames cannot shut out an emergency stop (§12).
+- **Trusted controller:** The protocol has no source identity. Liveness and
+  sequence state assume a single trusted controller on the bus (§8.1.1).
 - **Input validation:** All payloads are length-checked before parsing.
   Enum-valued fields are decoded via unchecked `static_cast` from the wire
   byte; an out-of-range value produces a scoped-enum value with no matching

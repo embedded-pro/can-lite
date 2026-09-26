@@ -3,6 +3,26 @@
 
 namespace services
 {
+    namespace
+    {
+        bool IsEmergency(uint32_t rawId)
+        {
+            return ExtractCanPriority(rawId) == CanPriority::emergency;
+        }
+
+        bool ConsumeBudget(uint16_t& used, uint16_t limit, uint32_t& refusals)
+        {
+            if (used >= limit)
+            {
+                ++refusals;
+                return false;
+            }
+
+            ++used;
+            return true;
+        }
+    }
+
     CanProtocolServer::CanProtocolServer(hal::Can& can, const Config& config)
         : can(can)
         , config(config)
@@ -118,40 +138,14 @@ namespace services
 
     void CanProtocolServer::DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu)
     {
-        auto nodeId = ExtractCanNodeId(rawId);
-        if (nodeId != config.nodeId && nodeId != canBroadcastNodeId)
+        if (!IsAddressedToThisNode(rawId))
             return;
 
-        MarkClientAlive();
-
-        auto categoryId = ExtractCanCategory(rawId);
-        auto messageType = ExtractCanMessageType(rawId);
-
-        if (!IsCommandMessageType(messageType))
-            return;
-
-        CanCategoryServer* category = FindCategory(categoryId);
-        if (category == nullptr)
-            return;
-
-        if (category->RequiresSequenceValidation())
+        if (auto* category = AdmitCommand(rawId, pdu))
         {
-            if (pdu.empty())
-            {
-                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
-                return;
-            }
-
-            uint8_t sequenceNumber = pdu[0];
-            auto validation = ValidateSequence(sequenceNumber);
-            if (!validation.accepted)
-            {
-                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError, validation.expected);
-                return;
-            }
+            auto checkpoint = CommitSequence(*category, pdu);
+            Conclude(rawId, checkpoint, category->HandlePduMessage(ExtractCanMessageType(rawId), pdu));
         }
-
-        ConcludeDispatch(categoryId, messageType, category->HandlePduMessage(messageType, pdu));
     }
 
     void CanProtocolServer::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)
@@ -161,63 +155,83 @@ namespace services
 
         uint32_t rawId = id.Get29BitId();
 
-        uint16_t targetNodeId = ExtractCanNodeId(rawId);
-
-        if (targetNodeId != config.nodeId && targetNodeId != canBroadcastNodeId)
+        if (!IsAddressedToThisNode(rawId) || !CheckAndIncrementRate(rawId))
             return;
 
-        MarkClientAlive();
-
-        if (!CheckAndIncrementRate())
+        if (isoTpTransport != nullptr && isoTpTransport->ProcessFrame(rawId, data))
             return;
 
-        if (isoTpTransport != nullptr &&
-            isoTpTransport->ProcessFrame(rawId, data))
-            return;
-
-        auto categoryId = ExtractCanCategory(rawId);
-        auto messageType = ExtractCanMessageType(rawId);
-
-        if (!IsCommandMessageType(messageType))
-            return;
-
-        CanCategoryServer* category = FindCategory(categoryId);
-        if (category == nullptr)
-            return;
-
-        if (category->RequiresSequenceValidation())
+        if (auto* category = AdmitCommand(rawId, infra::MakeRange(data)))
         {
-            if (data.empty())
-            {
-                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
-                return;
-            }
-
-            uint8_t sequenceNumber = data[0];
-            auto validation = ValidateSequence(sequenceNumber);
-            if (!validation.accepted)
-            {
-                SendCommandAck(categoryId, messageType, CanAckStatus::sequenceError, validation.expected);
-                return;
-            }
+            auto checkpoint = CommitSequence(*category, infra::MakeRange(data));
+            Conclude(rawId, checkpoint, category->HandleMessage(ExtractCanMessageType(rawId), data));
         }
-
-        ConcludeDispatch(categoryId, messageType, category->HandleMessage(messageType, data));
     }
 
-    void CanProtocolServer::ConcludeDispatch(uint8_t categoryId, uint8_t messageType, CanDispatchResult result)
+    bool CanProtocolServer::IsAddressedToThisNode(uint32_t rawId) const
+    {
+        auto nodeId = ExtractCanNodeId(rawId);
+        return nodeId == config.nodeId || nodeId == canBroadcastNodeId;
+    }
+
+    CanCategoryServer* CanProtocolServer::AdmitCommand(uint32_t rawId, infra::ConstByteRange payload)
+    {
+        auto* category = IsCommandMessageType(ExtractCanMessageType(rawId)) ? FindCategory(ExtractCanCategory(rawId)) : nullptr;
+
+        if (category == nullptr)
+        {
+            ++counters.invalidFrames;
+            return nullptr;
+        }
+
+        if (!category->RequiresSequenceValidation())
+            return category;
+
+        if (payload.empty())
+        {
+            RejectCommand(rawId, CanAckStatus::invalidPayload, 0);
+            return nullptr;
+        }
+
+        if (!IsEmergency(rawId) && !IsExpectedSequence(payload[0]))
+        {
+            RejectCommand(rawId, CanAckStatus::sequenceError, ExpectedSequence());
+            return nullptr;
+        }
+
+        return category;
+    }
+
+    void CanProtocolServer::Conclude(uint32_t rawId, const SequenceCheckpoint& checkpoint, CanDispatchResult result)
     {
         switch (result)
         {
             case CanDispatchResult::handled:
+                AcceptCommand(rawId);
                 break;
             case CanDispatchResult::rejected:
-                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                RestoreSequence(checkpoint);
+                RejectCommand(rawId, CanAckStatus::invalidPayload, 0);
                 break;
             case CanDispatchResult::unknownMessageType:
-                SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+                RestoreSequence(checkpoint);
+                RejectCommand(rawId, CanAckStatus::unknownCommand, 0);
                 break;
         }
+    }
+
+    void CanProtocolServer::AcceptCommand(uint32_t rawId)
+    {
+        if (IsEmergency(rawId))
+            ++counters.emergencyAdmitted;
+
+        MarkClientAlive();
+    }
+
+    void CanProtocolServer::RejectCommand(uint32_t rawId, CanAckStatus status, uint8_t expectedSequence)
+    {
+        ++counters.invalidFrames;
+        SendCommandAck(ExtractCanCategory(rawId), ExtractCanMessageType(rawId), status, expectedSequence);
     }
 
     CanCategoryServer* CanProtocolServer::FindCategory(uint8_t categoryId)
@@ -279,32 +293,44 @@ namespace services
     void CanProtocolServer::ResetRateCounter()
     {
         messageCountThisPeriod = 0;
+        emergencyMessageCountThisPeriod = 0;
     }
 
-    bool CanProtocolServer::CheckAndIncrementRate()
+    bool CanProtocolServer::CheckAndIncrementRate(uint32_t rawId)
     {
-        if (messageCountThisPeriod >= config.maxMessagesPerSecond)
-            return false;
+        if (IsEmergency(rawId))
+            return ConsumeBudget(emergencyMessageCountThisPeriod, config.maxEmergencyMessagesPerSecond, counters.emergencyRateLimited);
 
-        ++messageCountThisPeriod;
-        return true;
+        return ConsumeBudget(messageCountThisPeriod, config.maxMessagesPerSecond, counters.rateLimited);
     }
 
-    CanProtocolServer::SequenceValidationResult CanProtocolServer::ValidateSequence(uint8_t sequenceNumber)
+    bool CanProtocolServer::IsExpectedSequence(uint8_t sequenceNumber) const
     {
-        if (!sequenceInitialized)
+        return !sequenceInitialized || sequenceNumber == ExpectedSequence();
+    }
+
+    uint8_t CanProtocolServer::ExpectedSequence() const
+    {
+        return static_cast<uint8_t>(lastSequenceNumber + 1);
+    }
+
+    CanProtocolServer::SequenceCheckpoint CanProtocolServer::CommitSequence(const CanCategoryServer& category, infra::ConstByteRange payload)
+    {
+        SequenceCheckpoint checkpoint{ lastSequenceNumber, sequenceInitialized };
+
+        if (category.RequiresSequenceValidation())
         {
+            lastSequenceNumber = payload[0];
             sequenceInitialized = true;
-            lastSequenceNumber = sequenceNumber;
-            return { true, sequenceNumber };
         }
 
-        auto expected = static_cast<uint8_t>(lastSequenceNumber + 1);
-        if (sequenceNumber != expected)
-            return { false, expected };
+        return checkpoint;
+    }
 
-        lastSequenceNumber = sequenceNumber;
-        return { true, sequenceNumber };
+    void CanProtocolServer::RestoreSequence(const SequenceCheckpoint& checkpoint)
+    {
+        lastSequenceNumber = checkpoint.lastSequenceNumber;
+        sequenceInitialized = checkpoint.sequenceInitialized;
     }
 
     void CanProtocolServer::MarkClientAlive()
@@ -331,5 +357,10 @@ namespace services
     CanFrameTransport& CanProtocolServer::Transport()
     {
         return transport;
+    }
+
+    const CanProtocolServer::Counters& CanProtocolServer::Statistics() const
+    {
+        return counters;
     }
 }

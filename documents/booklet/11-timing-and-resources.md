@@ -12,18 +12,18 @@ components that own them — see
 
 ## 1. Timer inventory
 
-| Owner                 | Timer                         | Kind            | Restarted by                              | On expiry                      |
-|-----------------------|-------------------------------|-----------------|-------------------------------------------|--------------------------------|
-| Server                | heartbeat                     | single-shot     | every outgoing frame from this node       | send a heartbeat               |
-| Server                | rate window                   | **repeating**   | itself                                    | reset the accepted-frame count |
-| Server                | client liveness               | single-shot     | every frame addressed to this node        | report the client offline      |
-| Client                | heartbeat                     | single-shot     | every outgoing frame from this node       | broadcast a heartbeat          |
-| Client                | server liveness, one per slot | single-shot × 8 | every frame from that server              | report that server offline     |
-| Client                | acknowledgement, one per slot | single-shot × 8 | committing a command to that server       | report the command unanswered  |
-| Firmware upgrade      | session                       | single-shot     | the commands that make progress           | report the session expired     |
-| Segmentation sender   | N_Bs                          | single-shot     | sending a frame that awaits flow control  | abort the transfer             |
-| Segmentation sender   | separation                    | single-shot     | each frame, when the peer asks for pacing | send the next frame            |
-| Segmentation receiver | N_Cr                          | single-shot     | each accepted frame                       | abort the reassembly           |
+| Owner                 | Timer                         | Kind            | Restarted by                              | On expiry                                                |
+|-----------------------|-------------------------------|-----------------|-------------------------------------------|----------------------------------------------------------|
+| Server                | heartbeat                     | single-shot     | every outgoing frame from this node       | send a heartbeat                                         |
+| Server                | rate window                   | **repeating**   | itself                                    | reset both accepted-frame counts, ordinary and emergency |
+| Server                | client liveness               | single-shot     | every command this node accepts           | report the client offline                                |
+| Client                | heartbeat                     | single-shot     | every outgoing frame from this node       | broadcast a heartbeat                                    |
+| Client                | server liveness, one per slot | single-shot × 8 | every frame from that server              | report that server offline                               |
+| Client                | acknowledgement, one per slot | single-shot × 8 | committing a command to that server       | report the command unanswered                            |
+| Firmware upgrade      | session                       | single-shot     | the commands that make progress           | report the session expired                               |
+| Segmentation sender   | N_Bs                          | single-shot     | sending a frame that awaits flow control  | abort the transfer                                       |
+| Segmentation sender   | separation                    | single-shot     | each frame, when the peer asks for pacing | send the next frame                                      |
+| Segmentation receiver | N_Cr                          | single-shot     | each accepted frame                       | abort the reassembly                                     |
 
 A fully loaded client — eight servers tracked, eight commands outstanding —
 holds **seventeen** live timers. A server holds three, plus one per firmware
@@ -67,15 +67,15 @@ composed objects on the target.
 
 What the structure guarantees, independent of toolchain:
 
-| Component                        | Fixed-count storage                                                                                             |
-|----------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| Frame transport                  | eight queued frames — identifier, payload and a completion each — plus two callback slots                       |
-| Server                           | one transport, three timers, the system category, a handful of counters and flags                               |
-| Client                           | one transport, one timer, the system category, eight sequence slots and eight liveness slots, each with a timer |
-| Segmentation sender and receiver | one payload-sized buffer each, one or two timers, a few bytes of state                                          |
-| Segmentation channel             | one sender, one receiver, three callback slots                                                                  |
-| Segmentation transport           | its channels, a pointer array and two callback slots                                                            |
-| Each category                    | its own members, plus one binding per message type                                                              |
+| Component                        | Fixed-count storage                                                                                                                 |
+|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| Frame transport                  | eight queued frames — identifier, payload, completion and priority each — the frame in flight, five counters and two callback slots |
+| Server                           | one transport, three timers, the system category, a handful of counters and flags                                                   |
+| Client                           | one transport, one timer, the system category, eight sequence slots and eight liveness slots, each with a timer                     |
+| Segmentation sender and receiver | one payload-sized buffer each, one or two timers, a few bytes of state                                                              |
+| Segmentation channel             | one sender, one receiver, three callback slots                                                                                      |
+| Segmentation transport           | its channels, a pointer array and two callback slots                                                                                |
+| Each category                    | its own members, plus one binding per message type                                                                                  |
 
 The dominant term is almost always segmentation:
 
@@ -154,7 +154,7 @@ per-block turnaround.
 | Category lookup             | linear over at most eight entries                         |
 | Message-type lookup         | linear over the category's bindings, typically two to six |
 | Sequence validation         | one increment, one comparison                             |
-| Rate limiting               | one comparison, one increment                             |
+| Rate limiting               | a priority test, one comparison, one increment            |
 | Payload access              | a bounds check and byte moves; no allocation              |
 | Segmentation channel lookup | linear over at most sixteen channels                      |
 
