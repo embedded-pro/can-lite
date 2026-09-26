@@ -97,7 +97,7 @@ namespace services
 
     bool CanFrameTransport::EnqueueOrdinary(const PendingFrame& frame)
     {
-        if (OrdinaryCount() >= queueDepth - emergencyReserve)
+        if (sendQueue.full() || OrdinaryCount() >= queueDepth - emergencyReserve)
         {
             ++counters.ordinaryDrops;
             return false;

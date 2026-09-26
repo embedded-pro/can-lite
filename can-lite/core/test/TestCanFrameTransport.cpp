@@ -380,6 +380,31 @@ namespace
         EXPECT_EQ(transport.Statistics().evictions, 0u);
     }
 
+    TEST_F(CanFrameTransportTest, OrdinaryFrameIsRefusedWhenEmergencyFramesFillTheQueue)
+    {
+        int completions = 0;
+        ExpectOneSend();
+        transport.SendFrame(CanPriority::emergency, 0x2, 0x00, MakeMessage({}), [](bool) {});
+        for (uint8_t i = 0; i != CanFrameTransport::queueDepth; ++i)
+            SendEmergency(static_cast<uint8_t>(0x10 + i), completions);
+
+        EXPECT_FALSE(transport.SendFrame(CanPriority::telemetry, 0x2, 0x7F, MakeMessage({}), [](bool) {}));
+        EXPECT_EQ(transport.Statistics().ordinaryDrops, 1u);
+    }
+
+    TEST_F(CanFrameTransportTest, OrdinaryFrameIsRefusedWhenAFullQueueHoldsFewerThanItsShare)
+    {
+        int completions = 0;
+        ExpectOneSend();
+        transport.SendFrame(CanPriority::emergency, 0x2, 0x00, MakeMessage({}), [](bool) {});
+        ASSERT_TRUE(transport.SendFrame(CanPriority::telemetry, 0x2, 0x40, MakeMessage({}), [](bool) {}));
+        for (uint8_t i = 0; i != CanFrameTransport::queueDepth - 1; ++i)
+            SendEmergency(static_cast<uint8_t>(0x10 + i), completions);
+
+        EXPECT_FALSE(transport.SendFrame(CanPriority::telemetry, 0x2, 0x7F, MakeMessage({}), [](bool) {}));
+        EXPECT_EQ(transport.Statistics().ordinaryDrops, 1u);
+    }
+
     TEST_F(CanFrameTransportTest, FailedEmergencyFrameIsRetriedBeforeQueuedTrafficUpToTheLimit)
     {
         int completions = 0;

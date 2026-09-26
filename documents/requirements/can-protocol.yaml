@@ -333,7 +333,8 @@
     The send queue shall hold at most 8 frames, of which at most 6 may
     carry a priority other than emergency, so that 2 slots are always
     available to emergency-priority frames. A non-emergency frame that
-    would exceed its share shall be refused. An emergency-priority frame
+    would exceed its share, or that arrives when all 8 slots are
+    occupied, shall be refused. An emergency-priority frame
     arriving at a full queue shall displace the lowest-priority,
     most recently accepted non-emergency frame; the displaced frame's
     onDone callback shall be invoked exactly once with false. An

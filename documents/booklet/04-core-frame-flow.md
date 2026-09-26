@@ -55,7 +55,7 @@ stateDiagram-v2
     [*] --> Idle
     Idle --> Sending : send requested —<br/>handed straight to the bus
     Sending --> Sending : send requested —<br/>inserted behind frames of equal or higher priority
-    Sending --> Sending : ordinary send, ordinary share full —<br/>refused and counted
+    Sending --> Sending : ordinary send, ordinary share or queue full —<br/>refused and counted
     Sending --> Sending : emergency send, queue full —<br/>newest lowest-priority ordinary frame displaced
     Sending --> Sending : emergency send, queue all emergency —<br/>refused and counted
     Sending --> Sending : emergency frame failed, retries left —<br/>same frame sent again
