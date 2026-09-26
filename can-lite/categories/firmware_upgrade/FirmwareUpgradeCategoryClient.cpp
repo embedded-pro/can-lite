@@ -55,65 +55,73 @@ namespace services
         return SendCommandWithoutSequence(targetNodeId, fwuQueryProgressId);
     }
 
-    void FirmwareUpgradeCategoryClient::HandleBeginResponse(const hal::Can::Message& data)
+    bool FirmwareUpgradeCategoryClient::HandleBeginResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto status = static_cast<FwuError>(reader.ReadUInt8());
         auto pageSize = reader.ReadUInt16();
 
         if (!reader.Valid())
-            return;
+            return false;
 
         NotifyObservers([status, pageSize](auto& observer)
             {
                 observer.OnBeginResponse(status, pageSize);
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryClient::HandleDataBlockAck(const hal::Can::Message& data)
+    bool FirmwareUpgradeCategoryClient::HandleDataBlockAck(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto status = static_cast<FwuError>(reader.ReadUInt8());
         auto blockIndex = reader.ReadUInt16();
 
         if (!reader.Valid())
-            return;
+            return false;
 
         NotifyObservers([status, blockIndex](auto& observer)
             {
                 observer.OnDataBlockAck(status, blockIndex);
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryClient::HandleVerifyResponse(const hal::Can::Message& data)
+    bool FirmwareUpgradeCategoryClient::HandleVerifyResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto status = static_cast<FwuError>(reader.ReadUInt8());
 
         if (!reader.Valid())
-            return;
+            return false;
 
         NotifyObservers([status](auto& observer)
             {
                 observer.OnVerifyResponse(status);
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryClient::HandleActivateResponse(const hal::Can::Message& data)
+    bool FirmwareUpgradeCategoryClient::HandleActivateResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto status = static_cast<FwuError>(reader.ReadUInt8());
 
         if (!reader.Valid())
-            return;
+            return false;
 
         NotifyObservers([status](auto& observer)
             {
                 observer.OnActivateResponse(status);
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryClient::HandleProgressResponse(const hal::Can::Message& data)
+    bool FirmwareUpgradeCategoryClient::HandleProgressResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto state = static_cast<FwuState>(reader.ReadUInt8());
@@ -121,11 +129,13 @@ namespace services
         auto totalBlocks = reader.ReadUInt16();
 
         if (!reader.Valid())
-            return;
+            return false;
 
         NotifyObservers([state, blocksReceived, totalBlocks](auto& observer)
             {
                 observer.OnProgressResponse(state, blocksReceived, totalBlocks);
             });
+
+        return true;
     }
 }

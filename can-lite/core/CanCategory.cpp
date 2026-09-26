@@ -9,29 +9,26 @@ namespace services
         messageTypes.push_back(messageType);
     }
 
-    bool CanCategory::HandleMessage(uint8_t messageType, const hal::Can::Message& data)
+    CanDispatchResult CanCategory::HandleMessage(uint8_t messageType, const hal::Can::Message& data)
     {
         for (auto& handler : messageTypes)
         {
             if (handler.Id() == messageType)
-            {
-                handler.Handle(data);
-                return true;
-            }
+                return handler.Handle(data) ? CanDispatchResult::handled : CanDispatchResult::rejected;
         }
 
-        return false;
+        return CanDispatchResult::unknownMessageType;
     }
 
-    CanPduDispatchResult CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
+    CanDispatchResult CanCategory::HandlePduMessage(uint8_t messageType, infra::ConstByteRange pdu)
     {
         for (auto& handler : messageTypes)
         {
             if (handler.Id() == messageType)
-                return handler.HandlePdu(pdu) ? CanPduDispatchResult::handled : CanPduDispatchResult::rejected;
+                return handler.HandlePdu(pdu) ? CanDispatchResult::handled : CanDispatchResult::rejected;
         }
 
-        return CanPduDispatchResult::unknownMessageType;
+        return CanDispatchResult::unknownMessageType;
     }
 
     CanCategoryServer::CanCategoryServer(CanFrameTransport& transport)

@@ -87,6 +87,7 @@ namespace services
         CanCategoryServer* FindCategory(uint8_t categoryId);
         void ResetHeartbeatTimer();
         void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
+        void ConcludeDispatch(uint8_t categoryId, uint8_t messageType, CanDispatchResult result);
         void MarkClientAlive();
         void HandleClientTimeout();
 

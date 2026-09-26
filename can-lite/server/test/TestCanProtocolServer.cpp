@@ -374,9 +374,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -424,9 +425,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -478,9 +480,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -530,9 +533,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -582,9 +586,10 @@ namespace
                 return 0x01;
             }
 
-            void Handle(const hal::Can::Message&) override
+            bool Handle(const hal::Can::Message&) override
             {
                 handleCount++;
+                return true;
             }
 
             int handleCount = 0;
@@ -646,9 +651,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message& data) override
+            bool Handle(const hal::Can::Message& data) override
             {
                 handled = true;
+                return true;
             }
 
             bool handled = false;
@@ -686,6 +692,63 @@ namespace
         EXPECT_TRUE(testCategory.msg.handled);
 
         server.UnregisterCategory(testCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, RejectedFrame_AcksInvalidPayloadNotUnknownCommand)
+    {
+        class RejectingMessageType : public CanMessageType
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return 0x42;
+            }
+
+            bool Handle(const hal::Can::Message&) override
+            {
+                return false;
+            }
+        };
+
+        class RejectingCategory : public CanCategoryServerStub
+        {
+        public:
+            RejectingCategory()
+            {
+                AddMessageType(msg);
+            }
+
+            uint8_t Id() const override
+            {
+                return 0x05;
+            }
+
+            bool RequiresSequenceValidation() const override
+            {
+                return false;
+            }
+
+            RejectingMessageType msg;
+        };
+
+        RejectingCategory category;
+        ASSERT_TRUE(server.RegisterCategory(category));
+
+        hal::Can::Message ack;
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([&ack](hal::Can::Id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
+            {
+                ack = data;
+                cb(true);
+            }));
+
+        SimulateRx(MakeCommandId(0x05, 0x42), MakeMessage({ 0xDE }));
+
+        ASSERT_EQ(ack.size(), canCommandAckSize);
+        EXPECT_EQ(ack[0], 0x05);
+        EXPECT_EQ(ack[1], 0x42);
+        EXPECT_EQ(ack[2], static_cast<uint8_t>(CanAckStatus::invalidPayload));
+
+        server.UnregisterCategory(category);
     }
 
     TEST_F(CanProtocolServerTest, RegisterCategory_DuplicateIdReturnsFalse)
@@ -1016,8 +1079,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {
@@ -1076,8 +1141,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {
@@ -1211,8 +1278,10 @@ namespace
                 return 0x50;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {
@@ -1300,8 +1369,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {
@@ -1361,8 +1432,10 @@ namespace
                 return 0x42;
             }
 
-            void Handle(const hal::Can::Message&) override
-            {}
+            bool Handle(const hal::Can::Message&) override
+            {
+                return true;
+            }
 
             bool HandlePdu(infra::ConstByteRange) override
             {

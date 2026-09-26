@@ -211,7 +211,7 @@ namespace
 
     TEST_F(TestFocMotorCategoryClient, UnknownMessageType_ReturnsFalse)
     {
-        EXPECT_FALSE(client.HandleMessage(0x81, hal::Can::Message{}));
+        EXPECT_EQ(client.HandleMessage(0x81, hal::Can::Message{}), CanDispatchResult::unknownMessageType);
     }
 
     // --- Command sending ---

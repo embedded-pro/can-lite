@@ -81,16 +81,13 @@ namespace services
             });
     }
 
-    void FirmwareUpgradeCategoryServer::HandleBeginUpgrade(const hal::Can::Message& data)
+    bool FirmwareUpgradeCategoryServer::HandleBeginUpgrade(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto firmwareSize = reader.ReadUInt32();
 
         if (!reader.Valid())
-        {
-            SendCommandAck(fwuBeginUpgradeId, CanAckStatus::invalidPayload);
-            return;
-        }
+            return false;
 
         ResetSessionTimer();
 
@@ -102,18 +99,17 @@ namespace services
                         SendCommandAck(fwuBeginUpgradeId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
                     });
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryServer::HandleDataBlock(const hal::Can::Message& data)
+    bool FirmwareUpgradeCategoryServer::HandleDataBlock(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto blockIndex = reader.ReadUInt16();
 
         if (!reader.Valid())
-        {
-            SendCommandAck(fwuDataBlockId, CanAckStatus::invalidPayload);
-            return;
-        }
+            return false;
 
         ResetSessionTimer();
 
@@ -129,18 +125,17 @@ namespace services
                         SendCommandAck(fwuDataBlockId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
                     });
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryServer::HandleVerify(const hal::Can::Message& data)
+    bool FirmwareUpgradeCategoryServer::HandleVerify(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto expectedCrc32 = reader.ReadUInt32();
 
         if (!reader.Valid())
-        {
-            SendCommandAck(fwuVerifyId, CanAckStatus::invalidPayload);
-            return;
-        }
+            return false;
 
         StopSessionTimer();
 
@@ -152,9 +147,11 @@ namespace services
                         SendCommandAck(fwuVerifyId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
                     });
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryServer::HandleActivate(const hal::Can::Message&)
+    bool FirmwareUpgradeCategoryServer::HandleActivate(const hal::Can::Message&)
     {
         StopSessionTimer();
 
@@ -166,9 +163,11 @@ namespace services
                         SendCommandAck(fwuActivateId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
                     });
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryServer::HandleAbort(const hal::Can::Message&)
+    bool FirmwareUpgradeCategoryServer::HandleAbort(const hal::Can::Message&)
     {
         StopSessionTimer();
 
@@ -179,9 +178,11 @@ namespace services
                         SendCommandAck(fwuAbortId, CanAckStatus::success);
                     });
             });
+
+        return true;
     }
 
-    void FirmwareUpgradeCategoryServer::HandleQueryProgress(const hal::Can::Message&)
+    bool FirmwareUpgradeCategoryServer::HandleQueryProgress(const hal::Can::Message&)
     {
         NotifyObservers([this](auto& observer)
             {
@@ -191,5 +192,7 @@ namespace services
                         SendCommandAck(fwuQueryProgressId, CanAckStatus::success);
                     });
             });
+
+        return true;
     }
 }

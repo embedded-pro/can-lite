@@ -118,43 +118,49 @@ namespace services
         return SendCommand(targetNodeId, focConfigureTelemetryRateId, payload);
     }
 
-    void FocMotorCategoryClient::HandleMotorTypeResponse(const hal::Can::Message& data)
+    bool FocMotorCategoryClient::HandleMotorTypeResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto mode = static_cast<FocMotorMode>(reader.ReadUInt8());
         if (!reader.Valid())
-            return;
+            return false;
         NotifyObservers([mode](auto& observer)
             {
                 observer.OnMotorTypeResponse(mode);
             });
+
+        return true;
     }
 
-    void FocMotorCategoryClient::HandleElectricalParamsResponse(const hal::Can::Message& data)
+    bool FocMotorCategoryClient::HandleElectricalParamsResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         FocElectricalParams params{ reader.ReadFixed16(focResistanceScale), reader.ReadFixed16(focInductanceScale) };
         if (!reader.Valid())
-            return;
+            return false;
         NotifyObservers([&params](auto& observer)
             {
                 observer.OnElectricalParamsResponse(params);
             });
+
+        return true;
     }
 
-    void FocMotorCategoryClient::HandleMechanicalParamsResponse(const hal::Can::Message& data)
+    bool FocMotorCategoryClient::HandleMechanicalParamsResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         FocMechanicalParams params{ reader.ReadFixed16(focInertiaScale), reader.ReadFixed16(focFrictionScale) };
         if (!reader.Valid())
-            return;
+            return false;
         NotifyObservers([&params](auto& observer)
             {
                 observer.OnMechanicalParamsResponse(params);
             });
+
+        return true;
     }
 
-    void FocMotorCategoryClient::HandleTelemetryElectricalResponse(const hal::Can::Message& data)
+    bool FocMotorCategoryClient::HandleTelemetryElectricalResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         FocTelemetryElectrical telemetry{
@@ -164,14 +170,16 @@ namespace services
             reader.ReadFixed16(focCurrentScale)
         };
         if (!reader.Valid())
-            return;
+            return false;
         NotifyObservers([&telemetry](auto& observer)
             {
                 observer.OnTelemetryElectricalResponse(telemetry);
             });
+
+        return true;
     }
 
-    void FocMotorCategoryClient::HandleTelemetryStatusResponse(const hal::Can::Message& data)
+    bool FocMotorCategoryClient::HandleTelemetryStatusResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto state = static_cast<FocMotorState>(reader.ReadUInt8());
@@ -179,36 +187,42 @@ namespace services
         auto speed = reader.ReadFixed16(focSpeedScale);
         auto position = reader.ReadFixed16(focPositionScale);
         if (!reader.Valid())
-            return;
+            return false;
         FocTelemetryStatus status{ state, fault, speed, position };
         NotifyObservers([&status](auto& observer)
             {
                 observer.OnTelemetryStatusResponse(status);
             });
+
+        return true;
     }
 
-    void FocMotorCategoryClient::HandleCategoryError(const hal::Can::Message& data)
+    bool FocMotorCategoryClient::HandleCategoryError(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto originCommandId = reader.ReadUInt8();
         auto errorCode = static_cast<FocMotorCategoryError>(reader.ReadUInt8());
         if (!reader.Valid())
-            return;
+            return false;
         NotifyObservers([originCommandId, errorCode](auto& observer)
             {
                 observer.OnCategoryError(originCommandId, errorCode);
             });
+
+        return true;
     }
 
-    void FocMotorCategoryClient::HandleSelectControlModeResponse(const hal::Can::Message& data)
+    bool FocMotorCategoryClient::HandleSelectControlModeResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
         auto activeMode = static_cast<FocMotorMode>(reader.ReadUInt8());
         if (!reader.Valid())
-            return;
+            return false;
         NotifyObservers([activeMode](auto& observer)
             {
                 observer.OnSelectControlModeResponse(activeMode);
             });
+
+        return true;
     }
 }

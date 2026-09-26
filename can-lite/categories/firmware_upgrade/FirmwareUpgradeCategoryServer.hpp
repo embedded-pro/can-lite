@@ -49,12 +49,12 @@ namespace services
         void SendActivateResponse(FwuError status);
         void SendProgressResponse(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks);
 
-        void HandleBeginUpgrade(const hal::Can::Message& data);
-        void HandleDataBlock(const hal::Can::Message& data);
-        void HandleVerify(const hal::Can::Message& data);
-        void HandleActivate(const hal::Can::Message& data);
-        void HandleAbort(const hal::Can::Message& data);
-        void HandleQueryProgress(const hal::Can::Message& data);
+        bool HandleBeginUpgrade(const hal::Can::Message& data);
+        bool HandleDataBlock(const hal::Can::Message& data);
+        bool HandleVerify(const hal::Can::Message& data);
+        bool HandleActivate(const hal::Can::Message& data);
+        bool HandleAbort(const hal::Can::Message& data);
+        bool HandleQueryProgress(const hal::Can::Message& data);
 
         void ResetSessionTimer();
         void StopSessionTimer();

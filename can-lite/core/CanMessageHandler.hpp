@@ -10,7 +10,7 @@ namespace services
         : public CanMessageType
     {
     public:
-        using FrameHandler = void (Owner::*)(const hal::Can::Message&);
+        using FrameHandler = bool (Owner::*)(const hal::Can::Message&);
         using PduHandler = bool (Owner::*)(infra::ConstByteRange);
 
         CanMessageHandler(uint8_t id, Owner& owner, FrameHandler onFrame)
@@ -31,9 +31,9 @@ namespace services
             return id;
         }
 
-        void Handle(const hal::Can::Message& data) override
+        bool Handle(const hal::Can::Message& data) override
         {
-            (owner.*onFrame)(data);
+            return (owner.*onFrame)(data);
         }
 
         bool HandlePdu(infra::ConstByteRange pdu) override

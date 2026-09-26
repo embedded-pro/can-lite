@@ -82,6 +82,7 @@ Every category is a **server/client pair**. Full guide: `documents/design/extend
   `SendCommandWithoutSequence()` only when the paired server sets
   `RequiresSequenceValidation()` to `false`.
 - Message types are `CanMessageHandler<Owner>` members binding an ID to a member function, registered with `AddMessageTypes(...)` in the constructor. Do not write a nested `CanMessageType` subclass per message.
+- Handlers return `bool`: `true` when the payload was accepted, `false` when it was invalid. On `false` the server acknowledges `invalidPayload` itself — handlers never send that ack.
 - Payloads use `CanPayloadReader` / `CanPayloadWriter` (big-endian, bounds-checked, sticky `Valid()`), not manual byte offsets.
 - Sequence validation: server categories default `true` (byte `data[0]`, so server command handlers `Skip(1)` before reading), client categories default `false`.
 - Observer interfaces use `infra::SingleObserver<Observer, Subject>` — one observer per subject; auto-attaches/detaches on construction/destruction.

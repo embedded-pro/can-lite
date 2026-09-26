@@ -53,13 +53,13 @@ namespace services
         bool SendConfigureTelemetryRate(uint16_t targetNodeId, uint8_t rateHz);
 
     private:
-        void HandleMotorTypeResponse(const hal::Can::Message& data);
-        void HandleElectricalParamsResponse(const hal::Can::Message& data);
-        void HandleMechanicalParamsResponse(const hal::Can::Message& data);
-        void HandleTelemetryElectricalResponse(const hal::Can::Message& data);
-        void HandleTelemetryStatusResponse(const hal::Can::Message& data);
-        void HandleSelectControlModeResponse(const hal::Can::Message& data);
-        void HandleCategoryError(const hal::Can::Message& data);
+        bool HandleMotorTypeResponse(const hal::Can::Message& data);
+        bool HandleElectricalParamsResponse(const hal::Can::Message& data);
+        bool HandleMechanicalParamsResponse(const hal::Can::Message& data);
+        bool HandleTelemetryElectricalResponse(const hal::Can::Message& data);
+        bool HandleTelemetryStatusResponse(const hal::Can::Message& data);
+        bool HandleSelectControlModeResponse(const hal::Can::Message& data);
+        bool HandleCategoryError(const hal::Can::Message& data);
 
         CanMessageHandler<FocMotorCategoryClient> motorTypeResponse{ focMotorTypeResponseId, *this, &FocMotorCategoryClient::HandleMotorTypeResponse };
         CanMessageHandler<FocMotorCategoryClient> electricalParamsResponse{ focElectricalParamsResponseId, *this, &FocMotorCategoryClient::HandleElectricalParamsResponse };

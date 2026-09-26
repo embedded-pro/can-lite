@@ -151,17 +151,7 @@ namespace services
             }
         }
 
-        switch (category->HandlePduMessage(messageType, pdu))
-        {
-            case CanPduDispatchResult::handled:
-                break;
-            case CanPduDispatchResult::rejected:
-                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
-                break;
-            case CanPduDispatchResult::unknownMessageType:
-                SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
-                break;
-        }
+        ConcludeDispatch(categoryId, messageType, category->HandlePduMessage(messageType, pdu));
     }
 
     void CanProtocolServer::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)
@@ -212,10 +202,21 @@ namespace services
             }
         }
 
-        if (!category->HandleMessage(messageType, data))
+        ConcludeDispatch(categoryId, messageType, category->HandleMessage(messageType, data));
+    }
+
+    void CanProtocolServer::ConcludeDispatch(uint8_t categoryId, uint8_t messageType, CanDispatchResult result)
+    {
+        switch (result)
         {
-            SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
-            return;
+            case CanDispatchResult::handled:
+                break;
+            case CanDispatchResult::rejected:
+                SendCommandAck(categoryId, messageType, CanAckStatus::invalidPayload);
+                break;
+            case CanDispatchResult::unknownMessageType:
+                SendCommandAck(categoryId, messageType, CanAckStatus::unknownCommand);
+                break;
         }
     }
 

@@ -67,7 +67,8 @@ classDiagram
         +RequiresSequenceValidation() bool*
         +AddMessageType(CanMessageType&)
         +AddMessageTypes(...)
-        +HandleMessage(messageType, data) bool
+        +HandleMessage(messageType, data) CanDispatchResult
+        +HandlePduMessage(messageType, pdu) CanDispatchResult
     }
 
     class CanCategoryServer {
@@ -106,7 +107,14 @@ Each category contains a set of `CanMessageType` handlers, registered via `AddMe
 1. `CanProtocolServer`/`CanProtocolClient` extracts the category ID and message type from the 29-bit CAN identifier.
 2. The corresponding category's `HandleMessage()` is called.
 3. `HandleMessage()` iterates the registered message types and dispatches to the matching handler.
-4. The handler parses the payload and notifies the observer.
+4. The handler parses the payload, notifies the observer and returns `true`. If
+   the payload is invalid, it returns `false` instead and sends nothing.
+5. `HandleMessage()` reports `handled`, `rejected` (a handler returned `false`)
+   or `unknownMessageType` (no handler matched). The server answers `rejected`
+   with `invalidPayload` and `unknownMessageType` with `unknownCommand`.
+   Handlers never acknowledge an invalid payload themselves, so the single-frame
+   and ISO-TP paths report outcomes the same way, and the server knows whether a
+   command was accepted.
 
 ```mermaid
 sequenceDiagram

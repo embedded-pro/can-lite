@@ -127,8 +127,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(3, 0);
-        server.HandleMessage(fwuBeginUpgradeId, data);
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(fwuBeginUpgradeId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(acknowledger.ackCount, 0u);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, DataBlock_CallbackSendsAck)
@@ -186,8 +186,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(1, 0);
-        server.HandleMessage(fwuDataBlockId, data);
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(fwuDataBlockId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(acknowledger.ackCount, 0u);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, Verify_CallbackSendsAck)
@@ -241,8 +241,8 @@ namespace
     {
         hal::Can::Message data;
         data.resize(3, 0);
-        server.HandleMessage(fwuVerifyId, data);
-        EXPECT_EQ(acknowledger.lastStatus, CanAckStatus::invalidPayload);
+        EXPECT_EQ(server.HandleMessage(fwuVerifyId, data), CanDispatchResult::rejected);
+        EXPECT_EQ(acknowledger.ackCount, 0u);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryServerWithObserver, Activate_CallbackSendsAck)

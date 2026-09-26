@@ -40,11 +40,11 @@ namespace services
         bool SendQueryProgress(uint16_t targetNodeId);
 
     private:
-        void HandleBeginResponse(const hal::Can::Message& data);
-        void HandleDataBlockAck(const hal::Can::Message& data);
-        void HandleVerifyResponse(const hal::Can::Message& data);
-        void HandleActivateResponse(const hal::Can::Message& data);
-        void HandleProgressResponse(const hal::Can::Message& data);
+        bool HandleBeginResponse(const hal::Can::Message& data);
+        bool HandleDataBlockAck(const hal::Can::Message& data);
+        bool HandleVerifyResponse(const hal::Can::Message& data);
+        bool HandleActivateResponse(const hal::Can::Message& data);
+        bool HandleProgressResponse(const hal::Can::Message& data);
 
         CanMessageHandler<FirmwareUpgradeCategoryClient> beginResponse{ fwuBeginResponseId, *this, &FirmwareUpgradeCategoryClient::HandleBeginResponse };
         CanMessageHandler<FirmwareUpgradeCategoryClient> dataBlockAck{ fwuDataBlockAckId, *this, &FirmwareUpgradeCategoryClient::HandleDataBlockAck };

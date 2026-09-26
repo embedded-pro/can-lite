@@ -68,7 +68,7 @@ namespace
 
     TEST_F(SystemCategoryServerTest, UnknownMessageTypeIsNotHandled)
     {
-        EXPECT_FALSE(server.HandleMessage(0x7F, hal::Can::Message{}));
+        EXPECT_EQ(server.HandleMessage(0x7F, hal::Can::Message{}), CanDispatchResult::unknownMessageType);
     }
 
     class SystemCategoryServerWithObserverTest
@@ -82,28 +82,28 @@ namespace
     {
         EXPECT_CALL(observer, OnHeartbeatReceived(canProtocolVersion));
 
-        EXPECT_TRUE(server.HandleMessage(canHeartbeatMessageTypeId, MakeMessage({ canProtocolVersion })));
+        EXPECT_EQ(server.HandleMessage(canHeartbeatMessageTypeId, MakeMessage({ canProtocolVersion })), CanDispatchResult::handled);
     }
 
     TEST_F(SystemCategoryServerWithObserverTest, HeartbeatWithoutPayloadReportsVersionZero)
     {
         EXPECT_CALL(observer, OnHeartbeatReceived(0));
 
-        EXPECT_TRUE(server.HandleMessage(canHeartbeatMessageTypeId, hal::Can::Message{}));
+        EXPECT_EQ(server.HandleMessage(canHeartbeatMessageTypeId, hal::Can::Message{}), CanDispatchResult::handled);
     }
 
     TEST_F(SystemCategoryServerWithObserverTest, StatusRequestNotifiesObserver)
     {
         EXPECT_CALL(observer, OnStatusRequest());
 
-        EXPECT_TRUE(server.HandleMessage(canStatusRequestMessageTypeId, hal::Can::Message{}));
+        EXPECT_EQ(server.HandleMessage(canStatusRequestMessageTypeId, hal::Can::Message{}), CanDispatchResult::handled);
     }
 
     TEST_F(SystemCategoryServerWithObserverTest, CategoryListRequestNotifiesObserver)
     {
         EXPECT_CALL(observer, OnCategoryListRequest());
 
-        EXPECT_TRUE(server.HandleMessage(canCategoryListRequestMessageTypeId, hal::Can::Message{}));
+        EXPECT_EQ(server.HandleMessage(canCategoryListRequestMessageTypeId, hal::Can::Message{}), CanDispatchResult::handled);
     }
 
     // --- Client ---
@@ -127,19 +127,20 @@ namespace
 
     TEST_F(SystemCategoryClientTest, CommandAckMessageTypeIsHandled)
     {
-        EXPECT_TRUE(client.HandleMessage(canCommandAckMessageTypeId,
-            MakeMessage({ 0x01, 0x02, static_cast<uint8_t>(CanAckStatus::sequenceError) })));
+        EXPECT_EQ(client.HandleMessage(canCommandAckMessageTypeId,
+                      MakeMessage({ 0x01, 0x02, static_cast<uint8_t>(CanAckStatus::sequenceError) })),
+            CanDispatchResult::handled);
     }
 
     TEST_F(SystemCategoryClientTest, ShortCommandAckDoesNotCrash)
     {
-        EXPECT_TRUE(client.HandleMessage(canCommandAckMessageTypeId, MakeMessage({ 0x01, 0x02 })));
-        EXPECT_TRUE(client.HandleMessage(canCommandAckMessageTypeId, hal::Can::Message{}));
+        EXPECT_EQ(client.HandleMessage(canCommandAckMessageTypeId, MakeMessage({ 0x01, 0x02 })), CanDispatchResult::handled);
+        EXPECT_EQ(client.HandleMessage(canCommandAckMessageTypeId, hal::Can::Message{}), CanDispatchResult::handled);
     }
 
     TEST_F(SystemCategoryClientTest, UnknownMessageTypeIsNotHandled)
     {
-        EXPECT_FALSE(client.HandleMessage(0x7F, hal::Can::Message{}));
+        EXPECT_EQ(client.HandleMessage(0x7F, hal::Can::Message{}), CanDispatchResult::unknownMessageType);
     }
 
     class SystemCategoryClientWithObserverTest
@@ -155,7 +156,7 @@ namespace
 
         EXPECT_CALL(observer, OnCategoryListResponse(categoryIds));
 
-        EXPECT_TRUE(client.HandleMessage(canCategoryListResponseMessageTypeId, categoryIds));
+        EXPECT_EQ(client.HandleMessage(canCategoryListResponseMessageTypeId, categoryIds), CanDispatchResult::handled);
     }
 
     TEST_F(SystemCategoryClientWithObserverTest, EmptyCategoryListResponseIsStillForwarded)
@@ -164,6 +165,6 @@ namespace
 
         EXPECT_CALL(observer, OnCategoryListResponse(empty));
 
-        EXPECT_TRUE(client.HandleMessage(canCategoryListResponseMessageTypeId, empty));
+        EXPECT_EQ(client.HandleMessage(canCategoryListResponseMessageTypeId, empty), CanDispatchResult::handled);
     }
 }
