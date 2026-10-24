@@ -1,25 +1,17 @@
 #pragma once
 
+#include "can-lite/drivers/codec/SlcanCodec.hpp"
 #include "can-lite/drivers/interface/CanBusAdapter.hpp"
-
-#ifdef _WIN32
-
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
+#include "can-lite/drivers/interface/SerialPort.hpp"
 
 namespace services
 {
-    class CanableAdapter
+    class SlcanAdapter
         : public CanBusAdapter
     {
     public:
-        CanableAdapter() = default;
-        ~CanableAdapter() override;
+        explicit SlcanAdapter(SerialPort& port);
+        ~SlcanAdapter() override;
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;
@@ -32,23 +24,21 @@ namespace services
         void ProcessReadEvent() override;
 
         void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const override;
-        bool IsDriverAvailable() const override;
+        void EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const override;
 
     private:
-        bool SendSlcanCommand(const char* command, std::size_t length);
-        bool ParseSlcanFrame(const char* buffer, std::size_t length);
-        static const char* BitrateToSlcanCode(uint32_t bitrate);
+        bool ReadAvailable();
+        void Dispatch(const SlcanDecoder::Item& item);
+        void Deliver(const SlcanFrame& frame);
+        void Lost();
+        void ReportError(infra::BoundedConstString message);
         void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
-        HANDLE serialHandle{ INVALID_HANDLE_VALUE };
+        SerialPort& port;
+        SlcanDecoder decoder;
+        bool awaitingCloseResponse{};
         infra::Function<void(Id, const Message&)> receiveCallback;
         infra::Function<void(bool)> pendingCompletion;
         bool pendingSuccess{};
-
-        static constexpr std::size_t rxBufferSize = 64;
-        char rxBuffer[rxBufferSize]{};
-        std::size_t rxPos{};
     };
 }
-
-#endif

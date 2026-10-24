@@ -10,8 +10,6 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <PCANBasic.h>
-#include <optional>
 #include <windows.h>
 
 namespace services
@@ -34,16 +32,24 @@ namespace services
         void ProcessReadEvent() override;
 
         void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const override;
-        bool IsDriverAvailable() const override;
+        void EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const override;
 
     private:
-        static std::optional<TPCANBaudrate> BitrateToPcan(uint32_t bitrate);
-        static TPCANHandle ChannelFromName(infra::BoundedConstString name);
+        template<class Function>
+        Function Load(const char* name) const
+        {
+            return reinterpret_cast<Function>(reinterpret_cast<void*>(GetProcAddress(library, name)));
+        }
+
+        bool Open(WORD candidate, WORD bitrateCode);
+        void Deliver(uint32_t id, const CanFrame& data);
+        void Release();
+        void ReportError(infra::BoundedConstString message);
         void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
-        TPCANHandle channel{ PCAN_NONEBUS };
-        bool connected{};
-        HANDLE readEvent{ nullptr };
+        HMODULE library{};
+        WORD channel{};
+        HANDLE readEvent{};
         infra::Function<void(Id, const Message&)> receiveCallback;
         infra::Function<void(bool)> pendingCompletion;
         bool pendingSuccess{};

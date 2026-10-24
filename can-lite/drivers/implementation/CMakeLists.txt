@@ -1,103 +1,80 @@
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_library(can_lite.drivers.socketcan ${EMIL_EXCLUDE_FROM_ALL})
+function(can_lite_add_driver target)
+    add_library(${target} ${EMIL_EXCLUDE_FROM_ALL})
 
-    target_include_directories(can_lite.drivers.socketcan PUBLIC
+    target_include_directories(${target} PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     )
 
-    target_link_libraries(can_lite.drivers.socketcan PUBLIC
+    target_link_libraries(${target} PUBLIC
         can_lite.drivers.interface
         infra.event
     )
 
-    target_sources(can_lite.drivers.socketcan PRIVATE
+    target_sources(${target} PRIVATE ${ARGN})
+endfunction()
+
+can_lite_add_driver(can_lite.drivers.slcan
+    SlcanAdapter.cpp
+    SlcanAdapter.hpp
+)
+target_link_libraries(can_lite.drivers.slcan PUBLIC can_lite.drivers.codec)
+
+can_lite_add_driver(can_lite.drivers.multi
+    MultiCanAdapter.cpp
+    MultiCanAdapter.hpp
+)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    can_lite_add_driver(can_lite.drivers.socketcan
         SocketCanAdapter.cpp
         SocketCanAdapter.hpp
     )
+
+    can_lite_add_driver(can_lite.drivers.serial
+        PosixSerialPort.cpp
+        PosixSerialPort.hpp
+    )
+
+    set(can_lite_platform_drivers can_lite.drivers.socketcan)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    option(CAN_LITE_DRIVER_KVASER "Build Kvaser CANlib driver (requires Kvaser CANlib SDK)" OFF)
-    option(CAN_LITE_DRIVER_PCAN "Build PCAN-Basic driver (requires PEAK PCAN-Basic SDK)" OFF)
-    option(CAN_LITE_DRIVER_CANABLE "Build CANable SLCAN driver" ON)
+    can_lite_add_driver(can_lite.drivers.serial
+        WindowsSerialPort.cpp
+        WindowsSerialPort.hpp
+    )
+    target_link_libraries(can_lite.drivers.serial PRIVATE advapi32)
 
-    if(CAN_LITE_DRIVER_KVASER)
-        find_path(KVASER_INCLUDE_DIR canlib.h)
-        find_library(KVASER_LIBRARY canlib32)
+    can_lite_add_driver(can_lite.drivers.pcan
+        ChannelNumber.hpp
+        PcanAdapter.cpp
+        PcanAdapter.hpp
+    )
 
-        if(KVASER_INCLUDE_DIR AND KVASER_LIBRARY)
-            add_library(can_lite.drivers.kvaser ${EMIL_EXCLUDE_FROM_ALL})
+    can_lite_add_driver(can_lite.drivers.kvaser
+        ChannelNumber.hpp
+        KvaserAdapter.cpp
+        KvaserAdapter.hpp
+    )
 
-            target_include_directories(can_lite.drivers.kvaser PUBLIC
-                "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"
-                "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
-            )
+    can_lite_add_driver(can_lite.drivers.gsusb
+        ChannelNumber.hpp
+        GsUsbAdapter.cpp
+        GsUsbAdapter.hpp
+    )
+    target_link_libraries(can_lite.drivers.gsusb PUBLIC can_lite.drivers.codec PRIVATE setupapi winusb)
 
-            target_include_directories(can_lite.drivers.kvaser PRIVATE
-                ${KVASER_INCLUDE_DIR}
-            )
+    set(can_lite_platform_drivers can_lite.drivers.pcan can_lite.drivers.kvaser can_lite.drivers.gsusb)
+endif()
 
-            target_link_libraries(can_lite.drivers.kvaser PUBLIC
-                can_lite.drivers.interface
-                infra.event
-                ${KVASER_LIBRARY}
-            )
-
-            target_sources(can_lite.drivers.kvaser PRIVATE
-                KvaserAdapter.cpp
-                KvaserAdapter.hpp
-            )
-        else()
-            message(WARNING "CAN_LITE_DRIVER_KVASER is ON but Kvaser CANlib SDK not found")
-        endif()
-    endif()
-
-    if(CAN_LITE_DRIVER_PCAN)
-        find_path(PCAN_INCLUDE_DIR PCANBasic.h)
-        find_library(PCAN_LIBRARY PCANBasic)
-
-        if(PCAN_INCLUDE_DIR AND PCAN_LIBRARY)
-            add_library(can_lite.drivers.pcan ${EMIL_EXCLUDE_FROM_ALL})
-
-            target_include_directories(can_lite.drivers.pcan PUBLIC
-                "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"
-                "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
-            )
-
-            target_include_directories(can_lite.drivers.pcan PRIVATE
-                ${PCAN_INCLUDE_DIR}
-            )
-
-            target_link_libraries(can_lite.drivers.pcan PUBLIC
-                can_lite.drivers.interface
-                infra.event
-                ${PCAN_LIBRARY}
-            )
-
-            target_sources(can_lite.drivers.pcan PRIVATE
-                PcanAdapter.cpp
-                PcanAdapter.hpp
-            )
-        else()
-            message(WARNING "CAN_LITE_DRIVER_PCAN is ON but PCAN-Basic SDK not found")
-        endif()
-    endif()
-
-    if(CAN_LITE_DRIVER_CANABLE)
-        add_library(can_lite.drivers.canable ${EMIL_EXCLUDE_FROM_ALL})
-
-        target_include_directories(can_lite.drivers.canable PUBLIC
-            "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"
-            "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
-        )
-
-        target_link_libraries(can_lite.drivers.canable PUBLIC
-            can_lite.drivers.interface
-            infra.event
-        )
-
-        target_sources(can_lite.drivers.canable PRIVATE
-            CanableAdapter.cpp
-            CanableAdapter.hpp
-        )
-    endif()
+if(DEFINED can_lite_platform_drivers)
+    can_lite_add_driver(can_lite.drivers.platform
+        PlatformCanAdapter.cpp
+        PlatformCanAdapter.hpp
+    )
+    target_link_libraries(can_lite.drivers.platform PUBLIC
+        can_lite.drivers.multi
+        can_lite.drivers.serial
+        can_lite.drivers.slcan
+        ${can_lite_platform_drivers}
+    )
 endif()

@@ -98,7 +98,8 @@ flowchart BT
     server["can_lite.server"]
     client["can_lite.client"]
     drvif["can_lite.drivers.interface"]
-    drv["can_lite.drivers.socketcan · pcan · kvaser · canable"]
+    codec["can_lite.drivers.codec"]
+    drv["can_lite.drivers.socketcan · pcan · kvaser · gsusb · serial · slcan · multi · platform"]
     emil["embedded-infra-lib<br/>infra.util · infra.timer · hal.interfaces"]
 
     core --> emil
@@ -112,7 +113,9 @@ flowchart BT
     client --> system
     client --> transport
     drvif --> emil
+    codec --> drvif
     drv --> drvif
+    drv --> codec
 ```
 
 Three rules govern it:

@@ -1,13 +1,78 @@
 #ifdef _WIN32
 
 #include "can-lite/drivers/implementation/PcanAdapter.hpp"
+#include "can-lite/drivers/implementation/ChannelNumber.hpp"
 #include "infra/event/EventDispatcher.hpp"
 #include <algorithm>
+#include <array>
 #include <cstring>
-#include <optional>
+#include <utility>
 
 namespace services
 {
+    namespace
+    {
+        struct PcanMessage
+        {
+            DWORD id;
+            BYTE type;
+            BYTE length;
+            BYTE data[8];
+        };
+
+        struct PcanTimestamp
+        {
+            DWORD millis;
+            WORD millisOverflow;
+            WORD micros;
+        };
+
+        constexpr const char* libraryName{ "PCANBasic.dll" };
+        constexpr DWORD statusOk{ 0x00000 };
+        constexpr BYTE parameterReceiveEvent{ 0x03 };
+        constexpr BYTE parameterChannelCondition{ 0x0D };
+        constexpr DWORD channelAvailable{ 0x01 };
+        constexpr DWORD channelOccupied{ 0x02 };
+        constexpr BYTE messageRemote{ 0x01 };
+        constexpr BYTE messageExtended{ 0x02 };
+        constexpr BYTE messageError{ 0x40 };
+        constexpr BYTE messageStatus{ 0x80 };
+        constexpr uint32_t maxChannels{ 16 };
+        constexpr int maxFramesPerPoll{ 256 };
+
+        constexpr std::array<std::pair<uint32_t, WORD>, 9> bitrateCodes{ {
+            { 1000000, 0x0014 },
+            { 800000, 0x0016 },
+            { 500000, 0x001C },
+            { 250000, 0x011C },
+            { 125000, 0x031C },
+            { 100000, 0x432F },
+            { 50000, 0x472F },
+            { 20000, 0x532F },
+            { 10000, 0x672F },
+        } };
+
+        using Initialize = DWORD(WINAPI*)(WORD, WORD, BYTE, DWORD, WORD);
+        using Uninitialize = DWORD(WINAPI*)(WORD);
+        using Read = DWORD(WINAPI*)(WORD, PcanMessage*, PcanTimestamp*);
+        using Write = DWORD(WINAPI*)(WORD, PcanMessage*);
+        using GetValue = DWORD(WINAPI*)(WORD, BYTE, void*, DWORD);
+        using SetValue = DWORD(WINAPI*)(WORD, BYTE, void*, DWORD);
+
+        WORD UsbChannel(uint32_t oneBasedIndex)
+        {
+            return static_cast<WORD>(oneBasedIndex <= 8 ? 0x50 + oneBasedIndex : 0x500 + oneBasedIndex);
+        }
+
+        std::optional<WORD> BitrateCode(uint32_t bitrate)
+        {
+            for (const auto& [rate, code] : bitrateCodes)
+                if (rate == bitrate)
+                    return code;
+            return std::nullopt;
+        }
+    }
+
     PcanAdapter::~PcanAdapter()
     {
         Disconnect();
@@ -18,43 +83,17 @@ namespace services
         if (IsConnected())
             Disconnect();
 
-        channel = ChannelFromName(interfaceName);
-        if (channel == PCAN_NONEBUS)
+        const auto index = ParseChannelNumber(interfaceName);
+        const auto code = BitrateCode(bitrate);
+        if (!index || *index < 1 || *index > maxChannels || !code)
         {
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Invalid PCAN channel name");
-                });
+            ReportError("PCAN channels are numbered 1 to 16 (for example PCAN:1) and need a standard bitrate");
             return false;
         }
 
-        auto pcanBitrate = BitrateToPcan(bitrate);
-        if (!pcanBitrate)
-        {
-            channel = PCAN_NONEBUS;
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Unsupported bitrate for PCAN");
-                });
+        if (!Open(UsbChannel(*index), *code))
             return false;
-        }
 
-        TPCANStatus status = CAN_Initialize(channel, *pcanBitrate, 0, 0, 0);
-        if (status != PCAN_ERROR_OK)
-        {
-            channel = PCAN_NONEBUS;
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Failed to initialize PCAN channel");
-                });
-            return false;
-        }
-
-        readEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-        if (readEvent != nullptr)
-            CAN_SetValue(channel, PCAN_RECEIVE_EVENT, &readEvent, sizeof(readEvent));
-
-        connected = true;
         NotifyObservers([](auto& observer)
             {
                 observer.OnConnectionChanged(true);
@@ -62,72 +101,71 @@ namespace services
         return true;
     }
 
+    bool PcanAdapter::Open(WORD candidate, WORD bitrateCode)
+    {
+        library = LoadLibraryA(libraryName);
+        const auto initialize = library != nullptr ? Load<Initialize>("CAN_Initialize") : nullptr;
+        if (initialize == nullptr)
+        {
+            Release();
+            ReportError("PCANBasic.dll was not found; install the PEAK-System PCAN driver package");
+            return false;
+        }
+
+        if (initialize(candidate, bitrateCode, 0, 0, 0) != statusOk)
+        {
+            Release();
+            ReportError("The PCAN channel could not be opened; check that the adapter is plugged in and not in use");
+            return false;
+        }
+
+        channel = candidate;
+        readEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+        if (const auto setValue = Load<SetValue>("CAN_SetValue"); setValue != nullptr && readEvent != nullptr)
+            setValue(channel, parameterReceiveEvent, &readEvent, sizeof(readEvent));
+        return true;
+    }
+
     void PcanAdapter::Disconnect()
     {
-        if (connected)
-        {
-            CAN_Uninitialize(channel);
-            channel = PCAN_NONEBUS;
+        if (!IsConnected())
+            return;
 
-            if (readEvent != nullptr)
+        Release();
+        NotifyObservers([](auto& observer)
             {
-                CloseHandle(readEvent);
-                readEvent = nullptr;
-            }
-
-            connected = false;
-
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnConnectionChanged(false);
-                });
-        }
+                observer.OnConnectionChanged(false);
+            });
     }
 
     bool PcanAdapter::IsConnected() const
     {
-        return connected;
+        return library != nullptr && channel != 0;
     }
 
     void PcanAdapter::SendData(Id id, const Message& data, const infra::Function<void(bool success)>& actionOnCompletion)
     {
-        if (!IsConnected())
+        const auto write = IsConnected() && id.Is29BitId() ? Load<Write>("CAN_Write") : nullptr;
+        if (write == nullptr)
         {
             ScheduleCompletion(actionOnCompletion, false);
             return;
         }
 
-        if (!id.Is29BitId())
-        {
-            ScheduleCompletion(actionOnCompletion, false);
-            return;
-        }
+        PcanMessage message{};
+        message.id = id.Get29BitId();
+        message.type = messageExtended;
+        message.length = static_cast<BYTE>(std::min<std::size_t>(data.size(), 8));
+        std::memcpy(message.data, data.data(), message.length);
 
-        TPCANMsg msg;
-        std::memset(&msg, 0, sizeof(msg));
-        msg.ID = id.Get29BitId();
-        msg.MSGTYPE = PCAN_MESSAGE_EXTENDED;
-        msg.LEN = static_cast<BYTE>(std::min(data.size(), static_cast<std::size_t>(8)));
-        std::memcpy(msg.DATA, data.data(), msg.LEN);
-
-        TPCANStatus status = CAN_Write(channel, &msg);
-        bool success = (status == PCAN_ERROR_OK);
-
+        const bool success = write(channel, &message) == statusOk;
         if (success)
-        {
-            uint32_t rawId = id.Get29BitId();
-            NotifyObservers([rawId, &data](auto& observer)
+            NotifyObservers([rawId = message.id, &data](auto& observer)
                 {
                     observer.OnFrameLog(true, rawId, data);
                 });
-        }
         else
-        {
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Failed to send CAN frame via PCAN");
-                });
-        }
+            ReportError("Failed to send CAN frame via PCAN");
 
         ScheduleCompletion(actionOnCompletion, success);
     }
@@ -139,115 +177,87 @@ namespace services
 
     intptr_t PcanAdapter::FileDescriptor() const
     {
-        return reinterpret_cast<intptr_t>(readEvent);
+        return readEvent != nullptr ? reinterpret_cast<intptr_t>(readEvent) : -1;
     }
 
     void PcanAdapter::ProcessReadEvent()
     {
-        if (!IsConnected())
-            return;
+        const auto read = IsConnected() ? Load<Read>("CAN_Read") : nullptr;
+        for (int count = 0; read != nullptr && count < maxFramesPerPoll && IsConnected(); ++count)
+        {
+            PcanMessage message{};
+            PcanTimestamp timestamp{};
+            if (read(channel, &message, &timestamp) != statusOk)
+                return;
 
-        TPCANMsg msg;
-        TPCANTimestamp timestamp;
+            if ((message.type & (messageStatus | messageError | messageRemote)) != 0 || (message.type & messageExtended) == 0)
+                continue;
 
-        TPCANStatus status = CAN_Read(channel, &msg, &timestamp);
-        if (status != PCAN_ERROR_OK)
-            return;
-
-        if (!(msg.MSGTYPE & PCAN_MESSAGE_EXTENDED))
-            return;
-
-        uint32_t rawId = msg.ID & 0x1FFFFFFF;
-        CanFrame data;
-        for (BYTE i = 0; i < msg.LEN && i < 8; ++i)
-            data.push_back(msg.DATA[i]);
-
-        NotifyObservers([rawId, &data](auto& observer)
-            {
-                observer.OnFrameLog(false, rawId, data);
-            });
-
-        if (receiveCallback)
-            receiveCallback(hal::Can::Id::Create29BitId(rawId), data);
-    }
-
-    bool PcanAdapter::IsDriverAvailable() const
-    {
-        // Use a non-destructive channel condition query to check PCAN driver availability.
-        // CAN_Initialize/Uninitialize would disrupt any channel another process holds open.
-        DWORD condition = 0;
-        return CAN_GetValue(PCAN_USBBUS1, PCAN_CHANNEL_CONDITION, &condition, sizeof(condition)) == PCAN_ERROR_OK;
+            CanFrame data;
+            data.assign(message.data, message.data + std::min<BYTE>(message.length, 8));
+            Deliver(message.id, data);
+        }
     }
 
     void PcanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
-        static constexpr TPCANHandle usbChannels[] = {
-            PCAN_USBBUS1, PCAN_USBBUS2, PCAN_USBBUS3, PCAN_USBBUS4,
-            PCAN_USBBUS5, PCAN_USBBUS6, PCAN_USBBUS7, PCAN_USBBUS8
-        };
+        HMODULE probe = LoadLibraryA(libraryName);
+        if (probe == nullptr)
+            return;
 
-        static constexpr const char* usbNames[] = {
-            "USBBUS1", "USBBUS2", "USBBUS3", "USBBUS4",
-            "USBBUS5", "USBBUS6", "USBBUS7", "USBBUS8"
-        };
-
-        for (std::size_t i = 0; i < 8; ++i)
-        {
-            DWORD condition = 0;
-            if (CAN_GetValue(usbChannels[i], PCAN_CHANNEL_CONDITION, &condition, sizeof(condition)) == PCAN_ERROR_OK)
+        if (const auto getValue = reinterpret_cast<GetValue>(reinterpret_cast<void*>(GetProcAddress(probe, "CAN_GetValue"))))
+            for (uint32_t index = 1; index <= maxChannels; ++index)
             {
-                if (condition & PCAN_CHANNEL_AVAILABLE)
-                    callback(usbNames[i]);
+                DWORD condition{};
+                if (getValue(UsbChannel(index), parameterChannelCondition, &condition, sizeof(condition)) == statusOk && (condition == channelAvailable || condition == channelOccupied))
+                    ReportChannelNumber(index, callback);
             }
-        }
+
+        FreeLibrary(probe);
     }
 
-    std::optional<TPCANBaudrate> PcanAdapter::BitrateToPcan(uint32_t bitrate)
+    void PcanAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
     {
-        switch (bitrate)
-        {
-            case 1000000:
-                return PCAN_BAUD_1M;
-            case 800000:
-                return PCAN_BAUD_800K;
-            case 500000:
-                return PCAN_BAUD_500K;
-            case 250000:
-                return PCAN_BAUD_250K;
-            case 125000:
-                return PCAN_BAUD_125K;
-            case 100000:
-                return PCAN_BAUD_100K;
-            case 50000:
-                return PCAN_BAUD_50K;
-            case 20000:
-                return PCAN_BAUD_20K;
-            case 10000:
-                return PCAN_BAUD_10K;
-            default:
-                return std::nullopt;
-        }
+        HMODULE probe = LoadLibraryA(libraryName);
+        if (probe == nullptr)
+            callback("PCAN: PCANBasic.dll was not found; install the PEAK-System PCAN driver package");
+        else
+            FreeLibrary(probe);
     }
 
-    TPCANHandle PcanAdapter::ChannelFromName(infra::BoundedConstString name)
+    void PcanAdapter::Deliver(uint32_t id, const CanFrame& data)
     {
-        if (name == "USBBUS1")
-            return PCAN_USBBUS1;
-        if (name == "USBBUS2")
-            return PCAN_USBBUS2;
-        if (name == "USBBUS3")
-            return PCAN_USBBUS3;
-        if (name == "USBBUS4")
-            return PCAN_USBBUS4;
-        if (name == "USBBUS5")
-            return PCAN_USBBUS5;
-        if (name == "USBBUS6")
-            return PCAN_USBBUS6;
-        if (name == "USBBUS7")
-            return PCAN_USBBUS7;
-        if (name == "USBBUS8")
-            return PCAN_USBBUS8;
-        return PCAN_NONEBUS;
+        NotifyObservers([id, &data](auto& observer)
+            {
+                observer.OnFrameLog(false, id, data);
+            });
+
+        if (receiveCallback)
+            receiveCallback(hal::Can::Id::Create29BitId(id), data);
+    }
+
+    void PcanAdapter::Release()
+    {
+        if (library != nullptr && channel != 0)
+            if (const auto uninitialize = Load<Uninitialize>("CAN_Uninitialize"))
+                uninitialize(channel);
+
+        if (readEvent != nullptr)
+            CloseHandle(readEvent);
+        if (library != nullptr)
+            FreeLibrary(library);
+
+        library = nullptr;
+        channel = 0;
+        readEvent = nullptr;
+    }
+
+    void PcanAdapter::ReportError(infra::BoundedConstString message)
+    {
+        NotifyObservers([message](auto& observer)
+            {
+                observer.OnError(message);
+            });
     }
 
     void PcanAdapter::ScheduleCompletion(const infra::Function<void(bool)>& action, bool result)

@@ -4,8 +4,13 @@
 
 #ifdef _WIN32
 
-#include <canlib.h>
-#include <optional>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 
 namespace services
 {
@@ -13,7 +18,7 @@ namespace services
         : public CanBusAdapter
     {
     public:
-        KvaserAdapter();
+        KvaserAdapter() = default;
         ~KvaserAdapter() override;
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
@@ -27,13 +32,24 @@ namespace services
         void ProcessReadEvent() override;
 
         void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const override;
-        bool IsDriverAvailable() const override;
+        void EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const override;
 
     private:
-        static std::optional<canBitrate_t> BitrateToCanlib(uint32_t bitrate);
+        template<class Function>
+        Function Load(const char* name) const
+        {
+            return reinterpret_cast<Function>(reinterpret_cast<void*>(GetProcAddress(library, name)));
+        }
+
+        static HMODULE LoadCanlib();
+        bool Open(int channelNumber, long bitrateCode);
+        void Deliver(uint32_t id, const CanFrame& data);
+        void Release();
+        void ReportError(infra::BoundedConstString message);
         void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
-        canHandle handle{ canINVALID_HANDLE };
+        HMODULE library{};
+        int handle{ -1 };
         infra::Function<void(Id, const Message&)> receiveCallback;
         infra::Function<void(bool)> pendingCompletion;
         bool pendingSuccess{};
