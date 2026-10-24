@@ -49,9 +49,9 @@ it when the protocol object is constructed.
 ## 2. The host adapter
 
 Host-side tooling needs more than the bus interface offers: opening an
-interface, reporting connection state, enumerating what the machine has, and
-integrating with a poll loop. The adapter interface adds exactly that — and
-nothing the protocol layer would ever call.
+interface, reporting connection state, enumerating what the machine has,
+explaining what is missing, and integrating with a poll loop. The adapter
+interface adds exactly that — and nothing the protocol layer would ever call.
 
 ```mermaid
 classDiagram
@@ -67,7 +67,7 @@ classDiagram
         expose a pollable descriptor
         process a read event
         enumerate interfaces
-        report driver availability
+        explain missing drivers
     }
     class CanBusAdapterObserver {
         <<abstract>>
@@ -75,42 +75,133 @@ classDiagram
         driver error text
         connection changed
     }
+    class SerialPort {
+        <<interface>>
+        open, close
+        write and read without blocking
+        enumerate ports
+    }
     class SocketCanAdapter["SocketCAN — Linux"]
     class PcanAdapter["PCAN-Basic — Windows"]
     class KvaserAdapter["Kvaser CANlib — Windows"]
-    class CanableAdapter["CANable, SLCAN over serial — Windows"]
+    class GsUsbAdapter["candleLight, gs_usb over WinUSB — Windows"]
+    class SlcanAdapter["slcan — CANable and compatibles"]
+    class PosixSerialPort["serial port — Linux"]
+    class WindowsSerialPort["COM port — Windows"]
+    class MultiCanAdapter["multi-adapter router"]
+    class PlatformCanAdapter["platform composition"]
 
     Can <|-- CanBusAdapter
     CanBusAdapter <|-- SocketCanAdapter
     CanBusAdapter <|-- PcanAdapter
     CanBusAdapter <|-- KvaserAdapter
-    CanBusAdapter <|-- CanableAdapter
+    CanBusAdapter <|-- GsUsbAdapter
+    CanBusAdapter <|-- SlcanAdapter
+    CanBusAdapter <|-- MultiCanAdapter
+    SlcanAdapter --> SerialPort : talks through
+    SerialPort <|.. PosixSerialPort
+    SerialPort <|.. WindowsSerialPort
+    MultiCanAdapter o-- CanBusAdapter : routes to
+    PlatformCanAdapter *-- MultiCanAdapter
     CanBusAdapterObserver --> CanBusAdapter : observes
 ```
 
-| Adapter            | Availability                                         |
-|--------------------|------------------------------------------------------|
-| SocketCAN          | Always, on Linux                                     |
-| PCAN-Basic         | Windows, opt-in, requires the vendor SDK to be found |
-| Kvaser CANlib      | Windows, opt-in, requires the vendor SDK to be found |
-| CANable over SLCAN | Windows, on by default                               |
+| Adapter       | Platform       | Interface names                           | Needs on the machine                                   |
+|---------------|----------------|-------------------------------------------|--------------------------------------------------------|
+| SocketCAN     | Linux          | the network interface, `can0`             | the CAN kernel modules                                 |
+| slcan         | Linux, Windows | the serial port, `/dev/ttyACM0` or `COM3` | nothing beyond the operating system's serial driver    |
+| candleLight   | Windows        | `1`, `2`, … in enumeration order          | WinUSB, which candleLight firmware binds automatically |
+| PCAN-Basic    | Windows        | `1` to `16`, the USB channel              | the PEAK-System driver package (`PCANBasic.dll`)       |
+| Kvaser CANlib | Windows        | `0`, `1`, …                               | the Kvaser CANlib driver (`canlib32.dll`)              |
 
-Each adapter is guarded both in the build and in its header, so including the
-wrong one for a platform yields an empty translation unit rather than a compile
-error.
+Vendor libraries are loaded when an adapter connects or enumerates, never
+linked. Every adapter therefore builds without a vendor SDK, and a machine
+without the vendor driver gets an explanation instead of a failure to start.
+The pure parts — slcan line encoding and decoding, gs_usb host frames and the
+bit-timing search — live in a codec library with no platform dependency, so the
+host test suite covers them on every platform.
+
+Each platform-specific adapter is guarded both in the build and in its header,
+so including the wrong one for a platform yields an empty translation unit
+rather than a compile error.
 
 The observer interface exists for tooling — a bus monitor attaches to it and
 receives every frame in both directions, driver error text, and connection
 transitions. It is an observation channel, not a data path: the protocol still
 receives frames through the bus interface.
 
+**Extended identifiers only.** Every adapter delivers and transmits 29-bit
+frames only; standard-identifier, remote and error frames stop at the driver,
+consistent with the protocol rule (REQ-CAN-002). A send with a standard
+identifier completes unsuccessfully.
+
+**Missing drivers.** An adapter reports a plain-language reason for each driver
+it needs but cannot find — for example the kernel modules SocketCAN needs, or
+the vendor library PCAN-Basic loads. An adapter that needs nothing reports
+nothing.
+
 **Poll-loop integration.** The adapter exposes a descriptor to select on and an
 entry point to call when it becomes readable, so a host application can service
-the bus from its own loop instead of dedicating a thread to it. Adapters also
-defer their send completions through the event dispatcher rather than calling
-them from inside the send. That detail matters more than it looks: it
-guarantees the core layer's queue is never re-entered from inside its own send
-(Chapter 10, §2).
+the bus from its own loop instead of dedicating a thread to it. On Linux the
+descriptor is a file descriptor. On Windows it is a waitable handle where the
+driver offers one and −1 otherwise; calling the read entry point from a timer is
+always safe, because every adapter reads without blocking and bounds the work
+done per call. Adapters also defer their send completions through the event
+dispatcher rather than calling them from inside the send. That detail matters
+more than it looks: it guarantees the core layer's queue is never re-entered
+from inside its own send (Chapter 10, §2).
+
+### 2.1 Several adapters behind one name
+
+A tool that should work with whatever adapter is plugged in composes the
+adapters behind the multi-adapter router. Each adapter is registered with a
+prefix, optionally an alias, and at most one adapter is registered without a
+prefix. Interface names take the form `prefix:channel`; the router hands the
+channel to the adapter that owns the prefix.
+
+```mermaid
+flowchart TD
+    name["interface name"] --> prefixed{"starts with a registered<br/>prefix or alias and ':'?"}
+    prefixed -- yes --> owner["that adapter connects<br/>to the rest of the name"]
+    prefixed -- no --> colon{"contains ':'?"}
+    colon -- yes --> unknown["unknown interface:<br/>report the accepted forms"]
+    colon -- no --> bare{"an adapter without<br/>a prefix is registered?"}
+    bare -- yes --> fallback["that adapter connects<br/>to the whole name"]
+    bare -- no --> unknown
+```
+
+Only the adapter being connected is active. Its frames, errors and connection
+changes reach the router's observer and receiver; the others stay silent. When
+the active adapter reports that its connection was lost, the router forgets it.
+Interfaces are enumerated with their prefix, so the names a tool offers are the
+names it can connect to.
+
+Missing drivers are reported only when no registered adapter is usable — usable
+meaning its drivers are present and it has at least one interface. Then every
+adapter's reasons are reported together, which is what a user needs to see when
+nothing works; while one adapter works, a missing vendor driver for another is
+not worth mentioning.
+
+The platform composition registers the set for the build platform:
+
+| Platform | Registered adapters                                                             |
+|----------|---------------------------------------------------------------------------------|
+| Linux    | SocketCAN without a prefix, slcan as `slcan:` with the alias `CANable:`         |
+| Windows  | `PCAN:`, `Kvaser:`, slcan as `slcan:` with the alias `CANable:`, `candleLight:` |
+
+### 2.2 slcan and candleLight specifics
+
+slcan opens a channel with three commands: close, select the bitrate, open. An
+adapter that is already closed rejects the first, so the answer to that close
+is ignored; a rejection of anything after it is reported. Only the nine Lawicel
+bitrates (10 kbit/s to 1 Mbit/s) can be selected. When the serial port cannot be
+opened the reason is named — not found, in use, or access denied (on Linux the
+user must be in the `dialout` group).
+
+candleLight adapters describe their CAN controller's timing limits. The adapter
+searches those limits for timing that divides the controller clock exactly into
+the requested bitrate with the sample point closest to 87.5 %, and refuses a
+bitrate it cannot hit exactly.
 
 ## 3. The virtual bus used by the integration tests
 

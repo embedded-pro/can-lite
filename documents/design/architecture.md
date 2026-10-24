@@ -462,7 +462,11 @@ can-lite/
 │   ├── TracingCanProtocolServerObserver.hpp/cpp  # protocol-layer events
 │   ├── TracingCanProtocolClientObserver.hpp/cpp
 │   └── test/
-└── drivers/                       # Hardware driver adapters
+└── drivers/                       # Host CAN adapters (booklet chapter 3)
+    ├── interface/                 # CanBusAdapter, SerialPort
+    ├── codec/                     # slcan lines, gs_usb frames and bit timing
+    ├── implementation/            # SocketCAN, slcan, candleLight, PCAN, Kvaser, router, platform set
+    └── test/
 
 examples/                          # Not built by default (CAN_LITE_BUILD_EXAMPLES)
 └── foc_motor/                     # Reference application category

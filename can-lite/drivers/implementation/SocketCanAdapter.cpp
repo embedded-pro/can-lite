@@ -224,13 +224,15 @@ namespace services
             receiveCallback(hal::Can::Id::Create29BitId(rawId), data);
     }
 
-    bool SocketCanAdapter::IsDriverAvailable() const
+    void SocketCanAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
     {
         int fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
         if (fd < 0)
-            return false;
+        {
+            callback("SocketCAN: the CAN kernel modules are not loaded; run sudo modprobe -a can can_raw (and vcan for a virtual bus)");
+            return;
+        }
         close(fd);
-        return true;
     }
 
     void SocketCanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const

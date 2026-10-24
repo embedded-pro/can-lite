@@ -43,6 +43,6 @@ namespace services
         virtual void ProcessReadEvent() = 0;
 
         virtual void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const = 0;
-        virtual bool IsDriverAvailable() const = 0;
+        virtual void EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const = 0;
     };
 }

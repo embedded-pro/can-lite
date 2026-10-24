@@ -24,7 +24,7 @@ namespace services
         void ProcessReadEvent() override;
 
         void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const override;
-        bool IsDriverAvailable() const override;
+        void EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const override;
 
     private:
         void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);

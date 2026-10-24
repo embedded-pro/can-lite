@@ -31,6 +31,13 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **ISO-TP (ISO 15765-2)**: Optional multi-frame segmentation and reassembly for payloads > 8 bytes
 - **Tracing Decorators**: Opt-in, per-layer observability — decoded bus frames, ISO-TP segmentation events, and protocol-layer timeouts, with no tracer dependency in the library itself
 
+### Host Adapters
+- **Bus Adapters for Tools**: SocketCAN (Linux), slcan/CANable over a serial port (Linux and Windows), candleLight via WinUSB, PCAN-Basic and Kvaser CANlib (Windows)
+- **No Vendor SDK to Build**: PCAN and Kvaser libraries are loaded at run time; a missing driver is explained, not fatal
+- **One Name Space for Many Adapters**: A router addresses each adapter as `prefix:channel` and composes the right set for the platform
+
+See [HAL and bus drivers](documents/booklet/03-hal-and-drivers.md) for the details.
+
 ### Embedded Constraints
 - **Zero Heap Allocation**: All memory statically allocated at compile time
 - **Fixed Memory Footprint**: Uses `infra::BoundedVector`, `infra::BoundedDeque`, `infra::Function` from embedded-infra-lib
@@ -115,7 +122,7 @@ Enable them with `-DCAN_LITE_BUILD_EXAMPLES=On` to compile them alongside the li
 │   │   ├── TracingCanProtocolServerObserver.hpp  # liveness events
 │   │   ├── TracingCanProtocolClientObserver.hpp  # liveness and ack timeouts
 │   │   └── test/                       # Tracing unit tests
-│   └── drivers/                # Hardware driver adapters
+│   └── drivers/                # Host CAN adapters: SocketCAN, slcan, candleLight, PCAN, Kvaser
 ├── examples/                   # Reference application categories, not built by default
 │   └── foc_motor/              # FOC Motor Control category (copy into your project)
 ├── documents/

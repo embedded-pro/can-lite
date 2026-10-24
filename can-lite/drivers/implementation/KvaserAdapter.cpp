@@ -1,19 +1,58 @@
 #ifdef _WIN32
 
 #include "can-lite/drivers/implementation/KvaserAdapter.hpp"
+#include "can-lite/drivers/implementation/ChannelNumber.hpp"
 #include "infra/event/EventDispatcher.hpp"
-#include "infra/stream/StringOutputStream.hpp"
 #include <algorithm>
-#include <charconv>
+#include <array>
 #include <cstring>
-#include <optional>
-#include <system_error>
+#include <utility>
 
 namespace services
 {
-    KvaserAdapter::KvaserAdapter()
+    namespace
     {
-        canInitializeLibrary();
+        constexpr int statusOk{ 0 };
+        constexpr int openExclusive{ 0x0008 };
+        constexpr unsigned int messageRemote{ 0x0001 };
+        constexpr unsigned int messageExtended{ 0x0004 };
+        constexpr unsigned int messageErrorFrame{ 0x0020 };
+        constexpr int maxFramesPerPoll{ 256 };
+        constexpr int maxChannels{ 64 };
+
+        constexpr std::array<std::pair<uint32_t, long>, 7> bitrateCodes{ {
+            { 1000000, -1 },
+            { 500000, -2 },
+            { 250000, -3 },
+            { 125000, -4 },
+            { 100000, -5 },
+            { 50000, -7 },
+            { 10000, -9 },
+        } };
+
+        using InitializeLibrary = void(WINAPI*)();
+        using GetNumberOfChannels = int(WINAPI*)(int*);
+        using OpenChannel = int(WINAPI*)(int, int);
+        using SetBusParams = int(WINAPI*)(int, long, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
+        using BusOn = int(WINAPI*)(int);
+        using BusOff = int(WINAPI*)(int);
+        using Close = int(WINAPI*)(int);
+        using Write = int(WINAPI*)(int, long, void*, unsigned int, unsigned int);
+        using Read = int(WINAPI*)(int, long*, void*, unsigned int*, unsigned int*, unsigned long*);
+
+        template<class Function>
+        Function LoadFrom(HMODULE module, const char* name)
+        {
+            return reinterpret_cast<Function>(reinterpret_cast<void*>(GetProcAddress(module, name)));
+        }
+
+        std::optional<long> BitrateCode(uint32_t bitrate)
+        {
+            for (const auto& [rate, code] : bitrateCodes)
+                if (rate == bitrate)
+                    return code;
+            return std::nullopt;
+        }
     }
 
     KvaserAdapter::~KvaserAdapter()
@@ -21,66 +60,32 @@ namespace services
         Disconnect();
     }
 
+    HMODULE KvaserAdapter::LoadCanlib()
+    {
+        HMODULE canlib = LoadLibraryA("canlib32.dll");
+        if (canlib == nullptr)
+            return nullptr;
+
+        if (const auto initialize = LoadFrom<InitializeLibrary>(canlib, "canInitializeLibrary"))
+            initialize();
+        return canlib;
+    }
+
     bool KvaserAdapter::Connect(infra::BoundedConstString interfaceName, uint32_t bitrate)
     {
         if (IsConnected())
             Disconnect();
 
-        int channel = 0;
-        auto result = std::from_chars(interfaceName.data(), interfaceName.data() + interfaceName.size(), channel);
-        if (result.ec != std::errc{})
+        const auto number = ParseChannelNumber(interfaceName);
+        const auto code = BitrateCode(bitrate);
+        if (!number || *number >= static_cast<uint32_t>(maxChannels) || !code)
         {
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Invalid Kvaser channel number");
-                });
+            ReportError("Kvaser channels are numbered from 0 (for example Kvaser:0) and need a standard bitrate");
             return false;
         }
 
-        handle = canOpenChannel(channel, canOPEN_ACCEPT_VIRTUAL);
-        if (handle < 0)
-        {
-            handle = canINVALID_HANDLE;
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Failed to open Kvaser channel");
-                });
+        if (!Open(static_cast<int>(*number), *code))
             return false;
-        }
-
-        auto canlibBitrate = BitrateToCanlib(bitrate);
-        if (!canlibBitrate)
-        {
-            canClose(handle);
-            handle = canINVALID_HANDLE;
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Unsupported bitrate for Kvaser");
-                });
-            return false;
-        }
-
-        if (canSetBusParams(handle, *canlibBitrate, 0, 0, 0, 0, 0) != canOK)
-        {
-            canClose(handle);
-            handle = canINVALID_HANDLE;
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Failed to set Kvaser bitrate");
-                });
-            return false;
-        }
-
-        if (canBusOn(handle) != canOK)
-        {
-            canClose(handle);
-            handle = canINVALID_HANDLE;
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Failed to go bus-on");
-                });
-            return false;
-        }
 
         NotifyObservers([](auto& observer)
             {
@@ -89,64 +94,69 @@ namespace services
         return true;
     }
 
+    bool KvaserAdapter::Open(int channelNumber, long bitrateCode)
+    {
+        library = LoadCanlib();
+        const auto open = library != nullptr ? Load<OpenChannel>("canOpenChannel") : nullptr;
+        const auto setBus = library != nullptr ? Load<SetBusParams>("canSetBusParams") : nullptr;
+        const auto busOn = library != nullptr ? Load<BusOn>("canBusOn") : nullptr;
+        if (open == nullptr || setBus == nullptr || busOn == nullptr)
+        {
+            Release();
+            ReportError("canlib32.dll was not found; install the Kvaser CANlib driver");
+            return false;
+        }
+
+        handle = open(channelNumber, openExclusive);
+        if (handle < 0 || setBus(handle, bitrateCode, 0, 0, 0, 0, 0) != statusOk || busOn(handle) != statusOk)
+        {
+            Release();
+            ReportError("The Kvaser channel could not be opened; check that the adapter is plugged in and not in use");
+            return false;
+        }
+
+        return true;
+    }
+
     void KvaserAdapter::Disconnect()
     {
-        if (handle != canINVALID_HANDLE)
-        {
-            canBusOff(handle);
-            canClose(handle);
-            handle = canINVALID_HANDLE;
+        if (!IsConnected())
+            return;
 
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnConnectionChanged(false);
-                });
-        }
+        Release();
+        NotifyObservers([](auto& observer)
+            {
+                observer.OnConnectionChanged(false);
+            });
     }
 
     bool KvaserAdapter::IsConnected() const
     {
-        return handle != canINVALID_HANDLE;
+        return library != nullptr && handle >= 0;
     }
 
     void KvaserAdapter::SendData(Id id, const Message& data, const infra::Function<void(bool success)>& actionOnCompletion)
     {
-        if (!IsConnected())
+        const auto write = IsConnected() && id.Is29BitId() ? Load<Write>("canWrite") : nullptr;
+        if (write == nullptr)
         {
             ScheduleCompletion(actionOnCompletion, false);
             return;
         }
 
-        if (!id.Is29BitId())
-        {
-            ScheduleCompletion(actionOnCompletion, false);
-            return;
-        }
+        const auto rawId = id.Get29BitId();
+        std::array<BYTE, 8> buffer{};
+        const auto length = static_cast<unsigned int>(std::min<std::size_t>(data.size(), buffer.size()));
+        std::memcpy(buffer.data(), data.data(), length);
 
-        uint8_t buffer[8] = {};
-        auto dlc = std::min(data.size(), static_cast<std::size_t>(8));
-        std::memcpy(buffer, data.data(), dlc);
-
-        canStatus status = canWrite(handle, static_cast<long>(id.Get29BitId()), buffer,
-            static_cast<unsigned int>(dlc), canMSG_EXT);
-
-        bool success = (status == canOK);
-
+        const bool success = write(handle, static_cast<long>(rawId), buffer.data(), length, messageExtended) == statusOk;
         if (success)
-        {
-            uint32_t rawId = id.Get29BitId();
             NotifyObservers([rawId, &data](auto& observer)
                 {
                     observer.OnFrameLog(true, rawId, data);
                 });
-        }
         else
-        {
-            NotifyObservers([](auto& observer)
-                {
-                    observer.OnError("Failed to send CAN frame via Kvaser");
-                });
-        }
+            ReportError("Failed to send CAN frame via Kvaser");
 
         ScheduleCompletion(actionOnCompletion, success);
     }
@@ -158,84 +168,87 @@ namespace services
 
     intptr_t KvaserAdapter::FileDescriptor() const
     {
-        return static_cast<intptr_t>(handle);
+        return -1;
     }
 
     void KvaserAdapter::ProcessReadEvent()
     {
-        if (!IsConnected())
-            return;
+        const auto read = IsConnected() ? Load<Read>("canRead") : nullptr;
+        for (int count = 0; read != nullptr && count < maxFramesPerPoll && IsConnected(); ++count)
+        {
+            long rawId{};
+            std::array<BYTE, 8> buffer{};
+            unsigned int length{};
+            unsigned int flags{};
+            unsigned long time{};
+            if (read(handle, &rawId, buffer.data(), &length, &flags, &time) != statusOk)
+                return;
 
-        long id = 0;
-        uint8_t buffer[8] = {};
-        unsigned int dlc = 0;
-        unsigned int flags = 0;
-        unsigned long timestamp = 0;
+            if ((flags & (messageRemote | messageErrorFrame)) != 0 || (flags & messageExtended) == 0)
+                continue;
 
-        canStatus status = canRead(handle, &id, buffer, &dlc, &flags, &timestamp);
-        if (status != canOK)
-            return;
-
-        if (!(flags & canMSG_EXT))
-            return;
-
-        uint32_t rawId = static_cast<uint32_t>(id) & 0x1FFFFFFF;
-        CanFrame data;
-        for (unsigned int i = 0; i < dlc && i < 8; ++i)
-            data.push_back(buffer[i]);
-
-        NotifyObservers([rawId, &data](auto& observer)
-            {
-                observer.OnFrameLog(false, rawId, data);
-            });
-
-        if (receiveCallback)
-            receiveCallback(hal::Can::Id::Create29BitId(rawId), data);
-    }
-
-    bool KvaserAdapter::IsDriverAvailable() const
-    {
-        int channelCount = 0;
-        return canGetNumberOfChannels(&channelCount) == canOK && channelCount > 0;
+            CanFrame data;
+            data.assign(buffer.begin(), buffer.begin() + std::min<unsigned int>(length, 8));
+            Deliver(static_cast<uint32_t>(rawId), data);
+        }
     }
 
     void KvaserAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
-        int channelCount = 0;
-
-        if (canGetNumberOfChannels(&channelCount) != canOK)
+        HMODULE probe = LoadCanlib();
+        if (probe == nullptr)
             return;
 
-        for (int i = 0; i < channelCount; ++i)
-        {
-            infra::BoundedString::WithStorage<16> name;
-            infra::StringOutputStream stream(name);
-            stream << i;
-            callback(name);
-        }
+        int count{};
+        if (const auto getCount = LoadFrom<GetNumberOfChannels>(probe, "canGetNumberOfChannels"); getCount != nullptr && getCount(&count) == statusOk)
+            for (int index = 0; index < std::min(count, maxChannels); ++index)
+                ReportChannelNumber(static_cast<uint32_t>(index), callback);
+
+        FreeLibrary(probe);
     }
 
-    std::optional<canBitrate_t> KvaserAdapter::BitrateToCanlib(uint32_t bitrate)
+    void KvaserAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
     {
-        switch (bitrate)
+        HMODULE probe = LoadLibraryA("canlib32.dll");
+        if (probe == nullptr)
+            callback("Kvaser: canlib32.dll was not found; install the Kvaser CANlib driver");
+        else
+            FreeLibrary(probe);
+    }
+
+    void KvaserAdapter::Deliver(uint32_t id, const CanFrame& data)
+    {
+        NotifyObservers([id, &data](auto& observer)
+            {
+                observer.OnFrameLog(false, id, data);
+            });
+
+        if (receiveCallback)
+            receiveCallback(hal::Can::Id::Create29BitId(id), data);
+    }
+
+    void KvaserAdapter::Release()
+    {
+        if (library != nullptr && handle >= 0)
         {
-            case 1000000:
-                return canBITRATE_1M;
-            case 500000:
-                return canBITRATE_500K;
-            case 250000:
-                return canBITRATE_250K;
-            case 125000:
-                return canBITRATE_125K;
-            case 100000:
-                return canBITRATE_100K;
-            case 50000:
-                return canBITRATE_50K;
-            case 10000:
-                return canBITRATE_10K;
-            default:
-                return std::nullopt;
+            if (const auto busOff = Load<BusOff>("canBusOff"))
+                busOff(handle);
+            if (const auto close = Load<Close>("canClose"))
+                close(handle);
         }
+
+        if (library != nullptr)
+            FreeLibrary(library);
+        library = nullptr;
+        handle = -1;
+    }
+
+    void KvaserAdapter::ReportError(infra::BoundedConstString message)
+    {
+        NotifyObservers([message](auto& observer)
+            {
+                observer.OnError(message);
+            });
     }
 
     void KvaserAdapter::ScheduleCompletion(const infra::Function<void(bool)>& action, bool result)
