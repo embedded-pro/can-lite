@@ -6,6 +6,7 @@ target_link_libraries(can_lite.server_test PUBLIC
     gmock_main
     can_lite.server
     can_lite.test_util
+    can_lite.transport
     infra.timer_test_helper
 )
 

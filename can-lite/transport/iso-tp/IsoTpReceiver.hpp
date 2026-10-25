@@ -27,14 +27,17 @@ namespace services::iso_tp
 
         void Configure(SendFcFunc sendFc, PduReadyFunc onPduReady, AbortFunc onAbort);
         void ProcessFrame(const hal::Can::Message& frame);
+        void Reset();
         bool IsIdle() const;
 
     private:
         void HandleSingleFrame(const hal::Can::Message& frame);
         void HandleFirstFrame(const hal::Can::Message& frame);
         void HandleConsecutiveFrame(const hal::Can::Message& frame);
-        void SendCtsFlowControl();
+        void EndSupersededReception();
+        void SendFlowControl(FlowStatus status);
         void Abort(AbortReason reason);
+        void Clear();
 
         SendFcFunc sendFcFunc;
         PduReadyFunc onPduReadyFunc;
@@ -43,6 +46,7 @@ namespace services::iso_tp
         ReceiverState state = ReceiverState::idle;
         uint16_t expectedTotalLength = 0;
         uint8_t expectedSn = 1;
+        uint8_t reception = 0;
 
         infra::BoundedVector<uint8_t>& assemblyBuffer;
 

@@ -45,6 +45,8 @@ namespace services
 
     private:
         iso_tp::IsoTpChannel* FindChannel(uint32_t canId);
+        iso_tp::IsoTpChannel* FindConnection(uint32_t rxId, uint32_t txId);
+        iso_tp::IsoTpChannel* OpenConnection(uint32_t rxId, uint32_t txId);
         iso_tp::IsoTpChannel* AllocateFreeChannel();
 
         bool OnRawSend(uint32_t canId, const hal::Can::Message& frame,

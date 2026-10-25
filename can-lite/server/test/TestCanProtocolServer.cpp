@@ -4,6 +4,7 @@
 #include "can-lite/core/test/CanMock.hpp"
 #include "can-lite/server/CanProtocolServer.hpp"
 #include "can-lite/transport/IsoTpTransport.hpp"
+#include "can-lite/transport/IsoTpTransportImpl.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -205,7 +206,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x06, 0x50, 1);
@@ -1007,7 +1007,6 @@ namespace
     {
         StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         auto id = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x01, 0x01, 1));
@@ -1037,7 +1036,6 @@ namespace
 
         StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         limitedServer.AttachIsoTpTransport(mockIsoTp);
 
         auto id = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x01, 0x01, 1));
@@ -1070,7 +1068,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPdu;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPdu));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         limitedServer.AttachIsoTpTransport(mockIsoTp);
 
         auto rawId = MakeCanId(CanPriority::command, 0x01, 0x01, 1);
@@ -1092,23 +1089,19 @@ namespace
         limitedReceiveCallback(heartbeatId, MakeMessage({ canProtocolVersion }));
     }
 
-    TEST_F(CanProtocolServerTest, AttachIsoTpTransport_OnAbort_ReleasesChannel)
+    TEST_F(CanProtocolServerTest, AttachIsoTpTransport_LeavesTransferFailuresToTheApplication)
     {
         StrictMock<MockIsoTpTransport> mockIsoTp;
-        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
-        infra::Function<void(uint32_t, iso_tp::AbortReason)> capturedOnAbort;
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_)).WillOnce(SaveArg<0>(&capturedOnAbort));
-        server.AttachIsoTpTransport(mockIsoTp);
+        EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).Times(2);
 
-        EXPECT_CALL(mockIsoTp, ReleaseChannel(0x321u));
-        capturedOnAbort(0x321u, iso_tp::AbortReason::overflow);
+        server.AttachIsoTpTransport(mockIsoTp);
+        server.DetachIsoTpTransport();
     }
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_ProcessFrameReturnsFalse_ContinuesNormalDispatch)
     {
         StrictMock<MockIsoTpTransport> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         auto id = MakeSystemId(canHeartbeatMessageTypeId);
@@ -1169,7 +1162,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, 1);
@@ -1178,6 +1170,25 @@ namespace
 
         EXPECT_TRUE(pduCategory.msg.pduReceived);
         server.UnregisterCategory(pduCategory);
+    }
+
+    TEST_F(CanProtocolServerTest, AttachIsoTpTransport_RegisteredChannelSurvivesAMalformedFrame)
+    {
+        SequenceValidatedPduCategory category;
+        server.RegisterCategory(category);
+        IsoTpTransportImpl::WithStorage<64> isoTp{ server.Transport() };
+        server.AttachIsoTpTransport(isoTp);
+
+        auto dataId = hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, 0x06, 0x50, 1));
+        ASSERT_TRUE(isoTp.RegisterReceiveChannel(dataId.Get29BitId(), MakeCanId(CanPriority::response, 0x06, 0xD0, 1)));
+
+        SimulateRx(dataId, MakeMessage({ 0x40, 0x00 }));
+        SimulateRx(dataId, MakeMessage({ 0x02, 0x00, 0xAA }));
+
+        EXPECT_TRUE(category.msg.pduReceived);
+
+        server.DetachIsoTpTransport();
+        server.UnregisterCategory(category);
     }
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_RejectedPdu_AcksInvalidPayloadNotUnknownCommand)
@@ -1228,7 +1239,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         hal::Can::Message ack;
@@ -1255,7 +1265,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x0F, 0x01, 1);
@@ -1268,7 +1277,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, canSystemCategoryId, 0x80, 1);
@@ -1296,7 +1304,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         limitedServer.AttachIsoTpTransport(mockIsoTp);
 
         EXPECT_CALL(mockIsoTp, ProcessFrame(_, _)).WillOnce(Return(false));
@@ -1314,7 +1321,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
@@ -1341,7 +1347,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x06, 0x50, 1);
@@ -1421,7 +1426,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         // nodeId=2 != config.nodeId(1) and != canBroadcastNodeId(0)
@@ -1484,7 +1488,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, canBroadcastNodeId);
@@ -1517,7 +1520,6 @@ namespace
         StrictMock<MockIsoTpTransport> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
-        EXPECT_CALL(mockIsoTp, SetOnAbort(_));
         server.AttachIsoTpTransport(mockIsoTp);
 
         // message type 0x7E is within the command range but not registered in emptyCategory
@@ -1635,10 +1637,8 @@ namespace
         void AttachIsoTp()
         {
             EXPECT_CALL(isoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&pduCallback));
-            EXPECT_CALL(isoTp, SetOnAbort(_));
             server.AttachIsoTpTransport(isoTp);
             EXPECT_CALL(isoTp, SetOnPduReceived(_)).Times(AnyNumber());
-            EXPECT_CALL(isoTp, SetOnAbort(_)).Times(AnyNumber());
         }
 
         static uint32_t RawId(CanPriority priority, uint8_t messageType, uint8_t category = SafetyCategory::categoryId)

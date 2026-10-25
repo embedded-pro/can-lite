@@ -106,15 +106,55 @@ N_Bs is armed the moment the sender enters the wait-for-Flow-Control state,
 before the frame is handed to the driver, so a driver that never reports
 completion still times out rather than leaving the sender wedged.
 
+### Unexpected and Failed Transfers
+
+The receiver handles unexpected frames as ISO 15765-2 requires (REQ-CAN-046):
+
+- **Ignored:**
+  - a frame with an unknown protocol control nibble;
+  - a single frame whose length is zero, above seven or beyond the frame;
+  - a first frame shorter than eight bytes, or declaring fewer than eight
+    bytes;
+  - a consecutive frame while no reception is in progress;
+  - a flow control frame.
+
+  None of these disturbs a reception in progress.
+- **Superseding:** a valid single or first frame during a reception ends that
+  reception, reported as an unexpected frame, and is then processed as a new
+  reception.
+
+A transfer that fails, in either direction, is discarded and reported once
+through the transport's `SetOnAbort` callback, which names the identifier the
+data travelled on and the reason. The channel stays open. The abort callback
+belongs to the application: neither protocol object installs it, and neither
+releases channels.
+
 ### Integration
 
 `IsoTpTransportImpl` is attached to `CanProtocolServer` or `CanProtocolClient`
 via `AttachIsoTpTransport(IsoTpTransport&)`. When attached, incoming frames
-are first offered to the ISO-TP layer; if no registered channel claims the
-frame, it falls through to normal category dispatch. PDUs reassembled by the
-transport layer are delivered via the `SetOnPduReceived` callback. Channels
-are reclaimed via `ReleaseChannel(dataId)`, called automatically on abort and
-available for the application to call once it is done with a given `dataId`.
+are first offered to the ISO-TP layer; if no channel claims the frame, it
+falls through to normal category dispatch. PDUs reassembled by the transport
+layer are delivered via the `SetOnPduReceived` callback.
+
+A channel is a connection with one peer, identified by a receive and a
+transmit identifier (REQ-CAN-035):
+
+- Frames from the peer arrive on the receive identifier. Everything this node
+  sends to the peer, data and flow control alike, leaves on the transmit
+  identifier. A transmission and a reception can therefore run on one channel
+  at the same time.
+- `RegisterReceiveChannel(dataId, fcId)` opens the channel with `dataId` as its
+  receive identifier and `fcId` as its transmit identifier.
+- `SendPdu(dataId, fcId)` sends on `dataId` and takes flow control from
+  `fcId`. Sending to a registered peer therefore uses the reversed pair, on
+  the same channel.
+- `SendPdu` for a new pair opens a channel that claims only flow control
+  frames. A pair that shares just one identifier with another channel is
+  refused.
+- A channel stays open until the application calls `ReleaseChannel` with
+  either of its identifiers. Releasing ends any transfer in progress on it
+  without a report.
 
 The implementation uses `WithStorage` for zero-heap construction. All internal components (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`) are non-template classes that receive their PDU buffer storage via `infra::WithStorage` aliases, following the EMIL convention:
 

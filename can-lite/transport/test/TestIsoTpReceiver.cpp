@@ -77,12 +77,30 @@ TEST_F(IsoTpReceiverTest, Receive_SingleFrame_7Bytes)
     receiver.ProcessFrame(msg);
 }
 
-TEST_F(IsoTpReceiverTest, Receive_SingleFrame_ZeroLength_Aborts)
+TEST_F(IsoTpReceiverTest, Receive_SingleFrame_ZeroLength_Ignored)
 {
-    auto msg = MakeMessage({ 0x00 });
+    receiver.ProcessFrame(MakeMessage({ 0x00 }));
 
-    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
-    receiver.ProcessFrame(msg);
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, Receive_SingleFrame_LengthBeyondTheFrame_Ignored)
+{
+    receiver.ProcessFrame(MakeMessage({ 0x05, 1, 2 }));
+
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, Receive_InvalidSingleFrame_WhileReceivingCF_LeavesTheReceptionRunning)
+{
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 }));
+
+    receiver.ProcessFrame(MakeMessage({ 0x00 }));
+    EXPECT_FALSE(receiver.IsIdle());
+
+    EXPECT_CALL(mocks, OnPduReady(_));
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8 }));
 }
 
 TEST_F(IsoTpReceiverTest, Receive_FirstFrame_SendsFC)
@@ -155,16 +173,15 @@ TEST_F(IsoTpReceiverTest, FlowControlFrame_WhileIdle_Ignored)
     EXPECT_TRUE(receiver.IsIdle());
 }
 
-TEST_F(IsoTpReceiverTest, Receive_SingleFrame_WhileReceivingCF_AbortsOngoing)
+TEST_F(IsoTpReceiverTest, Receive_SingleFrame_WhileReceivingCF_ReportsTheInterruptedReceptionThenDeliversIt)
 {
-    // Start multi-frame reception
     auto ff = MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 });
     EXPECT_CALL(mocks, SendFc(_, _));
     receiver.ProcessFrame(ff);
     EXPECT_FALSE(receiver.IsIdle());
 
-    // Send a single frame — ongoing reception is silently aborted, SF processed
-    auto sf = MakeMessage({ 0x01, 0xAB });
+    testing::InSequence order;
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
     EXPECT_CALL(mocks, OnPduReady(_))
         .WillOnce(Invoke([](infra::ConstByteRange pdu)
             {
@@ -172,8 +189,27 @@ TEST_F(IsoTpReceiverTest, Receive_SingleFrame_WhileReceivingCF_AbortsOngoing)
                 EXPECT_EQ(pdu[0], 0xABu);
             }));
 
-    receiver.ProcessFrame(sf);
+    receiver.ProcessFrame(MakeMessage({ 0x01, 0xAB }));
     EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, Receive_FirstFrame_WhileReceivingCF_ReportsTheInterruptedReceptionThenStartsAgain)
+{
+    EXPECT_CALL(mocks, SendFc(_, _)).Times(2);
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 }));
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x09, 9, 9, 9, 9, 9, 9 }));
+    EXPECT_FALSE(receiver.IsIdle());
+
+    EXPECT_CALL(mocks, OnPduReady(_))
+        .WillOnce(Invoke([](infra::ConstByteRange pdu)
+            {
+                ASSERT_EQ(pdu.size(), 9u);
+                EXPECT_EQ(pdu[0], 9u);
+                EXPECT_EQ(pdu[8], 0xEEu);
+            }));
+    receiver.ProcessFrame(MakeMessage({ 0x21, 0xEE, 0xEE, 0xEE }));
 }
 
 TEST_F(IsoTpReceiverTest, Receive_SingleFrame_ExceedsMaxSize_Aborts)
@@ -202,22 +238,18 @@ TEST_F(IsoTpReceiverTest, Receive_SingleFrame_ExceedsMaxSize_Aborts)
     smallReceiver.ProcessFrame(sf);
 }
 
-TEST_F(IsoTpReceiverTest, Receive_FirstFrame_TooShort_Aborts)
+TEST_F(IsoTpReceiverTest, Receive_FirstFrame_TooShort_Ignored)
 {
-    // FF with fewer than 8 bytes triggers unexpectedFrame abort
-    auto ff = MakeMessage({ 0x10, 0x08, 1, 2, 3 });
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x08, 1, 2, 3 }));
 
-    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
-    receiver.ProcessFrame(ff);
+    EXPECT_TRUE(receiver.IsIdle());
 }
 
-TEST_F(IsoTpReceiverTest, Receive_FirstFrame_LengthTooSmall_Aborts)
+TEST_F(IsoTpReceiverTest, Receive_FirstFrame_LengthTooSmall_Ignored)
 {
-    // FF with total length <= sfMaxPayloadBytes (7) triggers unexpectedFrame abort
-    auto ff = MakeMessage({ 0x10, 0x05, 1, 2, 3, 4, 5, 0 });
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x05, 1, 2, 3, 4, 5, 0 }));
 
-    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
-    receiver.ProcessFrame(ff);
+    EXPECT_TRUE(receiver.IsIdle());
 }
 
 TEST_F(IsoTpReceiverTest, Receive_nCrTimeout_Aborts)
@@ -233,12 +265,46 @@ TEST_F(IsoTpReceiverTest, Receive_nCrTimeout_Aborts)
     EXPECT_TRUE(receiver.IsIdle());
 }
 
-TEST_F(IsoTpReceiverTest, ProcessFrame_UnknownFrameType_Aborts)
+TEST_F(IsoTpReceiverTest, ProcessFrame_UnknownFrameType_Ignored)
 {
-    auto msg = MakeMessage({ 0x40, 0x00 });
+    receiver.ProcessFrame(MakeMessage({ 0x40, 0x00 }));
 
-    EXPECT_CALL(mocks, OnAbort(AbortReason::unexpectedFrame));
-    receiver.ProcessFrame(msg);
+    EXPECT_TRUE(receiver.IsIdle());
+}
+
+TEST_F(IsoTpReceiverTest, ProcessFrame_UnknownFrameType_WhileReceivingCF_LeavesTheReceptionRunning)
+{
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 }));
+
+    receiver.ProcessFrame(MakeMessage({ 0x40, 0x00 }));
+
+    EXPECT_CALL(mocks, OnPduReady(_));
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8 }));
+}
+
+TEST_F(IsoTpReceiverTest, Reset_EndsAReceptionInProgressSilently)
+{
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 }));
+
+    receiver.Reset();
+    ForwardTime(std::chrono::seconds(2));
+
+    EXPECT_TRUE(receiver.IsIdle());
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8 }));
+}
+
+TEST_F(IsoTpReceiverTest, LateFlowControlFailure_AfterTheReceptionCompleted_IsIgnored)
+{
+    infra::Function<void(bool)> flowControlDone;
+    EXPECT_CALL(mocks, SendFc(_, _)).WillOnce(testing::SaveArg<1>(&flowControlDone));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 }));
+
+    EXPECT_CALL(mocks, OnPduReady(_));
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8 }));
+
+    flowControlDone(false);
 }
 
 TEST_F(IsoTpReceiverTest, Receive_MultiFrame_nCrTimeoutAfterValidCf_Aborts)

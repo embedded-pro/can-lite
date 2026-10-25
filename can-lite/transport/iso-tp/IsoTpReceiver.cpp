@@ -29,11 +29,14 @@ namespace services::iso_tp
                 HandleConsecutiveFrame(frame);
                 break;
             case flowControl:
-                break;
             case unknown:
-                Abort(AbortReason::unexpectedFrame);
                 break;
         }
+    }
+
+    void IsoTpReceiver::Reset()
+    {
+        Clear();
     }
 
     bool IsoTpReceiver::IsIdle() const
@@ -43,19 +46,12 @@ namespace services::iso_tp
 
     void IsoTpReceiver::HandleSingleFrame(const hal::Can::Message& frame)
     {
-        if (state != ReceiverState::idle)
-        {
-            nCrTimer.Cancel();
-            state = ReceiverState::idle;
-            assemblyBuffer.clear();
-        }
-
         uint8_t len = IsoTpFrameCodec::DecodeSingleFrameLength(frame);
         if (len == 0u || len > sfMaxPayloadBytes || len > static_cast<uint8_t>(frame.size() - 1u))
-        {
-            Abort(AbortReason::unexpectedFrame);
             return;
-        }
+
+        EndSupersededReception();
+
         if (len > assemblyBuffer.max_size())
         {
             Abort(AbortReason::overflow);
@@ -71,23 +67,17 @@ namespace services::iso_tp
     void IsoTpReceiver::HandleFirstFrame(const hal::Can::Message& frame)
     {
         if (frame.size() < 8u)
-        {
-            Abort(AbortReason::unexpectedFrame);
             return;
-        }
 
         uint16_t len = IsoTpFrameCodec::DecodeFirstFrameTotalLength(frame);
         if (len <= sfMaxPayloadBytes)
-        {
-            Abort(AbortReason::unexpectedFrame);
             return;
-        }
+
+        EndSupersededReception();
+
         if (len > assemblyBuffer.max_size())
         {
-            hal::Can::Message fc;
-            IsoTpFrameCodec::EncodeFlowControl(FlowStatus::overflow, 0u, 0u, fc);
-            if (sendFcFunc)
-                sendFcFunc(fc, [](bool) {});
+            SendFlowControl(FlowStatus::overflow);
             Abort(AbortReason::overflow);
             return;
         }
@@ -95,6 +85,7 @@ namespace services::iso_tp
         expectedTotalLength = len;
         expectedSn = 1u;
         assemblyBuffer.clear();
+        ++reception;
 
         for (uint8_t i = ffFirstDataOffset; i < static_cast<uint8_t>(frame.size()); ++i)
             assemblyBuffer.push_back(frame[i]);
@@ -105,7 +96,7 @@ namespace services::iso_tp
                 Abort(AbortReason::nCrTimeout);
             });
 
-        SendCtsFlowControl();
+        SendFlowControl(FlowStatus::continueToSend);
     }
 
     void IsoTpReceiver::HandleConsecutiveFrame(const hal::Can::Message& frame)
@@ -143,24 +134,38 @@ namespace services::iso_tp
         }
     }
 
-    void IsoTpReceiver::SendCtsFlowControl()
+    void IsoTpReceiver::EndSupersededReception()
+    {
+        if (state != ReceiverState::idle)
+            Abort(AbortReason::unexpectedFrame);
+    }
+
+    void IsoTpReceiver::SendFlowControl(FlowStatus status)
     {
         hal::Can::Message fc;
-        IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
-        if (sendFcFunc)
-            sendFcFunc(fc, [this](bool success)
-                {
-                    if (!success)
-                        Abort(AbortReason::sendFailed);
-                });
+        IsoTpFrameCodec::EncodeFlowControl(status, 0u, 0u, fc);
+        if (!sendFcFunc)
+            return;
+
+        sendFcFunc(fc, [this, status, current = reception](bool success)
+            {
+                if (!success && status == FlowStatus::continueToSend && current == reception && state == ReceiverState::receivingCf)
+                    Abort(AbortReason::sendFailed);
+            });
     }
 
     void IsoTpReceiver::Abort(AbortReason reason)
     {
+        Clear();
+        if (onAbortFunc)
+            onAbortFunc(reason);
+    }
+
+    void IsoTpReceiver::Clear()
+    {
         nCrTimer.Cancel();
         assemblyBuffer.clear();
         state = ReceiverState::idle;
-        if (onAbortFunc)
-            onAbortFunc(reason);
+        ++reception;
     }
 }
