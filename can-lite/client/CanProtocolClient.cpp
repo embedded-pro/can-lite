@@ -134,7 +134,7 @@ namespace services
     {
         auto previousEvictIndex = nextSequenceEvictIndex;
         auto& state = ClaimSequenceSlot(nodeId);
-        lastReservation.emplace(Reservation{ &state, 0, state, state.ackTimer.NextTrigger(), previousEvictIndex });
+        lastReservation = Reservation{ &state, 0, state, state.ackTimer.NextTrigger(), previousEvictIndex };
 
         if (!state.occupied || state.nodeId != nodeId)
             static_cast<SequenceRecord&>(state) = SequenceRecord{ nodeId, 0, true };
