@@ -11,7 +11,6 @@ namespace
 {
     using namespace services;
     using testing::_;
-    using testing::AnyNumber;
     using testing::Invoke;
     using testing::StrictMock;
 
@@ -42,10 +41,6 @@ namespace
             explicit FixtureInit(StrictMock<hal::CanMock>& canMock)
             {
                 EXPECT_CALL(canMock, ReceiveData(_)).Times(2);
-                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                    {
-                        cb(true);
-                    }));
             }
         } fixtureInit{ canMock };
 
@@ -86,14 +81,14 @@ namespace
     TEST_F(TestFocMotorCategoryClient, MotorTypeResponse_EmptyIgnored)
     {
         hal::Can::Message data;
-        client.HandleMessage(focMotorTypeResponseId, data);
+        EXPECT_EQ(client.HandleMessage(focMotorTypeResponseId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFocMotorCategoryClient, MotorTypeResponse_NoObserverDoesNotCrash)
     {
         hal::Can::Message data;
         data.push_back(static_cast<uint8_t>(FocMotorMode::speed));
-        client.HandleMessage(focMotorTypeResponseId, data);
+        EXPECT_EQ(client.HandleMessage(focMotorTypeResponseId, data), CanDispatchResult::handled);
     }
 
     TEST_F(TestFocMotorCategoryClientWithObserver, ElectricalParamsResponse_ParsesParams)
@@ -115,7 +110,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(3, 0);
-        client.HandleMessage(focElectricalParamsResponseId, data);
+        EXPECT_EQ(client.HandleMessage(focElectricalParamsResponseId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFocMotorCategoryClientWithObserver, MechanicalParamsResponse_ParsesParams)
@@ -137,7 +132,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(3, 0);
-        client.HandleMessage(focMechanicalParamsResponseId, data);
+        EXPECT_EQ(client.HandleMessage(focMechanicalParamsResponseId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFocMotorCategoryClientWithObserver, TelemetryElectricalResponse_ParsesTelemetry)
@@ -163,7 +158,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(7, 0);
-        client.HandleMessage(focTelemetryElectricalResponseId, data);
+        EXPECT_EQ(client.HandleMessage(focTelemetryElectricalResponseId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFocMotorCategoryClientWithObserver, TelemetryStatusResponse_ParsesStatus)
@@ -189,7 +184,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(5, 0);
-        client.HandleMessage(focTelemetryStatusResponseId, data);
+        EXPECT_EQ(client.HandleMessage(focTelemetryStatusResponseId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFocMotorCategoryClientWithObserver, CategoryError_DecodesAndNotifiesObserver)
@@ -206,7 +201,7 @@ namespace
     {
         hal::Can::Message data;
         data.push_back(focSelectControlModeId);
-        client.HandleMessage(canCategoryErrorResponseMessageTypeId, data);
+        EXPECT_EQ(client.HandleMessage(canCategoryErrorResponseMessageTypeId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFocMotorCategoryClient, UnknownMessageType_ReturnsFalse)
@@ -494,7 +489,7 @@ namespace
     {
         StrictMock<hal::CanMock> blockedCan;
         EXPECT_CALL(blockedCan, ReceiveData(_)).Times(2);
-        EXPECT_CALL(blockedCan, SendData(_, _, _)).Times(AnyNumber());
+        EXPECT_CALL(blockedCan, SendData(_, _, _)).Times(1);
         CanProtocolClient blockedProtocolClient{ blockedCan };
         CanFrameTransport blockedTransport{ blockedCan, 1 };
         FocMotorCategoryClient focClient{ blockedTransport, blockedProtocolClient };
@@ -517,7 +512,6 @@ namespace
                 EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
                 EXPECT_EQ(ExtractCanMessageType(rawId), focSetTorqueSetpointId);
                 ASSERT_EQ(data.size(), 3u);
-                // 50.0f A * scale 10 = raw 500
                 EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), 500);
                 cb(true);
             });
@@ -534,7 +528,6 @@ namespace
                 EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
                 EXPECT_EQ(ExtractCanMessageType(rawId), focSetSpeedSetpointId);
                 ASSERT_EQ(data.size(), 3u);
-                // 3000.0f RPM * scale 1 = raw 3000
                 EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), 3000);
                 cb(true);
             });
@@ -544,8 +537,6 @@ namespace
 
     TEST_F(TestFocMotorCategoryClient, SendSetSpeedSetpoint_32000RpmRoundTrips)
     {
-        // Regression: old focSpeedScale=10 would saturate 32000*10=320000 to 32767.
-        // Corrected focSpeedScale=1 encodes 32000.0f RPM as raw 32000 with no saturation.
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
             {
                 ASSERT_EQ(data.size(), 3u);
@@ -565,7 +556,6 @@ namespace
                 EXPECT_EQ(ExtractCanCategory(rawId), focMotorCategoryId);
                 EXPECT_EQ(ExtractCanMessageType(rawId), focSetPositionSetpointId);
                 ASSERT_EQ(data.size(), 3u);
-                // -180.0f rad * scale 100 = raw -18000
                 EXPECT_EQ(CanFrameCodec::ReadInt16(data, 1), -18000);
                 cb(true);
             });
@@ -586,6 +576,6 @@ namespace
     TEST_F(TestFocMotorCategoryClient, SelectControlModeResponse_TooShortIgnored)
     {
         hal::Can::Message data;
-        client.HandleMessage(focSelectControlModeResponseId, data);
+        EXPECT_EQ(client.HandleMessage(focSelectControlModeResponseId, data), CanDispatchResult::rejected);
     }
 }
