@@ -125,14 +125,22 @@ namespace services
 
     bool CanCategoryClient::SendCommand(uint16_t targetNodeId, uint8_t messageType, const hal::Can::Message& payload, CanPriority priority)
     {
+        auto sequence = sequenceSource.ReserveSequence(targetNodeId, Id(), messageType);
+
         CanPayloadWriter data;
-        data.WriteUInt8(sequenceSource.PeekSequence(targetNodeId)).WriteBytes(infra::MakeRange(payload));
+        data.WriteUInt8(sequence).WriteBytes(infra::MakeRange(payload));
 
-        if (!SendCommandWithoutSequence(targetNodeId, messageType, data, priority))
-            return false;
+        auto onDone = [&source = sequenceSource, targetNodeId, sequence](bool sent)
+        {
+            if (!sent)
+                source.ReturnSequence(targetNodeId, sequence);
+        };
 
-        sequenceSource.CommitSequence(targetNodeId, Id(), messageType);
-        return true;
+        if (data.Valid() && transport.SendFrame(targetNodeId, priority, Id(), messageType, data.Message(), onDone))
+            return true;
+
+        sequenceSource.CancelReservation(targetNodeId, sequence);
+        return false;
     }
 
     bool CanCategoryClient::SendCommand(uint16_t targetNodeId, uint8_t messageType, const CanPayloadWriter& payload, CanPriority priority)

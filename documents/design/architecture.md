@@ -303,14 +303,25 @@ follows on without a `sequenceError`.
 
 `CanProtocolClient` maintains **independent sequence counters per server
 node** in a fixed-size array (`maxServers = 8`) and exposes them through the
-`CanSequenceSource` interface. `PeekSequence(nodeId)` returns the next
-sequence byte for the given node, and `CommitSequence(nodeId, category,
-messageType)` advances it once the frame has been accepted by the send queue —
-so a rejected frame does not burn a sequence number. This ensures that
-commands directed to different servers do not share or interfere with each
-other's replay protection state. `CommitSequence` also starts that server's
-command-ack timeout (§9.4), which is why it takes the category and message
-type of the command just sent.
+`CanSequenceSource` interface, so commands directed to different servers do
+not share or interfere with each other's sequence state.
+`CanCategoryClient::SendCommand` drives it in three steps:
+
+- `ReserveSequence(nodeId, category, messageType)` takes the next sequence
+  byte for the node, records the command as awaiting acknowledgement and
+  starts its command-ack timeout (§9.4), all before the frame is handed to
+  the send queue. An acknowledgement that a driver delivers while the frame
+  is still being sent therefore finds the command it acknowledges, and a
+  `sequenceError` sets a counter nothing advances afterwards.
+- If the payload leaves no room for the sequence byte or the queue refuses
+  the frame, `CancelReservation(nodeId, sequence)` restores the slot exactly
+  as it was: counter, awaited command and its deadline, and any server the
+  reservation evicted. A refused frame does not burn a sequence number.
+- If the queue accepts the frame but it then fails to leave the node, its
+  completion calls `ReturnSequence(nodeId, sequence)`. The number is given
+  back unless a later command to that server has already taken the next
+  one, and the awaited command stays recorded so the command-ack timeout
+  reports its loss.
 
 ### Sequence Resynchronization
 
@@ -388,7 +399,7 @@ own on the bus.
 ## 9.4 Command Acknowledgement Timeout
 
 When `CanCategoryClient::SendCommand` sends a sequence-validated command,
-`CanProtocolClient::CommitSequence` starts a per-server `ackTimer`
+`CanProtocolClient::ReserveSequence` starts a per-server `ackTimer`
 (configurable, default 1 s via `Config::commandAckTimeout`) alongside the
 category and message type of the command sent. Any acknowledgement frame from
 that server matching that (category, messageType) cancels the timer,

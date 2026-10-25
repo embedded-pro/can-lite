@@ -337,57 +337,88 @@ namespace
         EXPECT_TRUE(deregistered);
     }
 
-    // === PeekSequence / CommitSequence ===
-
-    TEST_F(CanProtocolClientTest, PeekSequence_FirstCallReturnsZero)
+    TEST_F(CanProtocolClientTest, ReserveSequence_FirstReservationIsZero)
     {
-        EXPECT_EQ(client.PeekSequence(1), 0u);
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
     }
 
-    TEST_F(CanProtocolClientTest, PeekSequence_DoesNotAdvanceWithoutCommit)
+    TEST_F(CanProtocolClientTest, ReserveSequence_AdvancesWithEachReservation)
     {
-        client.PeekSequence(1);
-        EXPECT_EQ(client.PeekSequence(1), 0u);
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 1u);
     }
 
-    TEST_F(CanProtocolClientTest, CommitSequence_AdvancesCounter)
+    TEST_F(CanProtocolClientTest, ReserveSequence_IndependentPerServer)
     {
-        client.PeekSequence(1);
-        client.CommitSequence(1, 3, 0x10);
-        EXPECT_EQ(client.PeekSequence(1), 1u);
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
+        EXPECT_EQ(client.ReserveSequence(2, 3, 0x10), 0u);
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 1u);
+        EXPECT_EQ(client.ReserveSequence(2, 3, 0x10), 1u);
     }
 
-    TEST_F(CanProtocolClientTest, PeekCommitSequence_IndependentPerServer)
-    {
-        EXPECT_EQ(client.PeekSequence(1), 0u);
-        client.CommitSequence(1, 3, 0x10);
-        EXPECT_EQ(client.PeekSequence(2), 0u);
-        client.CommitSequence(2, 3, 0x10);
-        EXPECT_EQ(client.PeekSequence(1), 1u);
-        client.CommitSequence(1, 3, 0x10);
-        EXPECT_EQ(client.PeekSequence(2), 1u);
-    }
-
-    TEST_F(CanProtocolClientTest, CommitSequence_UntrackedNodeAsserts)
-    {
-        EXPECT_DEATH(client.CommitSequence(42, 3, 0x10), "");
-    }
-
-    TEST_F(CanProtocolClientTest, PeekSequence_AllSlotsFull_EvictsOldestRoundRobin)
+    TEST_F(CanProtocolClientTest, ReserveSequence_AllSlotsFull_EvictsOldestRoundRobin)
     {
         for (uint16_t node = 1; node <= 8; ++node)
-        {
-            client.PeekSequence(node);
-            client.CommitSequence(node, 3, 0x10);
-        }
+            client.ReserveSequence(node, 3, 0x10);
 
-        EXPECT_EQ(client.PeekSequence(9), 0u);
-        client.CommitSequence(9, 3, 0x10);
-        EXPECT_EQ(client.PeekSequence(9), 1u);
+        EXPECT_EQ(client.ReserveSequence(9, 3, 0x10), 0u);
+        EXPECT_EQ(client.ReserveSequence(9, 3, 0x10), 1u);
+        EXPECT_EQ(client.ReserveSequence(8, 3, 0x10), 1u);
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
+    }
 
-        EXPECT_EQ(client.PeekSequence(8), 1u);
+    TEST_F(CanProtocolClientTest, CancelReservation_TheNumberIsReused)
+    {
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
+        client.CancelReservation(1, 0);
 
-        EXPECT_EQ(client.PeekSequence(1), 0u);
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
+    }
+
+    TEST_F(CanProtocolClientTest, CancelReservation_RestoresTheEvictedServer)
+    {
+        for (uint16_t node = 1; node <= 8; ++node)
+            client.ReserveSequence(node, 3, 0x10);
+
+        EXPECT_EQ(client.ReserveSequence(9, 3, 0x10), 0u);
+        client.CancelReservation(9, 0);
+
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 1u);
+    }
+
+    TEST_F(CanProtocolClientTest, CancelReservation_OtherThanTheLatestAsserts)
+    {
+        client.ReserveSequence(1, 3, 0x10);
+
+        EXPECT_DEATH(client.CancelReservation(2, 0), "");
+    }
+
+    TEST_F(CanProtocolClientTest, ReturnSequence_RollsBackWhenNoLaterCommandTookANumber)
+    {
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
+        client.ReturnSequence(1, 0);
+
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
+    }
+
+    TEST_F(CanProtocolClientTest, ReturnSequence_AfterALaterReservationKeepsTheCounter)
+    {
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 0u);
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 1u);
+        client.ReturnSequence(1, 0);
+
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 2u);
+    }
+
+    TEST_F(CanProtocolClientTest, ReturnSequence_WrapsAround)
+    {
+        for (int i = 0; i < 255; ++i)
+            client.ReserveSequence(1, 3, 0x10);
+
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 255u);
+        client.ReturnSequence(1, 255);
+
+        EXPECT_EQ(client.ReserveSequence(1, 3, 0x10), 255u);
     }
 
     TEST_F(CanProtocolClientTest, SystemCategory_ReturnsSystemCategoryRef)
@@ -412,6 +443,25 @@ namespace
         MOCK_METHOD(void, OnServerOnline, (uint16_t nodeId), (override));
         MOCK_METHOD(void, OnServerOffline, (uint16_t nodeId), (override));
         MOCK_METHOD(void, OnCommandAckTimeout, (uint16_t nodeId, uint8_t category, uint8_t messageType), (override));
+    };
+
+    class CommandingCategory
+        : public CanCategoryClient
+    {
+    public:
+        CommandingCategory(CanFrameTransport& transport, CanSequenceSource& sequenceSource)
+            : CanCategoryClient(transport, sequenceSource)
+        {}
+
+        uint8_t Id() const override
+        {
+            return 3;
+        }
+
+        bool Send(uint16_t targetNodeId)
+        {
+            return SendCommand(targetNodeId, 0x10);
+        }
     };
 
     class CanProtocolClientLivenessTest
@@ -533,31 +583,27 @@ namespace
 
     TEST_F(CanProtocolClientLivenessTest, SequenceErrorAck_ResyncsToServersExpectedSequence)
     {
-        client.PeekSequence(5);
-        client.CommitSequence(5, 3, 0x10);
-        EXPECT_EQ(client.PeekSequence(5), 1u);
+        client.ReserveSequence(5, 3, 0x10);
 
         EXPECT_CALL(observer, OnServerOnline(5u));
         SimulateCommandAck(5, 3, 0x10, CanAckStatus::sequenceError, 7);
 
-        EXPECT_EQ(client.PeekSequence(5), 7u);
+        EXPECT_EQ(client.ReserveSequence(5, 3, 0x10), 7u);
     }
 
     TEST_F(CanProtocolClientLivenessTest, SuccessAck_DoesNotResync)
     {
-        client.PeekSequence(5);
-        client.CommitSequence(5, 3, 0x10);
+        client.ReserveSequence(5, 3, 0x10);
 
         EXPECT_CALL(observer, OnServerOnline(5u));
         SimulateCommandAck(5, 3, 0x10, CanAckStatus::success, 0);
 
-        EXPECT_EQ(client.PeekSequence(5), 1u);
+        EXPECT_EQ(client.ReserveSequence(5, 3, 0x10), 1u);
     }
 
     TEST_F(CanProtocolClientLivenessTest, CommandAckTimeout_FiresWhenNoAckArrives)
     {
-        client.PeekSequence(5);
-        client.CommitSequence(5, 3, 0x10);
+        client.ReserveSequence(5, 3, 0x10);
 
         EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::seconds(1));
@@ -565,8 +611,7 @@ namespace
 
     TEST_F(CanProtocolClientLivenessTest, CommandAckTimeout_DoesNotFireWhenAckArrives)
     {
-        client.PeekSequence(5);
-        client.CommitSequence(5, 3, 0x10);
+        client.ReserveSequence(5, 3, 0x10);
 
         EXPECT_CALL(observer, OnServerOnline(5u));
         SimulateCommandAck(5, 3, 0x10, CanAckStatus::success, 0);
@@ -576,14 +621,77 @@ namespace
 
     TEST_F(CanProtocolClientLivenessTest, MismatchedAck_DoesNotClearAwaitingTimer)
     {
-        client.PeekSequence(5);
-        client.CommitSequence(5, 3, 0x10);
+        client.ReserveSequence(5, 3, 0x10);
 
         EXPECT_CALL(observer, OnServerOnline(5u));
         SimulateCommandAck(5, 4, 0x20, CanAckStatus::success, 0);
 
         EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, CancelReservation_KeepsWaitingForTheEarlierCommandUntilItsOwnDeadline)
+    {
+        client.ReserveSequence(5, 3, 0x10);
+        ForwardTime(std::chrono::milliseconds(500));
+
+        EXPECT_EQ(client.ReserveSequence(5, 4, 0x20), 1u);
+        client.CancelReservation(5, 1);
+        ForwardTime(std::chrono::milliseconds(499));
+
+        EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
+        ForwardTime(std::chrono::milliseconds(1));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, CancelReservation_OfTheOnlyCommandLeavesNothingAwaited)
+    {
+        client.ReserveSequence(5, 3, 0x10);
+        client.CancelReservation(5, 0);
+
+        ForwardTime(std::chrono::seconds(2));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, ReturnSequence_StillReportsTheLostCommandThroughTheAckTimeout)
+    {
+        client.ReserveSequence(5, 3, 0x10);
+        client.ReturnSequence(5, 0);
+
+        EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
+        ForwardTime(std::chrono::seconds(1));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, AckDeliveredWhileTheCommandIsBeingSent_IsMatchedToIt)
+    {
+        CommandingCategory category{ client.Transport(), client };
+
+        auto answerWhileSending = [this](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& onDone)
+        {
+            SimulateCommandAck(5, 3, 0x10, CanAckStatus::success, 0);
+            onDone(true);
+        };
+
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(answerWhileSending).RetiresOnSaturation();
+
+        EXPECT_TRUE(category.Send(5));
+        ForwardTime(std::chrono::seconds(2));
+    }
+
+    TEST_F(CanProtocolClientLivenessTest, SequenceErrorDeliveredWhileTheCommandIsBeingSent_ResynchronisesTheNextCommand)
+    {
+        CommandingCategory category{ client.Transport(), client };
+
+        auto answerWhileSending = [this](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& onDone)
+        {
+            SimulateCommandAck(5, 3, 0x10, CanAckStatus::sequenceError, 42);
+            onDone(true);
+        };
+
+        EXPECT_CALL(observer, OnServerOnline(5u));
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(answerWhileSending).RetiresOnSaturation();
+
+        EXPECT_TRUE(category.Send(5));
+        EXPECT_EQ(client.ReserveSequence(5, 3, 0x10), 42u);
     }
 
     TEST_F(CanProtocolClientLivenessTest, SendsHeartbeatAfterQuietPeriod)

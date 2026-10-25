@@ -13,6 +13,7 @@
 #include "infra/util/Observer.hpp"
 #include <array>
 #include <cstdint>
+#include <optional>
 
 namespace services
 {
@@ -64,8 +65,9 @@ namespace services
         CanFrameTransport& Transport();
 
         // CanSequenceSource
-        uint8_t PeekSequence(uint16_t nodeId) override;
-        void CommitSequence(uint16_t nodeId, uint8_t category, uint8_t messageType) override;
+        uint8_t ReserveSequence(uint16_t nodeId, uint8_t category, uint8_t messageType) override;
+        void CancelReservation(uint16_t nodeId, uint8_t sequence) override;
+        void ReturnSequence(uint16_t nodeId, uint8_t sequence) override;
 
     private:
         class SystemObserver
@@ -80,6 +82,8 @@ namespace services
             CanProtocolClient& client;
         };
 
+        struct PerServerState;
+
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
         void DispatchPdu(uint32_t rawId, infra::ConstByteRange pdu);
         void MarkServerAlive(uint16_t nodeId);
@@ -88,10 +92,12 @@ namespace services
         void ResyncSequence(uint16_t nodeId, uint8_t expectedSequence);
         void ClearAwaitingAck(uint16_t nodeId, uint8_t category, uint8_t messageType);
         void HandleCommandAckTimeout(uint16_t nodeId);
+        PerServerState& ClaimSequenceSlot(uint16_t nodeId);
+        void AwaitAck(PerServerState& state, infra::TimePoint deadline);
         void SendHeartbeat();
         void ResetHeartbeatTimer();
 
-        struct PerServerState
+        struct SequenceRecord
         {
             uint16_t nodeId = 0;
             uint8_t sequenceCounter = 0;
@@ -100,7 +106,21 @@ namespace services
             bool awaitingAck = false;
             uint8_t awaitingCategory = 0;
             uint8_t awaitingMessageType = 0;
+        };
+
+        struct PerServerState
+            : SequenceRecord
+        {
             infra::TimerSingleShot ackTimer;
+        };
+
+        struct Reservation
+        {
+            PerServerState* state = nullptr;
+            uint8_t sequence = 0;
+            SequenceRecord previous;
+            infra::TimePoint previousAckDeadline;
+            uint8_t previousEvictIndex = 0;
         };
 
         struct ServerLiveness
@@ -123,6 +143,7 @@ namespace services
         std::array<PerServerState, maxServers> serverStates;
         std::array<ServerLiveness, maxServers> serverLiveness;
         uint8_t nextSequenceEvictIndex = 0;
+        std::optional<Reservation> lastReservation;
         uint8_t nextLivenessEvictIndex = 0;
         IsoTpTransport* isoTpTransport = nullptr;
     };

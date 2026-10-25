@@ -86,7 +86,7 @@ redundancy: the category's registered message types stay an accurate description
 of what it understands, while the protocol object does the part that needs the
 source identity.
 
-## 3. Sequence numbers: peek, then commit
+## 3. Sequence numbers: reserve, then keep or give back
 
 ```mermaid
 sequenceDiagram
@@ -95,35 +95,48 @@ sequenceDiagram
     participant Cli as Client protocol object
     participant Tx as Frame transport
 
-    Cat->>Cli: which number for this server?
+    Cat->>Cli: reserve a number for this server and command
     alt a slot exists
-        Cli-->>Cat: its current counter
+        Cli->>Cli: remember the slot as it was
     else a free slot exists
-        Cli->>Cli: claim it, counter starts at zero
-        Cli-->>Cat: zero
+        Cli->>Cli: remember it, claim it, counter starts at zero
     else all slots occupied
-        Cli->>Cli: evict the next slot in rotation,<br/>cancelling anything it awaited
-        Cli-->>Cat: zero
+        Cli->>Cli: remember the next slot in rotation, evict it
     end
+    Cli->>Cli: counter advances, command awaited,<br/>acknowledgement timer starts
+    Cli-->>Cat: the number
 
     Cat->>Tx: send, with the number in the payload
     alt accepted
         Tx-->>Cat: accepted
-        Cat->>Cli: commit — counter advances,<br/>acknowledgement timer starts
-    else queue full
+        opt the frame later fails to leave the node
+            Tx-->>Cat: completion reports failure
+            Cat->>Cli: give the number back
+            Note over Cli: counter steps back unless a later command took the next number —<br/>the command stays awaited, so its timeout reports the loss
+        end
+    else refused
         Tx-->>Cat: refused
-        Note over Cli: counter unchanged —<br/>the number is reused next time
+        Cat->>Cli: cancel the reservation
+        Note over Cli: the slot is restored exactly —<br/>counter, awaited command, its deadline, an evicted server
     end
 ```
 
-Splitting the operation in two is what makes a refused send harmless. Were the
-counter advanced when the number was taken, a command refused by a full queue
-would leave a permanent gap, and every later command would be rejected until a
-resynchronisation cleaned it up.
+Everything the acknowledgement path relies on is in place before the driver
+sees the frame. A driver may deliver the server's answer before its send call
+returns, as a loopback, a simulated bus or a driver that completes
+synchronously does. That answer must find the command it acknowledges, and a
+sequence error must set a counter that nothing advances afterwards.
 
-Committing for a server that was never asked for a number is a programming
-error, and fails loudly — reachable only by bypassing the category's own send
-path.
+Reserving first makes a refusal the case to undo, and the undo is exact: a
+command refused by a full queue leaves no gap, no stale awaited command and no
+needlessly evicted server. A frame that is queued but never transmitted,
+through a driver failure or displacement by an emergency frame, is the one case
+where the number cannot always be recovered. Once a later command has taken
+the next number, stepping back would hand out a duplicate, so the counter
+stays, and the server's sequence error resynchronises it (§4).
+
+Cancelling anything but the latest reservation is a programming error, and
+fails loudly — reachable only by bypassing the category's own send path.
 
 ## 4. Resynchronisation
 
@@ -160,7 +173,7 @@ Three properties make this robust:
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
-    Idle --> Awaiting : command committed —<br/>its identity recorded, timer started
+    Idle --> Awaiting : command reserved —<br/>its identity recorded, timer started
     Awaiting --> Idle : a matching acknowledgement —<br/>timer cancelled
     Awaiting --> Idle : timer expires —<br/>application notified which command was lost
     Awaiting --> Awaiting : another command to the same server —<br/>the recorded identity is replaced
