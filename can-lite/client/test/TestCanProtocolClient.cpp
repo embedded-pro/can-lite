@@ -28,10 +28,6 @@ namespace
                     {
                         receiveCallback = callback;
                     });
-                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                    {
-                        cb(true);
-                    }));
             }
         };
 
@@ -239,7 +235,10 @@ namespace
 
     TEST_F(CanProtocolClientTest, DiscoverCategories_ResponseInvokesCallback)
     {
-        EXPECT_CALL(canMock, SendData(_, _, _));
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
 
         client.DiscoverCategories(1, [](const hal::Can::Message& categories)
             {
@@ -261,7 +260,10 @@ namespace
 
     TEST_F(CanProtocolClientTest, DiscoverCategories_CallbackClearedAfterResponse)
     {
-        EXPECT_CALL(canMock, SendData(_, _, _));
+        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            {
+                cb(true);
+            }));
 
         int callCount = 0;
         client.DiscoverCategories(1, [&callCount](const hal::Can::Message&)
@@ -313,11 +315,6 @@ namespace
                 else
                     deregistered = true;
             });
-        ON_CALL(testCan, SendData(_, _, _))
-            .WillByDefault(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                {
-                    cb(true);
-                }));
 
         {
             CanProtocolClient testClient(testCan);
@@ -458,12 +455,20 @@ namespace
                     {
                         receiveCallback = callback;
                     });
-                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+            }
+        };
+
+        void ExpectHeartbeats(int n)
+        {
+            auto id = hal::Can::Id::Create29BitId(
+                MakeCanId(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, canBroadcastNodeId));
+            EXPECT_CALL(canMock, SendData(id, ElementsAre(canProtocolVersion), _))
+                .Times(n)
+                .WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
                     {
                         cb(true);
                     }));
-            }
-        };
+        }
 
         void SimulateServerFrame(uint16_t sourceNodeId)
         {
@@ -510,12 +515,14 @@ namespace
         EXPECT_CALL(observer, OnServerOnline(5u));
         SimulateServerFrame(5);
 
+        ExpectHeartbeats(3);
         EXPECT_CALL(observer, OnServerOffline(5u));
         ForwardTime(std::chrono::seconds(3));
     }
 
     TEST_F(CanProtocolClientLivenessTest, FrameBeforeTimeoutDefersOffline)
     {
+        ExpectHeartbeats(5);
         EXPECT_CALL(observer, OnServerOnline(5u)).Times(1);
         SimulateServerFrame(5);
         ForwardTime(std::chrono::seconds(2));
@@ -531,6 +538,7 @@ namespace
         EXPECT_CALL(observer, OnServerOnline(5u));
         SimulateServerFrame(5);
 
+        ExpectHeartbeats(3);
         EXPECT_CALL(observer, OnServerOffline(5u));
         ForwardTime(std::chrono::seconds(3));
 
@@ -540,6 +548,7 @@ namespace
 
     TEST_F(CanProtocolClientLivenessTest, AllSlotsFull_EvictsOldestRoundRobin)
     {
+        ExpectHeartbeats(3);
         for (uint16_t node = 1; node <= 8; ++node)
         {
             EXPECT_CALL(observer, OnServerOnline(node));
@@ -585,6 +594,7 @@ namespace
     {
         client.ReserveSequence(5, 3, 0x10);
 
+        ExpectHeartbeats(1);
         EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::seconds(1));
     }
@@ -596,6 +606,7 @@ namespace
         EXPECT_CALL(observer, OnServerOnline(5u));
         SimulateCommandAck(5, 3, 0x10, CanAckStatus::success, 0);
 
+        ExpectHeartbeats(2);
         ForwardTime(std::chrono::seconds(2));
     }
 
@@ -606,6 +617,7 @@ namespace
         EXPECT_CALL(observer, OnServerOnline(5u));
         SimulateCommandAck(5, 4, 0x20, CanAckStatus::success, 0);
 
+        ExpectHeartbeats(1);
         EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::seconds(1));
     }
@@ -619,6 +631,7 @@ namespace
         client.CancelReservation(5, 1);
         ForwardTime(std::chrono::milliseconds(499));
 
+        ExpectHeartbeats(1);
         EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::milliseconds(1));
     }
@@ -628,6 +641,7 @@ namespace
         client.ReserveSequence(5, 3, 0x10);
         client.CancelReservation(5, 0);
 
+        ExpectHeartbeats(2);
         ForwardTime(std::chrono::seconds(2));
     }
 
@@ -636,6 +650,7 @@ namespace
         client.ReserveSequence(5, 3, 0x10);
         client.ReturnSequence(5, 0);
 
+        ExpectHeartbeats(1);
         EXPECT_CALL(observer, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::seconds(1));
     }
@@ -652,6 +667,7 @@ namespace
 
         EXPECT_CALL(observer, OnServerOnline(5u));
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(answerWhileSending).RetiresOnSaturation();
+        ExpectHeartbeats(2);
 
         EXPECT_TRUE(category.Send(5));
         ForwardTime(std::chrono::seconds(2));
@@ -676,18 +692,8 @@ namespace
 
     TEST_F(CanProtocolClientLivenessTest, SendsHeartbeatAfterQuietPeriod)
     {
-        bool heartbeatSeen = false;
-        EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([&heartbeatSeen](hal::Can::Id id, const hal::Can::Message& data, const infra::Function<void(bool)>& cb)
-            {
-                if (id.Is29BitId() && ExtractCanMessageType(id.Get29BitId()) == canHeartbeatMessageTypeId &&
-                    ExtractCanCategory(id.Get29BitId()) == canSystemCategoryId)
-                    heartbeatSeen = true;
-                cb(true);
-            }));
-
+        ExpectHeartbeats(1);
         ForwardTime(std::chrono::seconds(1));
-
-        EXPECT_TRUE(heartbeatSeen);
     }
 
     // === ISO-TP transport integration ===

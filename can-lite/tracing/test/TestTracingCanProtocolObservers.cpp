@@ -23,10 +23,6 @@ namespace
                 {
                     receiveCallback = callback;
                 });
-            EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                {
-                    cb(true);
-                }));
         }
     };
 
@@ -42,6 +38,18 @@ namespace
             hal::Can::Message message;
             message.push_back(canProtocolVersion);
             receiveCallback(id, message);
+        }
+
+        void ExpectServerHeartbeats(int n)
+        {
+            auto id = hal::Can::Id::Create29BitId(
+                MakeCanId(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, config.nodeId));
+            EXPECT_CALL(canMock, SendData(id, ElementsAre(canProtocolVersion), _))
+                .Times(n)
+                .WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                    {
+                        cb(true);
+                    }));
         }
 
         infra::StringOutputStream::WithStorage<512> stream;
@@ -69,6 +77,7 @@ namespace
         EXPECT_CALL(application, Online());
         SimulateClientHeartbeat();
 
+        ExpectServerHeartbeats(3);
         EXPECT_CALL(application, Offline());
         ForwardTime(std::chrono::seconds(3));
 
@@ -87,6 +96,18 @@ namespace
             auto id = hal::Can::Id::Create29BitId(
                 MakeCanId(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, sourceNodeId));
             receiveCallback(id, hal::Can::Message{});
+        }
+
+        void ExpectClientHeartbeats(int n)
+        {
+            auto id = hal::Can::Id::Create29BitId(
+                MakeCanId(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, canBroadcastNodeId));
+            EXPECT_CALL(canMock, SendData(id, ElementsAre(canProtocolVersion), _))
+                .Times(n)
+                .WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                    {
+                        cb(true);
+                    }));
         }
 
         infra::StringOutputStream::WithStorage<512> stream;
@@ -114,6 +135,7 @@ namespace
         EXPECT_CALL(application, OnServerOnline(0x123u));
         SimulateServerFrame(0x123);
 
+        ExpectClientHeartbeats(3);
         EXPECT_CALL(application, OnServerOffline(0x123u));
         ForwardTime(std::chrono::seconds(3));
 
@@ -126,6 +148,7 @@ namespace
     {
         client.ReserveSequence(5, 3, 0x10);
 
+        ExpectClientHeartbeats(1);
         EXPECT_CALL(application, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::seconds(1));
 
