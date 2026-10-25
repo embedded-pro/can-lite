@@ -130,53 +130,73 @@ namespace services
         transport.SendFrame(nodeId, CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, emptyPayload, [](bool) {});
     }
 
-    uint8_t CanProtocolClient::PeekSequence(uint16_t nodeId)
+    uint8_t CanProtocolClient::ReserveSequence(uint16_t nodeId, uint8_t category, uint8_t messageType)
     {
-        for (auto& state : serverStates)
-        {
-            if (state.occupied && state.nodeId == nodeId)
-                return state.sequenceCounter;
-        }
+        auto previousEvictIndex = nextSequenceEvictIndex;
+        auto& state = ClaimSequenceSlot(nodeId);
+        lastReservation = Reservation{ &state, 0, state, state.ackTimer.NextTrigger(), previousEvictIndex };
 
-        for (auto& state : serverStates)
-        {
-            if (!state.occupied)
-            {
-                state.occupied = true;
-                state.nodeId = nodeId;
-                state.sequenceCounter = 0;
-                return 0;
-            }
-        }
+        if (!state.occupied || state.nodeId != nodeId)
+            static_cast<SequenceRecord&>(state) = SequenceRecord{ nodeId, 0, true };
 
-        auto& evicted = serverStates[nextSequenceEvictIndex];
-        nextSequenceEvictIndex = static_cast<uint8_t>((nextSequenceEvictIndex + 1) % serverStates.size());
-        evicted.nodeId = nodeId;
-        evicted.sequenceCounter = 0;
-        evicted.awaitingAck = false;
-        evicted.ackTimer.Cancel();
-        return 0;
+        lastReservation->sequence = state.sequenceCounter++;
+        state.awaitingAck = true;
+        state.awaitingCategory = category;
+        state.awaitingMessageType = messageType;
+        AwaitAck(state, state.ackTimer.Now() + config.commandAckTimeout);
+        return lastReservation->sequence;
     }
 
-    void CanProtocolClient::CommitSequence(uint16_t nodeId, uint8_t category, uint8_t messageType)
+    void CanProtocolClient::CancelReservation(uint16_t nodeId, uint8_t sequence)
+    {
+        really_assert(lastReservation && lastReservation->state->nodeId == nodeId && lastReservation->sequence == sequence);
+
+        auto& reservation = *lastReservation;
+        auto& state = *reservation.state;
+        static_cast<SequenceRecord&>(state) = reservation.previous;
+        nextSequenceEvictIndex = reservation.previousEvictIndex;
+
+        if (state.awaitingAck)
+            AwaitAck(state, reservation.previousAckDeadline);
+        else
+            state.ackTimer.Cancel();
+
+        lastReservation.reset();
+    }
+
+    void CanProtocolClient::ReturnSequence(uint16_t nodeId, uint8_t sequence)
     {
         for (auto& state : serverStates)
         {
-            if (state.occupied && state.nodeId == nodeId)
+            if (state.occupied && state.nodeId == nodeId && state.sequenceCounter == static_cast<uint8_t>(sequence + 1))
             {
-                ++state.sequenceCounter;
-                state.awaitingAck = true;
-                state.awaitingCategory = category;
-                state.awaitingMessageType = messageType;
-                state.ackTimer.Start(config.commandAckTimeout, [this, nodeId]()
-                    {
-                        HandleCommandAckTimeout(nodeId);
-                    });
+                state.sequenceCounter = sequence;
                 return;
             }
         }
+    }
 
-        really_assert(false);
+    CanProtocolClient::PerServerState& CanProtocolClient::ClaimSequenceSlot(uint16_t nodeId)
+    {
+        for (auto& state : serverStates)
+            if (state.occupied && state.nodeId == nodeId)
+                return state;
+
+        for (auto& state : serverStates)
+            if (!state.occupied)
+                return state;
+
+        auto& evicted = serverStates[nextSequenceEvictIndex];
+        nextSequenceEvictIndex = static_cast<uint8_t>((nextSequenceEvictIndex + 1) % serverStates.size());
+        return evicted;
+    }
+
+    void CanProtocolClient::AwaitAck(PerServerState& state, infra::TimePoint deadline)
+    {
+        state.ackTimer.Start(deadline, [this, nodeId = state.nodeId]()
+            {
+                HandleCommandAckTimeout(nodeId);
+            });
     }
 
     void CanProtocolClient::ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data)

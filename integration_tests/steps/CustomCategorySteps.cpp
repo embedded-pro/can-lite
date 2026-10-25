@@ -40,6 +40,28 @@ WHEN(R"(the server completes the ping command)")
     fixture.capturedPingDone();
 }
 
+GIVEN(R"(the server has accepted a ping with sequence number {int})", (std::int32_t sequence))
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+
+    EXPECT_CALL(*fixture.demoServerObserver, OnPing(_))
+        .WillOnce(Invoke([](const infra::Function<void()>& onDone)
+            {
+                onDone();
+            }));
+
+    auto rawId = MakeCanId(CanPriority::command, integration::demoCategoryId, integration::demoPingId, fixture.config.nodeId);
+    hal::Can::Message payload;
+    payload.push_back(static_cast<uint8_t>(sequence));
+    fixture.serverCan.InjectFrame(hal::Can::Id::Create29BitId(rawId), payload);
+}
+
+WHEN(R"(the client sends a set parameters command that the server rejects)")
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+    fixture.demoClient->SendSetParameters(fixture.config.nodeId, DemoParameters{ 1, 2, 3 });
+}
+
 WHEN(R"(the client sends a set parameters command with values {int}, {int}, {int})", (std::int32_t first, std::int32_t second, std::int32_t third))
 {
     auto& fixture = context.Get<ApplicationFixture>();

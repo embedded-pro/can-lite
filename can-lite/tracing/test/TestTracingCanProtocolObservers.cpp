@@ -143,8 +143,7 @@ namespace
 
     TEST_F(TracingCanProtocolClientObserverTest, CommandAckTimeoutReachesBothObservers)
     {
-        client.PeekSequence(5);
-        client.CommitSequence(5, 3, 0x10);
+        client.ReserveSequence(5, 3, 0x10);
 
         EXPECT_CALL(application, OnCommandAckTimeout(5u, 3u, 0x10u));
         ForwardTime(std::chrono::seconds(1));

@@ -10,14 +10,20 @@ namespace services
         : public CanSequenceSource
     {
     public:
-        uint8_t PeekSequence(uint16_t) override
+        uint8_t ReserveSequence(uint16_t, uint8_t, uint8_t) override
         {
-            return sequence;
+            return sequence++;
         }
 
-        void CommitSequence(uint16_t, uint8_t, uint8_t) override
+        void CancelReservation(uint16_t, uint8_t reserved) override
         {
-            ++sequence;
+            sequence = reserved;
+        }
+
+        void ReturnSequence(uint16_t, uint8_t returned) override
+        {
+            if (sequence == static_cast<uint8_t>(returned + 1))
+                sequence = returned;
         }
 
     private:

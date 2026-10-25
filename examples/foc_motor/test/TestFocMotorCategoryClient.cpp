@@ -505,7 +505,7 @@ namespace
 
         EXPECT_FALSE(focClient.SendStart(1));
 
-        EXPECT_EQ(blockedProtocolClient.PeekSequence(1), acceptedFrames);
+        EXPECT_EQ(blockedProtocolClient.ReserveSequence(1, focMotorCategoryId, focStartId), acceptedFrames);
     }
 
     TEST_F(TestFocMotorCategoryClient, SendSetTorqueSetpoint_SendsCorrectFrame)

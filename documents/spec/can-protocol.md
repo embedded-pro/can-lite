@@ -402,6 +402,15 @@ sequenceDiagram
   in-memory counter resets to 0 while the server, unaware of the restart,
   still expects its old counter to continue) without requiring the server to
   also restart.
+- The client takes a number for a server, and records the command as
+  awaiting acknowledgement, before the frame reaches the CAN driver
+  (REQ-CAN-045), so an acknowledgement delivered while the frame is still
+  being sent is matched to it. A command its send queue refuses leaves every
+  counter as it was. A queued command whose frame then fails to leave the
+  node, through a driver failure or displacement by an emergency frame,
+  gives its number back unless a later command to that server has already
+  taken the next one; the loss is reported through the acknowledgement
+  timeout (§8.1.2).
 - Sequence numbers are not an authentication or security mechanism and MUST
   NOT be relied upon to prevent malicious replay on an untrusted CAN bus.
 

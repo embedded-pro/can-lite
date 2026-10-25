@@ -153,12 +153,12 @@ sequenceDiagram
     participant Obs as Server observer
 
     App->>CCat: a command, with its arguments
-    CCat->>CSeq: next sequence number for this server
+    CCat->>CSeq: reserve the next number for this server
+    CSeq->>CSeq: counter advances,<br/>acknowledgement timer starts
     CSeq-->>CCat: sequence number
     CCat->>CCat: compose the payload
     CCat->>CTx: send, addressed to the server
     CTx->>Bus: one frame
-    CCat->>CSeq: commit — counter advances,<br/>acknowledgement timer starts
 
     Bus->>SProto: frame received
     SProto->>SProto: address filter · rate limit ·<br/>category lookup · sequence check

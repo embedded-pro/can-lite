@@ -3,6 +3,7 @@ add_library(can_lite.test_util INTERFACE)
 target_sources(can_lite.test_util INTERFACE
     CanCategoryStubs.hpp
     CanMock.hpp
+    CanSequenceSourceMock.hpp
 )
 
 target_include_directories(can_lite.test_util INTERFACE
@@ -26,6 +27,7 @@ target_link_libraries(can_lite.core_test PRIVATE
 )
 
 target_sources(can_lite.core_test PRIVATE
+    TestCanCategory.cpp
     TestCanFrameTransport.cpp
     TestCanMessageHandler.cpp
     TestCanPayload.cpp

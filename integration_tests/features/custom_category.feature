@@ -36,3 +36,11 @@ Feature: Custom Category Integration
   Scenario: Custom category appears in category discovery
     When the client sends a category discovery request to node 1
     Then the category list response shall contain category 3
+
+  @REQ-CAN-037 @REQ-CAN-045
+  Scenario: A client out of step with the server recovers after one rejected command
+    Given the server has accepted a ping with sequence number 42
+    When the client sends a set parameters command that the server rejects
+    Then the server shall send an acknowledgement with status "sequenceError"
+    When the client sends a set parameters command with values 4, 5, 6
+    Then the server observer shall receive parameters 4, 5, 6

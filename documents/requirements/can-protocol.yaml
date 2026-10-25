@@ -469,6 +469,21 @@
     elapses shall cancel it. The client shall not automatically retry the
     timed-out command.
 
+- id: REQ-CAN-045
+  title: Client sequence consumption
+  shall: >
+    The client shall take a server's next sequence number, record the
+    command as awaiting acknowledgement and start its acknowledgement
+    timer (REQ-CAN-038) before the command frame reaches the CAN driver,
+    so that an acknowledgement delivered while the frame is being sent is
+    matched to that command. A command the client does not send, because
+    its payload leaves no room for the sequence byte or its send queue
+    refuses the frame, shall leave the client's sequence state for every
+    server as it was. A command accepted for sending whose frame then
+    fails to leave the node shall give its sequence number back, unless a
+    later command to the same server has already taken the next number,
+    and its loss shall be reported through the acknowledgement timeout.
+
 # --- Emergency Admission and Accepted-Command Bookkeeping ---
 
 - id: REQ-CAN-042

@@ -19,7 +19,7 @@ components that own them — see
 | Server                | client liveness               | single-shot     | every command this node accepts           | report the client offline                                |
 | Client                | heartbeat                     | single-shot     | every outgoing frame from this node       | broadcast a heartbeat                                    |
 | Client                | server liveness, one per slot | single-shot × 8 | every frame from that server              | report that server offline                               |
-| Client                | acknowledgement, one per slot | single-shot × 8 | committing a command to that server       | report the command unanswered                            |
+| Client                | acknowledgement, one per slot | single-shot × 8 | reserving a number for that server        | report the command unanswered                            |
 | Firmware upgrade      | session                       | single-shot     | the commands that make progress           | report the session expired                               |
 | Segmentation sender   | N_Bs                          | single-shot     | sending a frame that awaits flow control  | abort the transfer                                       |
 | Segmentation sender   | separation                    | single-shot     | each frame, when the peer asks for pacing | send the next frame                                      |
