@@ -47,7 +47,7 @@ namespace services::iso_tp
         bool IsReceiverIdle() const override;
 
     private:
-        void Transmit(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone);
+        void Transmit(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone) const;
         void NotifyPduReady(infra::ConstByteRange pdu) const;
         void NotifyAbort(uint32_t dataId, AbortReason reason) const;
 

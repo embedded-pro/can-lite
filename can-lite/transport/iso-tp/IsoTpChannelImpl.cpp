@@ -105,7 +105,7 @@ namespace services::iso_tp
         return receiver.IsIdle();
     }
 
-    void IsoTpChannelImpl::Transmit(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone)
+    void IsoTpChannelImpl::Transmit(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone) const
     {
         if (!rawSendFunc(txId, frame, onDone))
             onDone(false);
