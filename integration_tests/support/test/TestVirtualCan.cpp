@@ -53,5 +53,14 @@ namespace
         VirtualCan a;
 
         a.Disconnect();
+
+        bool doneCalled = false;
+        a.SendData(hal::Can::Id::Create29BitId(0), hal::Can::Message{}, [&doneCalled](bool)
+            {
+                doneCalled = true;
+            });
+
+        EXPECT_EQ(a.sendCount, 1);
+        EXPECT_TRUE(doneCalled);
     }
 }
