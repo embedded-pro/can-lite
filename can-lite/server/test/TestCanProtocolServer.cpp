@@ -1283,7 +1283,7 @@ namespace
         capturedPduCallback(rawId, infra::MakeRange(pduData));
     }
 
-    TEST_F(CanProtocolServerTest, DispatchPdu_RateLimited_SilentlyDiscarded)
+    TEST_F(CanProtocolServerTest, DispatchPdu_ReassembledPduIsNotRateLimitedAgain)
     {
         CanProtocolServer::Config limitedConfig{ 1, 1, std::chrono::seconds(1) };
         StrictMock<hal::CanMock> limitedCan;
@@ -1630,6 +1630,19 @@ namespace
                 }));
         }
 
+        void ExpectOnlyAcknowledgements()
+        {
+            auto isAcknowledgement = [](hal::Can::Id id)
+            {
+                return ExtractCanCategory(id.Get29BitId()) == canSystemCategoryId && ExtractCanMessageType(id.Get29BitId()) == canCommandAckMessageTypeId;
+            };
+
+            EXPECT_CALL(canMock, SendData(Truly(isAcknowledgement), SizeIs(canCommandAckSize), _)).Times(AtLeast(1)).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& onDone)
+                {
+                    onDone(true);
+                }));
+        }
+
         ~CanProtocolServerSafetyTest() override
         {
             server.DetachIsoTpTransport();
@@ -1946,7 +1959,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, EmergencyStopGetsThroughAMalformedFloodOnBothPaths)
     {
-        ExpectSends(1169);
+        ExpectOnlyAcknowledgements();
         Register();
         AttachIsoTp();
         EXPECT_CALL(isoTp, ProcessFrame(_, _)).WillRepeatedly(Return(false));
