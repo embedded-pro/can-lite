@@ -1,4 +1,6 @@
+#include "can-lite/client/test/CanProtocolClientObserverMock.hpp"
 #include "can-lite/core/test/CanMock.hpp"
+#include "can-lite/server/test/CanProtocolServerObserverMock.hpp"
 #include "can-lite/tracing/TracingCanProtocolClientObserver.hpp"
 #include "can-lite/tracing/TracingCanProtocolServerObserver.hpp"
 #include "infra/stream/StringOutputStream.hpp"
@@ -26,27 +28,6 @@ namespace
                     cb(true);
                 }));
         }
-    };
-
-    class CanProtocolServerObserverMock
-        : public CanProtocolServerObserver
-    {
-    public:
-        using CanProtocolServerObserver::CanProtocolServerObserver;
-
-        MOCK_METHOD(void, Online, (), (override));
-        MOCK_METHOD(void, Offline, (), (override));
-    };
-
-    class CanProtocolClientObserverMock
-        : public CanProtocolClientObserver
-    {
-    public:
-        using CanProtocolClientObserver::CanProtocolClientObserver;
-
-        MOCK_METHOD(void, OnServerOnline, (uint16_t nodeId), (override));
-        MOCK_METHOD(void, OnServerOffline, (uint16_t nodeId), (override));
-        MOCK_METHOD(void, OnCommandAckTimeout, (uint16_t nodeId, uint8_t category, uint8_t messageType), (override));
     };
 
     class TracingCanProtocolServerObserverTest

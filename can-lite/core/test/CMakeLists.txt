@@ -2,8 +2,12 @@ add_library(can_lite.test_util INTERFACE)
 
 target_sources(can_lite.test_util INTERFACE
     CanCategoryStubs.hpp
+    CanCommandAcknowledgerMock.hpp
     CanMock.hpp
     CanSequenceSourceMock.hpp
+    ../../client/test/CanProtocolClientObserverMock.hpp
+    ../../server/test/CanProtocolServerObserverMock.hpp
+    ../../transport/test/IsoTpTransportMock.hpp
 )
 
 target_include_directories(can_lite.test_util INTERFACE

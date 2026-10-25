@@ -1,7 +1,9 @@
 #include "can-lite/client/CanProtocolClient.hpp"
+#include "can-lite/client/test/CanProtocolClientObserverMock.hpp"
 #include "can-lite/core/test/CanCategoryStubs.hpp"
 #include "can-lite/core/test/CanMock.hpp"
 #include "can-lite/transport/IsoTpTransport.hpp"
+#include "can-lite/transport/test/IsoTpTransportMock.hpp"
 #include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -11,17 +13,6 @@ namespace
 {
     using namespace testing;
     using namespace services;
-
-    class MockIsoTpTransport : public IsoTpTransport
-    {
-    public:
-        MOCK_METHOD(bool, RegisterReceiveChannel, (uint32_t, uint32_t), (override));
-        MOCK_METHOD(void, ReleaseChannel, (uint32_t), (override));
-        MOCK_METHOD(bool, SendPdu, (uint32_t, uint32_t, infra::ConstByteRange, const infra::Function<void()>&), (override));
-        MOCK_METHOD(bool, ProcessFrame, (uint32_t, const hal::Can::Message&), (override));
-        MOCK_METHOD(void, SetOnPduReceived, (infra::Function<void(uint32_t, infra::ConstByteRange)>), (override));
-        MOCK_METHOD(void, SetOnAbort, (infra::Function<void(uint32_t, iso_tp::AbortReason)>), (override));
-    };
 
     class CanProtocolClientTest
         : public ::testing::Test
@@ -434,17 +425,6 @@ namespace
 
     // === Server liveness ===
 
-    class CanProtocolClientObserverMock
-        : public CanProtocolClientObserver
-    {
-    public:
-        using CanProtocolClientObserver::CanProtocolClientObserver;
-
-        MOCK_METHOD(void, OnServerOnline, (uint16_t nodeId), (override));
-        MOCK_METHOD(void, OnServerOffline, (uint16_t nodeId), (override));
-        MOCK_METHOD(void, OnCommandAckTimeout, (uint16_t nodeId, uint8_t category, uint8_t messageType), (override));
-    };
-
     class CommandingCategory
         : public CanCategoryClient
     {
@@ -714,7 +694,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameInterceptsMessage)
     {
-        StrictMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<IsoTpTransportMock> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
         client.AttachIsoTpTransport(mockIsoTp);
 
@@ -726,7 +706,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_LeavesTransferFailuresToTheApplication)
     {
-        StrictMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<IsoTpTransportMock> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).Times(2);
 
         client.AttachIsoTpTransport(mockIsoTp);
@@ -735,7 +715,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameReturnsFalse_ContinuesNormalDispatch)
     {
-        StrictMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<IsoTpTransportMock> mockIsoTp;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_));
         client.AttachIsoTpTransport(mockIsoTp);
 
@@ -793,7 +773,7 @@ namespace
         PduCategory pduCategory;
         client.RegisterCategory(pduCategory);
 
-        StrictMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<IsoTpTransportMock> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         client.AttachIsoTpTransport(mockIsoTp);
@@ -808,7 +788,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_DispatchPdu_NonzeroSourceNodeMarksServerAlive)
     {
-        StrictMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<IsoTpTransportMock> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         client.AttachIsoTpTransport(mockIsoTp);
@@ -820,7 +800,7 @@ namespace
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_DispatchPdu_UnknownCategory_Ignored)
     {
-        StrictMock<MockIsoTpTransport> mockIsoTp;
+        StrictMock<IsoTpTransportMock> mockIsoTp;
         infra::Function<void(uint32_t, infra::ConstByteRange)> capturedPduCallback;
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         client.AttachIsoTpTransport(mockIsoTp);
