@@ -7,27 +7,28 @@
 #include "hal/interfaces/Can.hpp"
 #include "infra/util/ByteRange.hpp"
 #include "infra/util/Function.hpp"
-#include "infra/util/WithStorage.hpp"
 #include <cstdint>
 
 namespace services::iso_tp
 {
+    namespace detail
+    {
+        template<uint16_t MaxPduSize>
+        struct IsoTpChannelStorage
+        {
+            typename IsoTpSender::template WithStorage<MaxPduSize> senderStorage;
+            typename IsoTpReceiver::template WithStorage<MaxPduSize> receiverStorage;
+        };
+    }
+
     class IsoTpChannelImpl
         : public IsoTpChannel
     {
     public:
         template<uint16_t MaxPduSize>
-        struct Storage
-        {
-            typename IsoTpSender::template WithStorage<MaxPduSize> sender;
-            typename IsoTpReceiver::template WithStorage<MaxPduSize> receiver;
-        };
+        class WithStorage;
 
-        template<uint16_t MaxPduSize>
-        using WithStorage = infra::WithStorage<IsoTpChannelImpl, Storage<MaxPduSize>>;
-
-        template<uint16_t MaxPduSize>
-        explicit IsoTpChannelImpl(Storage<MaxPduSize>& storage);
+        IsoTpChannelImpl(IsoTpSender& sender, IsoTpReceiver& receiver);
 
         void Configure(uint32_t newRxId, uint32_t newTxId,
             RawSendFunc rawSend, PduReadyFunc onPduReady, AbortFunc onAbort) override;
@@ -65,8 +66,13 @@ namespace services::iso_tp
     };
 
     template<uint16_t MaxPduSize>
-    IsoTpChannelImpl::IsoTpChannelImpl(Storage<MaxPduSize>& storage)
-        : sender(storage.sender)
-        , receiver(storage.receiver)
-    {}
+    class IsoTpChannelImpl::WithStorage
+        : private detail::IsoTpChannelStorage<MaxPduSize>
+        , public IsoTpChannelImpl
+    {
+    public:
+        WithStorage()
+            : IsoTpChannelImpl(this->senderStorage, this->receiverStorage)
+        {}
+    };
 }

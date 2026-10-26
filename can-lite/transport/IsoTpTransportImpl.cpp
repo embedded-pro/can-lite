@@ -2,6 +2,11 @@
 
 namespace services
 {
+    IsoTpTransportImpl::IsoTpTransportImpl(infra::MemoryRange<iso_tp::IsoTpChannel*> channels, CanFrameTransport& transport)
+        : channels(channels)
+        , transport(transport)
+    {}
+
     bool IsoTpTransportImpl::RegisterReceiveChannel(uint32_t dataId, uint32_t fcId)
     {
         auto* ch = FindConnection(dataId, fcId);
@@ -44,7 +49,7 @@ namespace services
 
     bool IsoTpTransportImpl::ProcessFrame(uint32_t canId, const hal::Can::Message& frame)
     {
-        for (auto* ch : channelRange)
+        for (auto* ch : channels)
         {
             if (ch->IsOccupied() && ch->ProcessFrame(canId, frame))
                 return true;
@@ -66,7 +71,7 @@ namespace services
 
     iso_tp::IsoTpChannel* IsoTpTransportImpl::FindChannel(uint32_t canId)
     {
-        for (auto* ch : channelRange)
+        for (auto* ch : channels)
         {
             if (ch->IsOccupied() && (ch->RxId() == canId || ch->TxId() == canId))
                 return ch;
@@ -108,7 +113,7 @@ namespace services
 
     iso_tp::IsoTpChannel* IsoTpTransportImpl::AllocateFreeChannel()
     {
-        for (auto* ch : channelRange)
+        for (auto* ch : channels)
         {
             if (!ch->IsOccupied())
                 return ch;

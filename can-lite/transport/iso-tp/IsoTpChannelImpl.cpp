@@ -3,6 +3,11 @@
 
 namespace services::iso_tp
 {
+    IsoTpChannelImpl::IsoTpChannelImpl(IsoTpSender& sender, IsoTpReceiver& receiver)
+        : sender(sender)
+        , receiver(receiver)
+    {}
+
     void IsoTpChannelImpl::Configure(uint32_t newRxId, uint32_t newTxId,
         RawSendFunc rawSend, PduReadyFunc onPduReady, AbortFunc onAbort)
     {
