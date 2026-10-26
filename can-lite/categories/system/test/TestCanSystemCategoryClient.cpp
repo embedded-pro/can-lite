@@ -17,15 +17,6 @@ namespace
         return message;
     }
 
-    class SystemClientObserverMock
-        : public CanSystemCategoryClientObserver
-    {
-    public:
-        using CanSystemCategoryClientObserver::CanSystemCategoryClientObserver;
-
-        MOCK_METHOD(void, OnCategoryListResponse, (const hal::Can::Message& categoryIds), (override));
-    };
-
     class SystemCategoryClientTest
         : public testing::Test
     {
@@ -64,28 +55,15 @@ namespace
         EXPECT_EQ(client.HandleMessage(0x7F, hal::Can::Message{}), CanDispatchResult::unknownMessageType);
     }
 
-    class SystemCategoryClientWithObserverTest
-        : public SystemCategoryClientTest
+    TEST_F(SystemCategoryClientTest, CategoryListResponseIsHandled)
     {
-    public:
-        StrictMock<SystemClientObserverMock> observer{ client };
-    };
-
-    TEST_F(SystemCategoryClientWithObserverTest, CategoryListResponseIsForwardedToObserver)
-    {
-        auto categoryIds = MakeMessage({ 0x00, 0x01, 0x03 });
-
-        EXPECT_CALL(observer, OnCategoryListResponse(categoryIds));
-
-        EXPECT_EQ(client.HandleMessage(canCategoryListResponseMessageTypeId, categoryIds), CanDispatchResult::handled);
+        EXPECT_EQ(client.HandleMessage(canCategoryListResponseMessageTypeId, MakeMessage({ 0x00, 0x01, 0x03 })), CanDispatchResult::handled);
     }
 
-    TEST_F(SystemCategoryClientWithObserverTest, EmptyCategoryListResponseIsStillForwarded)
+    TEST_F(SystemCategoryClientTest, RequestCategoryListSendsAnEmptyCommandWithoutSequence)
     {
-        hal::Can::Message empty;
+        EXPECT_CALL(can, SendData(hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, 0x02A)), testing::IsEmpty(), testing::_));
 
-        EXPECT_CALL(observer, OnCategoryListResponse(empty));
-
-        EXPECT_EQ(client.HandleMessage(canCategoryListResponseMessageTypeId, empty), CanDispatchResult::handled);
+        EXPECT_TRUE(client.RequestCategoryList(0x02A));
     }
 }

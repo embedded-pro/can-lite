@@ -54,6 +54,12 @@ THEN(R"(the server shall consider the client online)")
     EXPECT_TRUE(fixture.clientOnlineAsSeenByServer);
 }
 
+THEN(R"(the server shall have reported the client online {int} time(s))", (std::int32_t reports))
+{
+    auto& fixture = context.Get<ApplicationFixture>();
+    EXPECT_EQ(fixture.clientOnlineReports, reports);
+}
+
 THEN(R"(the server shall consider the client offline)")
 {
     auto& fixture = context.Get<ApplicationFixture>();

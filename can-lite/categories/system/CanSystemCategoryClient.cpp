@@ -13,22 +13,18 @@ namespace services
         return canSystemCategoryId;
     }
 
+    bool CanSystemCategoryClient::RequestCategoryList(uint16_t nodeId)
+    {
+        return SendCommandWithoutSequence(nodeId, canCategoryListRequestMessageTypeId);
+    }
+
     bool CanSystemCategoryClient::HandleCommandAck(const hal::Can::Message&)
     {
-        // Acknowledged but currently not surfaced to observers; command
-        // completion is tracked application-side via each category's own
-        // response/telemetry frames.
-
         return true;
     }
 
-    bool CanSystemCategoryClient::HandleCategoryListResponse(const hal::Can::Message& data)
+    bool CanSystemCategoryClient::HandleCategoryListResponse(const hal::Can::Message&)
     {
-        NotifyObservers([&data](auto& observer)
-            {
-                observer.OnCategoryListResponse(data);
-            });
-
         return true;
     }
 }

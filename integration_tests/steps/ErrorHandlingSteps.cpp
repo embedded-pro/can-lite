@@ -20,7 +20,7 @@ THEN(R"(the server shall silently discard the frame)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
     EXPECT_EQ(fixture.serverCan.sendCount, 0);
-    EXPECT_EQ(fixture.processedCount, 0);
+    EXPECT_FALSE(fixture.clientOnlineAsSeenByServer);
 }
 
 WHEN(R"(the client receives a frame with an 11-bit standard identifier)")
@@ -103,7 +103,7 @@ WHEN(R"(a heartbeat frame is sent addressed to the broadcast address {int})", (s
 THEN(R"(the server shall process the broadcast heartbeat)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    EXPECT_EQ(fixture.processedCount, 1);
+    EXPECT_TRUE(fixture.clientOnlineAsSeenByServer);
 }
 
 WHEN(R"(a frame is received with unregistered category {int})", (std::int32_t category))

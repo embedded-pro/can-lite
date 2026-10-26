@@ -188,23 +188,21 @@ The System category (ID `0x00`) is a **built-in** category that handles protocol
 
 The system category on the server is **fully automatic** — no public API is exposed to the application developer. `CanProtocolServer` creates an internal observer that reacts to system messages:
 
-| Message               | Internal behavior                              |
-|-----------------------|------------------------------------------------|
-| Heartbeat received    | Notifies `CanProtocolServerObserver::Online()` |
-| Status request        | Sends heartbeat response                       |
-| Category list request | Sends list of registered category IDs          |
+| Message               | Internal behavior                      |
+|-----------------------|----------------------------------------|
+| Heartbeat received    | Counts as an accepted command (§9.2.1) |
+| Status request        | Sends heartbeat response               |
+| Category list request | Sends list of registered category IDs  |
 
 `RegisterCategory()` returns `false`, without registering, if the category's ID is already registered on that server or if `canMaxRegisteredCategories` (8) categories are already registered. The application interacts with `CanProtocolServer` only through `RegisterCategory()` and the `CanProtocolServerObserver` (Online/Offline). All system plumbing is hidden.
 
 ### Client side: `CanSystemCategoryClient`
 
-The system category on the client exposes **only category discovery** through its observer:
+The system category on the client sends the category list request (`RequestCategoryList(nodeId)`) and has no observer. Both answers a server sends it — command acknowledgements (§9.4) and category list responses — are handled in `CanProtocolClient` itself, because they need the source node ID, which the category dispatch layer does not pass down to individual message handlers.
 
-| Exposed via observer                  | Description                                             |
-|---------------------------------------|---------------------------------------------------------|
-| `OnCategoryListResponse(categoryIds)` | Notifies when a category list is received from a server |
-
-Command acknowledgement handling (§9.4) happens in `CanProtocolClient` itself, not in `CanSystemCategoryClient`, because it needs the source node ID, which the category dispatch layer does not pass down to individual message handlers. Category discovery is exposed because the application may want to enumerate a server's capabilities.
+The application reaches discovery through `CanProtocolClient::DiscoverCategories(nodeId, onDone)`, because it may want to enumerate a server's capabilities.
+One discovery is pending at a time; only the asked server's answer completes it, with the category IDs, and `Config::discoveryTimeout` (default 1 s) completes it without an answer.
+A request while one is pending, or to the broadcast address, returns `false`.
 
 ## 7. Bidirectional Category Pattern
 
@@ -361,10 +359,11 @@ nothing about the client, and counting it would let a flood of invalid
 traffic keep a departed client "online" and suppress the application's
 offline fallback. The CAN identifier has no source field, so this rests on
 the single-trusted-controller assumption stated in the protocol
-specification (§8.1.1). Only a received heartbeat notifies
-`CanProtocolServerObserver::Online()`, since that is the specific, meaningful
-signal; if the timer fires without further traffic from the client,
-`CanProtocolServerObserver::Offline()` is notified. A server tracks liveness
+specification (§8.1.1). The first accepted command after start-up or after an
+outage notifies `CanProtocolServerObserver::Online()`, and later ones do not;
+if the timer fires without further traffic from the client,
+`CanProtocolServerObserver::Offline()` is notified. The application sees one
+notification per transition, alternating. A server tracks liveness
 for one client only, consistent with the single sequence counter (§9).
 
 ## 9.2.2 Receive Admission Order
@@ -611,16 +610,18 @@ callback, simulating a shared CAN bus without mocking `SendData`/`ReceiveData`.
 All mock observers use `testing::StrictMock`. Category observers carry explicit
 per-step expectations, so an unexpected call fails the scenario.
 
-The protocol objects' observers are notified on every heartbeat, received frame
-and timeout. The fixture therefore records those notifications:
+The protocol objects' observers are notified as peers come and go and as
+acknowledgements time out, which no step sets up explicitly. The fixture
+therefore records those notifications:
 
-- the client's online state as the server sees it, and the count of processed
-  heartbeats;
+- the client's online state as the server sees it;
 - the number of servers the client sees online;
 - command acknowledgement timeouts.
 
-Then steps assert the recorded state. An after-scenario hook fails any scenario
-that ends with a command acknowledgement timed out.
+Then steps assert the recorded state. Rate-limiting scenarios count the
+heartbeats they inject less the server's rate-limited statistic. An
+after-scenario hook fails any scenario that ends with a command acknowledgement
+timed out.
 
 ### Cucumber Context API
 

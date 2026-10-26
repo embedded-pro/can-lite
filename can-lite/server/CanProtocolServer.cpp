@@ -64,12 +64,7 @@ namespace services
     {}
 
     void CanProtocolServer::SystemObserver::OnHeartbeatReceived(uint8_t)
-    {
-        server.NotifyObservers([](auto& observer)
-            {
-                observer.Online();
-            });
-    }
+    {}
 
     void CanProtocolServer::SystemObserver::OnStatusRequest()
     {
@@ -330,10 +325,18 @@ namespace services
 
     void CanProtocolServer::MarkClientAlive()
     {
-        clientOnline = true;
         clientLivenessTimer.Start(config.clientTimeout, [this]()
             {
                 HandleClientTimeout();
+            });
+
+        if (clientOnline)
+            return;
+
+        clientOnline = true;
+        NotifyObservers([](auto& observer)
+            {
+                observer.Online();
             });
     }
 

@@ -13,6 +13,7 @@ namespace
             canHeartbeatMessageTypeId, fixture.config.nodeId);
         auto id = hal::Can::Id::Create29BitId(rawId);
 
+        fixture.heartbeatsInjected += count;
         for (std::int32_t i = 0; i < count; ++i)
         {
             hal::Can::Message msg;
@@ -40,5 +41,5 @@ WHEN(R"(a heartbeat message reaches the server)")
 THEN(R"(the server shall have processed {int} messages)", (std::int32_t expected))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    EXPECT_EQ(fixture.processedCount, expected);
+    EXPECT_EQ(fixture.heartbeatsInjected - static_cast<std::int32_t>(fixture.server.Statistics().rateLimited), expected);
 }

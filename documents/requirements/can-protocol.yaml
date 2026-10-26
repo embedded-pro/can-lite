@@ -286,6 +286,16 @@
     truncates. A server needing to expose more than 8 categories is not
     currently supported.
 
+- id: REQ-CAN-048
+  title: Discovery completion
+  shall: >
+    The client shall keep at most one category discovery pending, and
+    shall refuse a request made while one is pending or addressed to the
+    broadcast node ID. Only a category list response from the node asked
+    shall complete the pending discovery. If none arrives within a
+    configurable timeout (default 1 s), the client shall complete it
+    without an answer.
+
 # --- Multi-Server Client ---
 
 - id: REQ-CAN-026
@@ -475,9 +485,11 @@
     category, passes sequence validation where the category requires
     it, and its handler accepts the payload. A frame that is rate
     limited, discarded or answered with an error shall not restart the
-    timeout. A received heartbeat shall additionally notify the
-    application via CanProtocolServerObserver::Online(). If the timeout
-    elapses without a further accepted command, the server shall notify
+    timeout. The first command accepted after construction, or after
+    Offline(), shall notify the application via
+    CanProtocolServerObserver::Online(); further accepted commands shall
+    not notify it again. If the timeout elapses without a further
+    accepted command, the server shall notify
     CanProtocolServerObserver::Offline(). A server tracks liveness for
     one client only, consistent with REQ-CAN-006.1. Because the CAN
     identifier carries the destination but not the source, the server

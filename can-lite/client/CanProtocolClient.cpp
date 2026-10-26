@@ -12,7 +12,6 @@ namespace services
         , config(config)
         , transport(can, 0)
         , systemCategory(transport, *this)
-        , systemObserver(systemCategory, *this)
     {
         categories.push_back(systemCategory);
 
@@ -33,21 +32,6 @@ namespace services
     {
         can.ReceiveData(nullptr);
         transport.ClearOnSendNotification();
-    }
-
-    CanProtocolClient::SystemObserver::SystemObserver(CanSystemCategoryClient& subject, CanProtocolClient& client)
-        : CanSystemCategoryClientObserver(subject)
-        , client(client)
-    {}
-
-    void CanProtocolClient::SystemObserver::OnCategoryListResponse(const hal::Can::Message& categoryIds)
-    {
-        if (client.pendingDiscoveryCallback)
-        {
-            auto callback = client.pendingDiscoveryCallback;
-            client.pendingDiscoveryCallback = nullptr;
-            callback(categoryIds);
-        }
     }
 
     bool CanProtocolClient::RegisterCategory(CanCategoryClient& category)
@@ -106,6 +90,7 @@ namespace services
         auto messageType = ExtractCanMessageType(rawId);
 
         HandleCommandAckFrame(sourceNodeId, categoryId, messageType, pdu);
+        HandleCategoryListFrame(sourceNodeId, categoryId, messageType, pdu);
 
         for (auto& category : categories)
         {
@@ -117,12 +102,43 @@ namespace services
         }
     }
 
-    void CanProtocolClient::DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone)
+    bool CanProtocolClient::DiscoverCategories(uint16_t nodeId, const infra::Function<void(std::optional<infra::ConstByteRange> categoryIds)>& onDone)
     {
-        pendingDiscoveryCallback = onDone;
+        if (discoveryNode.has_value() || nodeId == canBroadcastNodeId)
+            return false;
 
-        hal::Can::Message emptyPayload;
-        transport.SendFrame(nodeId, CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, emptyPayload, [](bool) {});
+        discoveryNode = nodeId;
+        discoveryDone = onDone;
+        discoveryTimer.Start(config.discoveryTimeout, [this]()
+            {
+                CompleteDiscovery(std::nullopt);
+            });
+
+        if (systemCategory.RequestCategoryList(nodeId))
+            return true;
+
+        discoveryTimer.Cancel();
+        discoveryNode.reset();
+        discoveryDone = nullptr;
+        return false;
+    }
+
+    void CanProtocolClient::HandleCategoryListFrame(uint16_t sourceNodeId, uint8_t categoryId, uint8_t messageType, infra::ConstByteRange payload)
+    {
+        if (categoryId != canSystemCategoryId || messageType != canCategoryListResponseMessageTypeId)
+            return;
+
+        if (discoveryNode == sourceNodeId)
+            CompleteDiscovery(payload);
+    }
+
+    void CanProtocolClient::CompleteDiscovery(std::optional<infra::ConstByteRange> categoryIds)
+    {
+        discoveryTimer.Cancel();
+        auto onDone = discoveryDone;
+        discoveryDone = nullptr;
+        discoveryNode.reset();
+        onDone(categoryIds);
     }
 
     uint8_t CanProtocolClient::ReserveSequence(uint16_t nodeId, uint8_t category, uint8_t messageType)
@@ -213,6 +229,7 @@ namespace services
             MarkServerAlive(sourceNodeId);
 
         HandleCommandAckFrame(sourceNodeId, categoryId, messageType, infra::MakeRange(data));
+        HandleCategoryListFrame(sourceNodeId, categoryId, messageType, infra::MakeRange(data));
 
         for (auto& category : categories)
         {

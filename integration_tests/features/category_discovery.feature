@@ -33,3 +33,9 @@ Feature: Category Discovery
   Scenario: Category list response without pending request is ignored
     When the server sends a category list response without a pending request
     Then the client shall silently ignore the response
+
+  @REQ-CAN-048
+  Scenario: Discovery of a node that never answers completes without an answer
+    When the client sends a category discovery request to node 9
+    And 1 second elapses
+    Then the category discovery shall have completed without an answer

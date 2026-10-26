@@ -39,6 +39,7 @@ namespace integration
         services::CanProtocolServer server;
         testing::StrictMock<ServerObserverMock> serverObserver;
         bool clientOnlineAsSeenByServer = false;
+        int clientOnlineReports = 0;
         services::CanProtocolClient client;
         testing::StrictMock<CanProtocolClientObserverMock> clientObserver;
         int serversOnlineAsSeenByClient = 0;
@@ -69,6 +70,6 @@ namespace integration
         infra::BoundedVector<SequencedTestCategory>::WithMaxSize<4> sequencedCategories;
         infra::BoundedVector<SimpleTestCategory>::WithMaxSize<4> simpleCategories;
 
-        int processedCount = 0;
+        int heartbeatsInjected = 0;
     };
 }

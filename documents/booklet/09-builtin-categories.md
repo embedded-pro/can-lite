@@ -45,9 +45,9 @@ wrong: the client already extracted that frame's value — proof of life — bef
 dispatch (Chapter 7), and clients never acknowledge, so an unhandled message
 type on the client side is genuinely inert.
 
-The acknowledgement handler on the client half is deliberately empty. The work
-happens in the protocol object, which runs first because it needs the source
-identity that dispatch does not carry. The handler exists so that the category's
+The acknowledgement and category list handlers on the client half are
+deliberately empty. The work happens in the protocol object, which runs first
+because it needs the source identity that dispatch does not carry. The handler exists so that the category's
 registered message types remain an accurate description of what it understands —
 a small piece of hygiene, not dead code.
 

@@ -38,6 +38,12 @@ Feature: System Category
     Then the server shall consider the client online
 
   @REQ-CAN-036
+  Scenario: The server reports a client online once, not on every heartbeat
+    When 3 seconds elapse
+    Then the server shall consider the client online
+    And the server shall have reported the client online 1 time
+
+  @REQ-CAN-036
   Scenario: Server detects a silent client as offline
     Given the client goes silent
     When 3 seconds elapse

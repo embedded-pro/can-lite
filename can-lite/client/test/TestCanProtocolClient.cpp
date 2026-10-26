@@ -8,6 +8,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <array>
+#include <optional>
 
 namespace
 {
@@ -215,68 +216,200 @@ namespace
 
     // === DiscoverCategories ===
 
-    TEST_F(CanProtocolClientTest, DiscoverCategories_SendsRequestToNodeId)
+    class CanProtocolClientDiscoveryTest
+        : public CanProtocolClientTest
     {
-        hal::Can::Id capturedId = hal::Can::Id::Create29BitId(0);
-        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(DoAll(SaveArg<0>(&capturedId), Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                                                                                            {
-                                                                                                cb(true);
-                                                                                            })));
+    public:
+        void ExpectRequest(uint16_t nodeId)
+        {
+            EXPECT_CALL(canMock, SendData(hal::Can::Id::Create29BitId(MakeCanId(CanPriority::command, canSystemCategoryId, canCategoryListRequestMessageTypeId, nodeId)), IsEmpty(), _))
+                .WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                    {
+                        cb(true);
+                    }));
+        }
 
-        client.DiscoverCategories(42, [](const hal::Can::Message&) {});
+        void ExpectHeartbeats(int n)
+        {
+            auto id = hal::Can::Id::Create29BitId(
+                MakeCanId(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, canBroadcastNodeId));
+            EXPECT_CALL(canMock, SendData(id, ElementsAre(canProtocolVersion), _))
+                .Times(n)
+                .WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                    {
+                        cb(true);
+                    }));
+        }
 
-        EXPECT_TRUE(capturedId.Is29BitId());
-        uint32_t rawId = capturedId.Get29BitId();
-        EXPECT_EQ(ExtractCanCategory(rawId), canSystemCategoryId);
-        EXPECT_EQ(ExtractCanMessageType(rawId), canCategoryListRequestMessageTypeId);
-        EXPECT_EQ(ExtractCanNodeId(rawId), 42u);
-        EXPECT_EQ(ExtractCanPriority(rawId), CanPriority::command);
+        infra::Function<void(std::optional<infra::ConstByteRange>)> Record()
+        {
+            return [this](std::optional<infra::ConstByteRange> categoryIds)
+            {
+                ++completions;
+                answered = categoryIds.has_value();
+                received.clear();
+                if (categoryIds)
+                    for (auto id : *categoryIds)
+                        received.push_back(id);
+            };
+        }
+
+        int completions = 0;
+        bool answered = false;
+        hal::Can::Message received;
+    };
+
+    TEST_F(CanProtocolClientDiscoveryTest, SendsAnEmptyRequestToTheNode)
+    {
+        ExpectRequest(42);
+
+        EXPECT_TRUE(client.DiscoverCategories(42, Record()));
     }
 
-    TEST_F(CanProtocolClientTest, DiscoverCategories_ResponseInvokesCallback)
+    TEST_F(CanProtocolClientDiscoveryTest, AnswerFromTheRequestedNodeCompletesIt)
     {
-        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+        ExpectRequest(1);
+        client.DiscoverCategories(1, Record());
+
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00, 0x01, 0x05 }));
+
+        EXPECT_EQ(completions, 1);
+        EXPECT_TRUE(answered);
+        EXPECT_EQ(received, MakeMessage({ 0x00, 0x01, 0x05 }));
+    }
+
+    TEST_F(CanProtocolClientDiscoveryTest, AnswerFromAnotherNodeIsIgnored)
+    {
+        ExpectRequest(1);
+        client.DiscoverCategories(1, Record());
+
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 2), MakeMessage({ 0x00, 0x07 }));
+        EXPECT_EQ(completions, 0);
+
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00 }));
+        EXPECT_EQ(completions, 1);
+        EXPECT_EQ(received, MakeMessage({ 0x00 }));
+    }
+
+    TEST_F(CanProtocolClientDiscoveryTest, AnswerWithoutAPendingRequestIsIgnored)
+    {
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00, 0x01 }));
+
+        EXPECT_EQ(completions, 0);
+    }
+
+    TEST_F(CanProtocolClientDiscoveryTest, CompletesOnlyOnce)
+    {
+        ExpectRequest(1);
+        client.DiscoverCategories(1, Record());
+
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00 }));
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00 }));
+
+        EXPECT_EQ(completions, 1);
+    }
+
+    TEST_F(CanProtocolClientDiscoveryTest, SecondRequestWhileOneIsPendingIsRefused)
+    {
+        ExpectRequest(1);
+        client.DiscoverCategories(1, Record());
+
+        int secondCompletions = 0;
+        EXPECT_FALSE(client.DiscoverCategories(2, [&secondCompletions](std::optional<infra::ConstByteRange>)
             {
-                cb(true);
+                ++secondCompletions;
             }));
 
-        client.DiscoverCategories(1, [](const hal::Can::Message& categories)
-            {
-                ASSERT_EQ(categories.size(), 3u);
-                EXPECT_EQ(categories[0], 0x00);
-                EXPECT_EQ(categories[1], 0x01);
-                EXPECT_EQ(categories[2], 0x05);
-            });
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00 }));
 
-        auto responseId = MakeSystemId(canCategoryListResponseMessageTypeId);
-        SimulateRx(responseId, MakeMessage({ 0x00, 0x01, 0x05 }));
+        EXPECT_EQ(completions, 1);
+        EXPECT_EQ(secondCompletions, 0);
     }
 
-    TEST_F(CanProtocolClientTest, DiscoverCategories_ResponseWithoutPendingRequest_Ignored)
+    TEST_F(CanProtocolClientDiscoveryTest, BroadcastRequestIsRefused)
     {
-        auto responseId = MakeSystemId(canCategoryListResponseMessageTypeId);
-        SimulateRx(responseId, MakeMessage({ 0x00, 0x01 }));
+        EXPECT_FALSE(client.DiscoverCategories(canBroadcastNodeId, Record()));
+
+        ExpectHeartbeats(1);
+        ForwardTime(std::chrono::seconds(1));
+        EXPECT_EQ(completions, 0);
     }
 
-    TEST_F(CanProtocolClientTest, DiscoverCategories_CallbackClearedAfterResponse)
+    TEST_F(CanProtocolClientDiscoveryTest, CompletesWithoutAnAnswerAfterTheTimeout)
     {
-        EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-            {
-                cb(true);
-            }));
+        ExpectRequest(1);
+        client.DiscoverCategories(1, Record());
 
-        int callCount = 0;
-        client.DiscoverCategories(1, [&callCount](const hal::Can::Message&)
+        ForwardTime(std::chrono::milliseconds(999));
+        EXPECT_EQ(completions, 0);
+
+        ExpectHeartbeats(1);
+        ForwardTime(std::chrono::milliseconds(1));
+        EXPECT_EQ(completions, 1);
+        EXPECT_FALSE(answered);
+
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00 }));
+        EXPECT_EQ(completions, 1);
+    }
+
+    TEST_F(CanProtocolClientDiscoveryTest, AnswerCancelsTheTimeout)
+    {
+        ExpectRequest(1);
+        client.DiscoverCategories(1, Record());
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00 }));
+
+        ExpectHeartbeats(2);
+        ForwardTime(std::chrono::seconds(2));
+
+        EXPECT_EQ(completions, 1);
+        EXPECT_TRUE(answered);
+    }
+
+    TEST_F(CanProtocolClientDiscoveryTest, CompletionMayStartTheNextDiscovery)
+    {
+        ExpectRequest(1);
+        ExpectRequest(2);
+        bool secondAccepted = false;
+        client.DiscoverCategories(1, [this, &secondAccepted](std::optional<infra::ConstByteRange>)
             {
-                callCount++;
+                secondAccepted = client.DiscoverCategories(2, Record());
             });
 
-        auto responseId = MakeSystemId(canCategoryListResponseMessageTypeId);
-        SimulateRx(responseId, MakeMessage({ 0x00 }));
-        EXPECT_EQ(callCount, 1);
+        SimulateRx(MakeSystemId(canCategoryListResponseMessageTypeId, 1), MakeMessage({ 0x00 }));
 
-        SimulateRx(responseId, MakeMessage({ 0x00 }));
-        EXPECT_EQ(callCount, 1);
+        EXPECT_TRUE(secondAccepted);
+    }
+
+    TEST_F(CanProtocolClientDiscoveryTest, RequestTheTransportRefusesLeavesNothingPending)
+    {
+        EXPECT_CALL(canMock, SendData(_, _, _)).Times(1);
+        while (client.Transport().SendFrame(7, CanPriority::command, 0x05, 0x01, MakeMessage({ 0x00 }), [](bool) {}))
+        {
+        }
+
+        EXPECT_FALSE(client.DiscoverCategories(1, Record()));
+
+        ForwardTime(std::chrono::seconds(2));
+        EXPECT_EQ(completions, 0);
+    }
+
+    TEST_F(CanProtocolClientDiscoveryTest, AnswerReassembledByIsoTpCompletesIt)
+    {
+        StrictMock<IsoTpTransportMock> isoTp;
+        infra::Function<void(uint32_t, infra::ConstByteRange)> pduCallback;
+        EXPECT_CALL(isoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&pduCallback));
+        client.AttachIsoTpTransport(isoTp);
+
+        ExpectRequest(1);
+        client.DiscoverCategories(1, Record());
+
+        std::array<uint8_t, 2> categoryIds{ 0x00, 0x04 };
+        pduCallback(MakeCanId(CanPriority::response, canSystemCategoryId, canCategoryListResponseMessageTypeId, 1), infra::MakeRange(categoryIds));
+
+        EXPECT_EQ(received, MakeMessage({ 0x00, 0x04 }));
+
+        EXPECT_CALL(isoTp, SetOnPduReceived(_));
+        client.DetachIsoTpTransport();
     }
 
     // === Edge cases ===
