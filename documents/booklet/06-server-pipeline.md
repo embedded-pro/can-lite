@@ -225,6 +225,7 @@ payload runs the same gates in the same order, ending in the segmented dispatch
 path rather than the single-frame one, which is what makes segmentation
 invisible to a category.
 
-The server also arranges for a transfer that fails part-way to release its
-channel, so a failed transfer frees its slot instead of holding it forever.
-Chapter 8 covers when transfers fail and what the peer observes.
+The server does not take part in a transfer's failure. It installs only the
+callback that delivers reassembled payloads; the abort callback is the
+application's, and the channel stays open after a failed transfer, ready for
+the next one. Chapter 8 covers when transfers fail and what the peer observes.

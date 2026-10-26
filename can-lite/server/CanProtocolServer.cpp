@@ -120,10 +120,6 @@ namespace services
             {
                 DispatchPdu(rawId, pdu);
             });
-        isoTp.SetOnAbort([this](uint32_t dataId, iso_tp::AbortReason)
-            {
-                isoTpTransport->ReleaseChannel(dataId);
-            });
     }
 
     void CanProtocolServer::DetachIsoTpTransport()
@@ -132,7 +128,6 @@ namespace services
             return;
 
         isoTpTransport->SetOnPduReceived(nullptr);
-        isoTpTransport->SetOnAbort(nullptr);
         isoTpTransport = nullptr;
     }
 

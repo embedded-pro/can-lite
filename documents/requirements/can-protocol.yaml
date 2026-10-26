@@ -412,14 +412,39 @@
 - id: REQ-CAN-035
   title: ISO-TP channel management
   shall: >
-    IsoTpTransportImpl shall support registering multiple independent
-    receive channels identified by a (dataId, fcId) pair. The maximum
-    number of simultaneous channels shall be bounded at compile time via
-    the MaxChannels template parameter (default 4). Registering a channel
-    with a dataId already in use shall return false without modifying state.
-    A channel shall be reclaimable via ReleaseChannel(dataId), allowing its
-    slot to be reused once the application (or the transport itself, on
-    abort) is done with that dataId.
+    IsoTpTransportImpl shall support multiple independent channels, each a
+    connection with one peer identified by a receive identifier and a
+    transmit identifier. Frames from the peer arrive on the receive
+    identifier; data and flow control sent to the peer leave on the
+    transmit identifier, so a transmission and a reception may run on one
+    channel at the same time. RegisterReceiveChannel(dataId, fcId) shall
+    open or extend the channel whose receive identifier is dataId and
+    whose transmit identifier is fcId; SendPdu(dataId, fcId) shall use the
+    channel whose transmit identifier is dataId and whose receive
+    identifier is fcId, opening one that accepts only flow control if
+    none exists. A pair sharing only one identifier with another channel,
+    or a second registration of the same pair, shall be refused without
+    modifying state. The maximum number of simultaneous channels shall be
+    bounded at compile time via the MaxChannels template parameter
+    (default 4). A channel shall stay open until the application calls
+    ReleaseChannel with either of its identifiers; releasing shall end
+    any transfer in progress on it without a report.
+
+- id: REQ-CAN-046
+  title: ISO-TP unexpected and failed transfers
+  shall: >
+    The receiver shall handle unexpected frames as ISO 15765-2 requires.
+    It shall ignore a frame with an unknown protocol control nibble, a
+    single frame whose length is zero, above seven or beyond the frame, a
+    first frame shorter than eight bytes or declaring fewer than eight
+    bytes, a consecutive frame while no reception is in progress, and a
+    flow control frame. A valid single or first frame arriving during a
+    reception shall end that reception, reported as an unexpected frame,
+    and shall then be processed as a new reception. A transfer that fails
+    shall be discarded and reported once through the transport's abort
+    callback; the channel shall stay open. The protocol objects shall not
+    install the abort callback, which belongs to the application, and
+    shall not release channels.
 
 # --- Bidirectional Liveness and Sequence Recovery ---
 

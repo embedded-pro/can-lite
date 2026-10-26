@@ -29,14 +29,16 @@ namespace services::iso_tp
         template<uint16_t MaxPduSize>
         explicit IsoTpChannelImpl(Storage<MaxPduSize>& storage);
 
-        void Configure(uint32_t newDataId, uint32_t newFcId,
+        void Configure(uint32_t newRxId, uint32_t newTxId,
             RawSendFunc rawSend, PduReadyFunc onPduReady, AbortFunc onAbort) override;
+        void EnableReception() override;
 
         void Release() override;
 
         bool IsOccupied() const override;
-        uint32_t DataId() const override;
-        uint32_t FcId() const override;
+        bool IsReceptionEnabled() const override;
+        uint32_t RxId() const override;
+        uint32_t TxId() const override;
 
         bool ProcessFrame(uint32_t canId, const hal::Can::Message& frame) override;
         bool SendPdu(infra::ConstByteRange pdu, const infra::Function<void()>& onDone) override;
@@ -45,14 +47,14 @@ namespace services::iso_tp
         bool IsReceiverIdle() const override;
 
     private:
-        void SendToDataId(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone);
-        void SendToFcId(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone);
+        void Transmit(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone) const;
         void NotifyPduReady(infra::ConstByteRange pdu) const;
-        void NotifyAbort(AbortReason reason) const;
+        void NotifyAbort(uint32_t dataId, AbortReason reason) const;
 
-        uint32_t dataId{ 0u };
-        uint32_t fcId{ 0u };
+        uint32_t rxId{ 0u };
+        uint32_t txId{ 0u };
         bool occupied{ false };
+        bool receptionEnabled{ false };
 
         RawSendFunc rawSendFunc;
         PduReadyFunc onPduReadyFunc;

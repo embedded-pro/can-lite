@@ -26,6 +26,7 @@ namespace services::iso_tp
 
         pduBuffer.assign(pdu.begin(), pdu.end());
         onDoneCallback = onDone;
+        ++transfer;
         bytesSent = 0;
         sequenceNumber = 1;
         blockSize = 0;
@@ -78,6 +79,11 @@ namespace services::iso_tp
         ScheduleNextCf();
     }
 
+    void IsoTpSender::Reset()
+    {
+        Clear();
+    }
+
     bool IsoTpSender::IsIdle() const
     {
         return state == SenderState::idle;
@@ -91,16 +97,14 @@ namespace services::iso_tp
         {
             IsoTpFrameCodec::EncodeSingleFrame(infra::MakeRange(pduBuffer), frame);
             state = SenderState::sendingSf;
-            sendFrameFunc(frame, [this](bool success)
+            sendFrameFunc(frame, [this, current = transfer](bool success)
                 {
-                    if (!success)
-                    {
-                        Abort(AbortReason::sendFailed);
+                    if (current != transfer)
                         return;
-                    }
-                    state = SenderState::idle;
-                    auto done = onDoneCallback;
-                    done();
+                    if (!success)
+                        Abort(AbortReason::sendFailed);
+                    else
+                        Complete();
                 });
         }
         else
@@ -109,9 +113,9 @@ namespace services::iso_tp
             bytesSent = ffFirstDataBytes;
             state = SenderState::waitingForFc;
             StartNBsTimer();
-            sendFrameFunc(frame, [this](bool success)
+            sendFrameFunc(frame, [this, current = transfer](bool success)
                 {
-                    if (!success)
+                    if (!success && current == transfer)
                         Abort(AbortReason::sendFailed);
                 });
         }
@@ -161,41 +165,48 @@ namespace services::iso_tp
             {
                 state = SenderState::waitingForFc;
                 StartNBsTimer();
-                sendFrameFunc(frame, [this](bool success)
+                sendFrameFunc(frame, [this, current = transfer](bool success)
                     {
-                        if (!success)
+                        if (!success && current == transfer)
                             Abort(AbortReason::sendFailed);
                     });
                 return;
             }
         }
 
-        sendFrameFunc(frame, [this, allSent](bool success)
+        sendFrameFunc(frame, [this, allSent, current = transfer](bool success)
             {
-                if (!success)
-                {
-                    Abort(AbortReason::sendFailed);
+                if (current != transfer)
                     return;
-                }
-                if (allSent)
-                {
-                    state = SenderState::idle;
-                    auto done = onDoneCallback;
-                    done();
-                }
+                if (!success)
+                    Abort(AbortReason::sendFailed);
+                else if (allSent)
+                    Complete();
                 else if (state == SenderState::sendingCf)
-                {
                     ScheduleNextCf();
-                }
             });
+    }
+
+    void IsoTpSender::Complete()
+    {
+        state = SenderState::idle;
+        ++transfer;
+        auto done = onDoneCallback;
+        done();
     }
 
     void IsoTpSender::Abort(AbortReason reason)
     {
+        Clear();
+        if (onAbortFunc)
+            onAbortFunc(reason);
+    }
+
+    void IsoTpSender::Clear()
+    {
         nBsTimer.Cancel();
         stMinTimer.Cancel();
         state = SenderState::idle;
-        if (onAbortFunc)
-            onAbortFunc(reason);
+        ++transfer;
     }
 }

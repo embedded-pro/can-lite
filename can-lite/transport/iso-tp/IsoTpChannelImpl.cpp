@@ -3,12 +3,13 @@
 
 namespace services::iso_tp
 {
-    void IsoTpChannelImpl::Configure(uint32_t newDataId, uint32_t newFcId,
+    void IsoTpChannelImpl::Configure(uint32_t newRxId, uint32_t newTxId,
         RawSendFunc rawSend, PduReadyFunc onPduReady, AbortFunc onAbort)
     {
-        dataId = newDataId;
-        fcId = newFcId;
+        rxId = newRxId;
+        txId = newTxId;
         occupied = true;
+        receptionEnabled = false;
         rawSendFunc = rawSend;
         onPduReadyFunc = onPduReady;
         onAbortFunc = onAbort;
@@ -16,17 +17,17 @@ namespace services::iso_tp
         sender.Configure(
             [this](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
-                SendToDataId(f, d);
+                Transmit(f, d);
             },
             [this](AbortReason r)
             {
-                NotifyAbort(r);
+                NotifyAbort(txId, r);
             });
 
         receiver.Configure(
             [this](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
-                SendToFcId(f, d);
+                Transmit(f, d);
             },
             [this](infra::ConstByteRange pdu)
             {
@@ -34,13 +35,21 @@ namespace services::iso_tp
             },
             [this](AbortReason r)
             {
-                NotifyAbort(r);
+                NotifyAbort(rxId, r);
             });
+    }
+
+    void IsoTpChannelImpl::EnableReception()
+    {
+        receptionEnabled = true;
     }
 
     void IsoTpChannelImpl::Release()
     {
+        sender.Reset();
+        receiver.Reset();
         occupied = false;
+        receptionEnabled = false;
     }
 
     bool IsoTpChannelImpl::IsOccupied() const
@@ -48,34 +57,37 @@ namespace services::iso_tp
         return occupied;
     }
 
-    uint32_t IsoTpChannelImpl::DataId() const
+    bool IsoTpChannelImpl::IsReceptionEnabled() const
     {
-        return dataId;
+        return receptionEnabled;
     }
 
-    uint32_t IsoTpChannelImpl::FcId() const
+    uint32_t IsoTpChannelImpl::RxId() const
     {
-        return fcId;
+        return rxId;
+    }
+
+    uint32_t IsoTpChannelImpl::TxId() const
+    {
+        return txId;
     }
 
     bool IsoTpChannelImpl::ProcessFrame(uint32_t canId, const hal::Can::Message& frame)
     {
-        if (canId == fcId &&
-            IsoTpFrameCodec::DecodeFrameType(frame) == FrameType::flowControl)
+        if (canId != rxId)
+            return false;
+
+        if (IsoTpFrameCodec::DecodeFrameType(frame) == FrameType::flowControl)
         {
             sender.ProcessFlowControl(frame);
             return true;
         }
-        if (canId == dataId)
-        {
-            auto type = IsoTpFrameCodec::DecodeFrameType(frame);
-            if (type != FrameType::flowControl)
-            {
-                receiver.ProcessFrame(frame);
-                return true;
-            }
-        }
-        return false;
+
+        if (!receptionEnabled)
+            return false;
+
+        receiver.ProcessFrame(frame);
+        return true;
     }
 
     bool IsoTpChannelImpl::SendPdu(infra::ConstByteRange pdu, const infra::Function<void()>& onDone)
@@ -93,24 +105,18 @@ namespace services::iso_tp
         return receiver.IsIdle();
     }
 
-    void IsoTpChannelImpl::SendToDataId(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone)
+    void IsoTpChannelImpl::Transmit(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone) const
     {
-        if (!rawSendFunc(dataId, frame, onDone))
-            onDone(false);
-    }
-
-    void IsoTpChannelImpl::SendToFcId(const hal::Can::Message& frame, const infra::Function<void(bool success)>& onDone)
-    {
-        if (!rawSendFunc(fcId, frame, onDone))
+        if (!rawSendFunc(txId, frame, onDone))
             onDone(false);
     }
 
     void IsoTpChannelImpl::NotifyPduReady(infra::ConstByteRange pdu) const
     {
-        onPduReadyFunc(dataId, pdu);
+        onPduReadyFunc(rxId, pdu);
     }
 
-    void IsoTpChannelImpl::NotifyAbort(AbortReason reason) const
+    void IsoTpChannelImpl::NotifyAbort(uint32_t dataId, AbortReason reason) const
     {
         onAbortFunc(dataId, reason);
     }

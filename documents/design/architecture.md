@@ -526,8 +526,10 @@ IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
 protocolServer.AttachIsoTpTransport(isoTp);
 ```
 
-`AttachIsoTpTransport` stores a raw pointer and installs callbacks on the
-transport, so the transport must outlive the attachment. Because it is
+`AttachIsoTpTransport` stores a raw pointer and installs the PDU callback on
+the transport, so the transport must outlive the attachment. It leaves the
+abort callback to the application and never releases channels: a failed
+transfer is reported and discarded, and the channel stays open. Because it is
 constructed from the protocol object's own `CanFrameTransport`, it is
 necessarily destroyed first; `DetachIsoTpTransport()` breaks the attachment in
 that case, and the protocol object's destructor deliberately does not reach
@@ -540,6 +542,11 @@ unconditionally at destruction. One protocol object owns a given `hal::Can`,
 and nothing else may register on it while that object is alive — a second
 registration silently stops the first from receiving. See the design booklet's
 corner-case chapter, §10.
+
+A channel is a connection with one peer: it receives on one identifier and
+transmits data and flow control on the other, so its sender and receiver can
+run concurrently. The receiver follows ISO 15765-2 for unexpected frames,
+ignoring the malformed and unsolicited ones rather than aborting.
 
 Abort reasons are enumerated in `IsoTpTypes.hpp` and catalogued in the design booklet's glossary. `sendFailed` is distinct from `unexpectedFrame`: the first is a local transmit condition, the second a statement about the peer's frame.
 

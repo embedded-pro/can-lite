@@ -4,26 +4,16 @@ namespace services
 {
     bool IsoTpTransportImpl::RegisterReceiveChannel(uint32_t dataId, uint32_t fcId)
     {
-        if (FindChannel(dataId) != nullptr)
-            return false;
-        if (FindChannel(fcId) != nullptr)
-            return false;
-        auto* slot = AllocateFreeChannel();
-        if (slot == nullptr)
+        auto* ch = FindConnection(dataId, fcId);
+        if (ch == nullptr)
+            ch = OpenConnection(dataId, fcId);
+        else if (ch->IsReceptionEnabled())
             return false;
 
-        slot->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
-            {
-                return OnRawSend(cid, f, d);
-            },
-            [this](uint32_t did, infra::ConstByteRange pdu)
-            {
-                OnPduReady(did, pdu);
-            },
-            [this](uint32_t did, iso_tp::AbortReason r)
-            {
-                OnAbort(did, r);
-            });
+        if (ch == nullptr)
+            return false;
+
+        ch->EnableReception();
         return true;
     }
 
@@ -37,32 +27,19 @@ namespace services
     bool IsoTpTransportImpl::SendPdu(uint32_t dataId, uint32_t fcId,
         infra::ConstByteRange pdu, const infra::Function<void()>& onDone)
     {
-        auto* ch = FindChannel(dataId);
+        auto* ch = FindConnection(fcId, dataId);
+        if (ch != nullptr)
+            return ch->SendPdu(pdu, onDone);
 
+        ch = OpenConnection(fcId, dataId);
         if (ch == nullptr)
-        {
-            ch = AllocateFreeChannel();
-            if (ch == nullptr)
-                return false;
-            ch->Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
-                {
-                    return OnRawSend(cid, f, d);
-                },
-                [this](uint32_t did, infra::ConstByteRange p)
-                {
-                    OnPduReady(did, p);
-                },
-                [this](uint32_t did, iso_tp::AbortReason r)
-                {
-                    OnAbort(did, r);
-                });
-        }
+            return false;
 
-        // The channel stays occupied (and reusable for a subsequent send/receive
-        // to the same dataId/fcId pair) once this transfer completes; it is
-        // reclaimed via ReleaseChannel(), called on abort (see AttachIsoTpTransport)
-        // or explicitly by the application once it's done with a dataId.
-        return ch->SendPdu(pdu, onDone);
+        if (ch->SendPdu(pdu, onDone))
+            return true;
+
+        ch->Release();
+        return false;
     }
 
     bool IsoTpTransportImpl::ProcessFrame(uint32_t canId, const hal::Can::Message& frame)
@@ -91,10 +68,42 @@ namespace services
     {
         for (auto* ch : channelRange)
         {
-            if (ch->IsOccupied() && (ch->DataId() == canId || ch->FcId() == canId))
+            if (ch->IsOccupied() && (ch->RxId() == canId || ch->TxId() == canId))
                 return ch;
         }
         return nullptr;
+    }
+
+    iso_tp::IsoTpChannel* IsoTpTransportImpl::FindConnection(uint32_t rxId, uint32_t txId)
+    {
+        auto* ch = FindChannel(rxId);
+        if (ch != nullptr && ch->RxId() == rxId && ch->TxId() == txId)
+            return ch;
+        return nullptr;
+    }
+
+    iso_tp::IsoTpChannel* IsoTpTransportImpl::OpenConnection(uint32_t rxId, uint32_t txId)
+    {
+        if (rxId == txId || FindChannel(rxId) != nullptr || FindChannel(txId) != nullptr)
+            return nullptr;
+
+        auto* ch = AllocateFreeChannel();
+        if (ch == nullptr)
+            return nullptr;
+
+        ch->Configure(rxId, txId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
+            {
+                return OnRawSend(cid, f, d);
+            },
+            [this](uint32_t did, infra::ConstByteRange p)
+            {
+                OnPduReady(did, p);
+            },
+            [this](uint32_t did, iso_tp::AbortReason r)
+            {
+                OnAbort(did, r);
+            });
+        return ch;
     }
 
     iso_tp::IsoTpChannel* IsoTpTransportImpl::AllocateFreeChannel()

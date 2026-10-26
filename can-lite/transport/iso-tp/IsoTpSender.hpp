@@ -28,6 +28,7 @@ namespace services::iso_tp
 
         bool Send(infra::ConstByteRange pdu, const infra::Function<void()>& onDone);
         void ProcessFlowControl(const hal::Can::Message& frame);
+        void Reset();
         bool IsIdle() const;
 
     private:
@@ -35,7 +36,9 @@ namespace services::iso_tp
         void SendNextConsecutiveFrame();
         void ScheduleNextCf();
         void StartNBsTimer();
+        void Complete();
         void Abort(AbortReason reason);
+        void Clear();
 
         SendFrameFunc sendFrameFunc;
         AbortFunc onAbortFunc;
@@ -47,6 +50,7 @@ namespace services::iso_tp
         uint8_t blocksRemaining = 0;
         uint8_t stMinByte = 0;
         uint8_t waitCount = 0;
+        uint8_t transfer = 0;
 
         infra::Function<void()> onDoneCallback;
 

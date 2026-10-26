@@ -8,8 +8,10 @@
 using namespace services::iso_tp;
 using namespace services::iso_tp::test;
 using testing::_;
+using testing::DoAll;
 using testing::Invoke;
 using testing::Return;
+using testing::SaveArg;
 using testing::StrictMock;
 
 namespace
@@ -17,8 +19,8 @@ namespace
     constexpr uint16_t TestPduSize = 64u;
     using TestChannel = IsoTpChannelImpl::WithStorage<TestPduSize>;
 
-    constexpr uint32_t dataId = 0x600u;
-    constexpr uint32_t fcId = 0x601u;
+    constexpr uint32_t rxId = 0x600u;
+    constexpr uint32_t txId = 0x601u;
 
     struct MockCallbacks
     {
@@ -26,6 +28,13 @@ namespace
         MOCK_METHOD(void, OnPduReady, (uint32_t did, infra::ConstByteRange));
         MOCK_METHOD(void, OnAbort, (uint32_t did, AbortReason));
     };
+
+    hal::Can::Message ContinueToSend()
+    {
+        hal::Can::Message fc;
+        IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
+        return fc;
+    }
 }
 
 class IsoTpChannelTest
@@ -35,10 +44,11 @@ class IsoTpChannelTest
 protected:
     StrictMock<MockCallbacks> mocks;
     TestChannel channel;
+    uint8_t eightBytes[8] = { 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u };
 
-    void Configure()
+    void Configure(uint32_t rx = rxId, uint32_t tx = txId)
     {
-        channel.Configure(dataId, fcId, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void(bool)>& d) -> bool
+        channel.Configure(rx, tx, [this](uint32_t cid, const hal::Can::Message& f, const infra::Function<void(bool)>& d) -> bool
             {
                 return mocks.RawSend(cid, f, d);
             },
@@ -50,6 +60,18 @@ protected:
             {
                 mocks.OnAbort(did, r);
             });
+    }
+
+    void ConfigureForReception()
+    {
+        Configure();
+        channel.EnableReception();
+    }
+
+    static bool Sent(uint32_t, const hal::Can::Message&, const infra::Function<void(bool)>& onDone)
+    {
+        onDone(true);
+        return true;
     }
 };
 
@@ -63,26 +85,35 @@ TEST_F(IsoTpChannelTest, Configure_SetsOccupied_WithCorrectIds)
     Configure();
 
     EXPECT_TRUE(channel.IsOccupied());
-    EXPECT_EQ(channel.DataId(), dataId);
-    EXPECT_EQ(channel.FcId(), fcId);
+    EXPECT_FALSE(channel.IsReceptionEnabled());
+    EXPECT_EQ(channel.RxId(), rxId);
+    EXPECT_EQ(channel.TxId(), txId);
 }
 
-TEST_F(IsoTpChannelTest, Release_ClearsOccupied)
+TEST_F(IsoTpChannelTest, EnableReception_AcceptsDataFrames)
 {
-    Configure();
+    ConfigureForReception();
+
+    EXPECT_TRUE(channel.IsReceptionEnabled());
+}
+
+TEST_F(IsoTpChannelTest, Release_ClearsOccupiedAndReception)
+{
+    ConfigureForReception();
     channel.Release();
 
     EXPECT_FALSE(channel.IsOccupied());
+    EXPECT_FALSE(channel.IsReceptionEnabled());
 }
 
-TEST_F(IsoTpChannelTest, SendPdu_SingleFrame_CallsRawSendOnDataId)
+TEST_F(IsoTpChannelTest, SendPdu_SingleFrame_TransmitsOnTxId)
 {
     Configure();
 
     uint8_t pdu[] = { 0x01u, 0x02u, 0x03u };
     bool done = false;
 
-    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+    EXPECT_CALL(mocks, RawSend(txId, _, _))
         .WillOnce(Invoke([](uint32_t, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
                 EXPECT_EQ(f[0], 0x03u);
@@ -101,56 +132,53 @@ TEST_F(IsoTpChannelTest, SendPdu_WhenBusy_ReturnsFalse)
 {
     Configure();
 
-    uint8_t pdu[] = { 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u };
-
-    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+    EXPECT_CALL(mocks, RawSend(txId, _, _))
         .WillOnce(Return(true));
 
-    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
-    EXPECT_FALSE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [] {}));
+    EXPECT_FALSE(channel.SendPdu(infra::MakeRange(eightBytes), [] {}));
 }
 
-TEST_F(IsoTpChannelTest, SendPdu_RawSendRejectsSynchronously_AbortsInsteadOfWedging)
+TEST_F(IsoTpChannelTest, SendPdu_RawSendRejectsSynchronously_ReportsSendFailedOnTxId)
 {
     Configure();
 
     uint8_t pdu[] = { 0x01u };
 
-    // rawSend_ returning false (e.g. CanFrameTransport's queue is full) must
-    // still unstick the sender's FSM rather than leaving it permanently busy.
-    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+    EXPECT_CALL(mocks, RawSend(txId, _, _))
         .WillOnce(Return(false));
-    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::sendFailed));
+    EXPECT_CALL(mocks, OnAbort(txId, AbortReason::sendFailed));
 
     ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
     EXPECT_TRUE(channel.IsSenderIdle());
+    EXPECT_TRUE(channel.IsOccupied());
 
-    // The channel must accept a new send afterwards instead of staying wedged.
-    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+    EXPECT_CALL(mocks, RawSend(txId, _, _))
         .WillOnce(Return(true));
     EXPECT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
 }
 
-TEST_F(IsoTpChannelTest, ProcessFrame_FirstFrame_RawSendOfFlowControlFails_Aborts)
+TEST_F(IsoTpChannelTest, ProcessFrame_FirstFrame_FlowControlRefused_ReportsSendFailedOnRxId)
 {
-    Configure();
+    ConfigureForReception();
 
-    EXPECT_CALL(mocks, RawSend(fcId, _, _))
+    EXPECT_CALL(mocks, RawSend(txId, _, _))
         .WillOnce(Return(false));
-    EXPECT_CALL(mocks, OnAbort(dataId, AbortReason::sendFailed));
+    EXPECT_CALL(mocks, OnAbort(rxId, AbortReason::sendFailed));
 
     auto ff = MakeMessage({ 0x10u, 0x08u, 1u, 2u, 3u, 4u, 5u, 6u });
-    EXPECT_TRUE(channel.ProcessFrame(dataId, ff));
+    EXPECT_TRUE(channel.ProcessFrame(rxId, ff));
     EXPECT_TRUE(channel.IsReceiverIdle());
+    EXPECT_TRUE(channel.IsReceptionEnabled());
 }
 
-TEST_F(IsoTpChannelTest, ProcessFrame_DataFrameRouted_ToReceiver)
+TEST_F(IsoTpChannelTest, ProcessFrame_DataFrameOnRxId_DeliveredWhenReceptionEnabled)
 {
-    Configure();
+    ConfigureForReception();
 
     auto sf = MakeMessage({ 0x03u, 0xAAu, 0xBBu, 0xCCu });
 
-    EXPECT_CALL(mocks, OnPduReady(dataId, _))
+    EXPECT_CALL(mocks, OnPduReady(rxId, _))
         .WillOnce(Invoke([](uint32_t, infra::ConstByteRange pdu)
             {
                 ASSERT_EQ(pdu.size(), 3u);
@@ -159,65 +187,142 @@ TEST_F(IsoTpChannelTest, ProcessFrame_DataFrameRouted_ToReceiver)
                 EXPECT_EQ(pdu[2], 0xCCu);
             }));
 
-    EXPECT_TRUE(channel.ProcessFrame(dataId, sf));
+    EXPECT_TRUE(channel.ProcessFrame(rxId, sf));
 }
 
-TEST_F(IsoTpChannelTest, ProcessFrame_FcFrameRouted_ToSender)
+TEST_F(IsoTpChannelTest, ProcessFrame_DataFrameOnRxId_NotClaimedWithoutReception)
 {
     Configure();
 
-    uint8_t pdu[] = { 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u };
+    EXPECT_FALSE(channel.ProcessFrame(rxId, MakeMessage({ 0x01u, 0xABu })));
+}
+
+TEST_F(IsoTpChannelTest, ProcessFrame_FlowControlOnRxId_RoutedToSender)
+{
+    Configure();
+
     bool done = false;
 
     {
         testing::InSequence seq;
 
-        EXPECT_CALL(mocks, RawSend(dataId, _, _))
-            .WillOnce(Invoke([](uint32_t, const hal::Can::Message&, const infra::Function<void(bool)>& d)
-                {
-                    d(true);
-                    return true;
-                }));
-
-        EXPECT_CALL(mocks, RawSend(dataId, _, _))
+        EXPECT_CALL(mocks, RawSend(txId, _, _)).WillOnce(Invoke(Sent));
+        EXPECT_CALL(mocks, RawSend(txId, _, _))
             .WillOnce(Invoke([](uint32_t, const hal::Can::Message& f, const infra::Function<void(bool)>& d)
                 {
-                    EXPECT_EQ(f[0] & 0xF0u, 0x20u);
-                    EXPECT_EQ(f[0] & 0x0Fu, 0x01u);
+                    EXPECT_EQ(f[0], 0x21u);
                     d(true);
                     return true;
                 }));
     }
 
-    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [&done]
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [&done]
         {
             done = true;
         }));
 
-    hal::Can::Message fc;
-    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
-
-    EXPECT_TRUE(channel.ProcessFrame(fcId, fc));
+    EXPECT_TRUE(channel.ProcessFrame(rxId, ContinueToSend()));
     EXPECT_TRUE(done);
 }
 
-TEST_F(IsoTpChannelTest, ProcessFrame_FlowControlOnDataId_ReturnsFalse)
+TEST_F(IsoTpChannelTest, ProcessFrame_FramesOnTxId_NotClaimed)
 {
-    Configure();
+    ConfigureForReception();
 
-    hal::Can::Message fc;
-    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
-
-    EXPECT_FALSE(channel.ProcessFrame(dataId, fc));
+    EXPECT_FALSE(channel.ProcessFrame(txId, MakeMessage({ 0x01u, 0xABu })));
+    EXPECT_FALSE(channel.ProcessFrame(txId, ContinueToSend()));
 }
 
 TEST_F(IsoTpChannelTest, ProcessFrame_UnrelatedId_ReturnsFalse)
 {
+    ConfigureForReception();
+
+    EXPECT_FALSE(channel.ProcessFrame(0x999u, MakeMessage({ 0x01u, 0xABu })));
+}
+
+TEST_F(IsoTpChannelTest, SendsAndReceivesConcurrentlyOnOnePair)
+{
+    ConfigureForReception();
+
+    bool sent = false;
+    EXPECT_CALL(mocks, RawSend(txId, _, _)).Times(3).WillRepeatedly(Invoke(Sent));
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [&sent]
+        {
+            sent = true;
+        }));
+
+    EXPECT_TRUE(channel.ProcessFrame(rxId, MakeMessage({ 0x10u, 0x08u, 9u, 9u, 9u, 9u, 9u, 9u })));
+    EXPECT_TRUE(channel.ProcessFrame(rxId, ContinueToSend()));
+
+    EXPECT_CALL(mocks, OnPduReady(rxId, _));
+    EXPECT_TRUE(channel.ProcessFrame(rxId, MakeMessage({ 0x21u, 9u, 9u })));
+
+    EXPECT_TRUE(sent);
+    EXPECT_TRUE(channel.IsSenderIdle());
+    EXPECT_TRUE(channel.IsReceiverIdle());
+}
+
+TEST_F(IsoTpChannelTest, Release_EndsATransmissionInProgressSilently)
+{
     Configure();
 
-    auto sf = MakeMessage({ 0x01u, 0xABu });
+    EXPECT_CALL(mocks, RawSend(txId, _, _)).WillOnce(Invoke(Sent));
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [] {}));
 
-    EXPECT_FALSE(channel.ProcessFrame(0x999u, sf));
+    channel.Release();
+    ForwardTime(std::chrono::seconds(2));
+
+    EXPECT_TRUE(channel.IsSenderIdle());
+}
+
+TEST_F(IsoTpChannelTest, Release_EndsAReceptionInProgressSilently)
+{
+    ConfigureForReception();
+
+    EXPECT_CALL(mocks, RawSend(txId, _, _)).WillOnce(Invoke(Sent));
+    EXPECT_TRUE(channel.ProcessFrame(rxId, MakeMessage({ 0x10u, 0x08u, 1u, 2u, 3u, 4u, 5u, 6u })));
+
+    channel.Release();
+    ForwardTime(std::chrono::seconds(2));
+
+    EXPECT_TRUE(channel.IsReceiverIdle());
+}
+
+TEST_F(IsoTpChannelTest, ReconfiguredAfterReleaseMidTransfer_StartsClean)
+{
+    Configure();
+
+    EXPECT_CALL(mocks, RawSend(txId, _, _)).WillOnce(Invoke(Sent));
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [] {}));
+    ForwardTime(std::chrono::milliseconds(500));
+
+    channel.Release();
+    Configure(0x700u, 0x701u);
+
+    EXPECT_CALL(mocks, RawSend(0x701u, _, _)).WillOnce(Invoke(Sent));
+    EXPECT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [] {}));
+    ForwardTime(std::chrono::milliseconds(999));
+
+    EXPECT_CALL(mocks, OnAbort(0x701u, AbortReason::nBsTimeout));
+    ForwardTime(std::chrono::milliseconds(1));
+}
+
+TEST_F(IsoTpChannelTest, LateFailureOfAReleasedTransfer_DoesNotReachTheNextOne)
+{
+    Configure();
+
+    infra::Function<void(bool)> firstFrameDone;
+    EXPECT_CALL(mocks, RawSend(txId, _, _)).WillOnce(DoAll(SaveArg<2>(&firstFrameDone), Return(true)));
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [] {}));
+
+    channel.Release();
+    Configure();
+
+    EXPECT_CALL(mocks, RawSend(txId, _, _)).WillOnce(Return(true));
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [] {}));
+
+    firstFrameDone(false);
+    EXPECT_FALSE(channel.IsSenderIdle());
 }
 
 TEST_F(IsoTpChannelTest, IsSenderIdle_Initially_ReturnsTrue)
@@ -236,11 +341,9 @@ TEST_F(IsoTpChannelTest, IsSenderIdle_AfterSendStart_ReturnsFalse)
 {
     Configure();
 
-    uint8_t pdu[] = { 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u };
-
-    EXPECT_CALL(mocks, RawSend(dataId, _, _))
+    EXPECT_CALL(mocks, RawSend(txId, _, _))
         .WillOnce(Return(true));
 
-    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(pdu), [] {}));
+    ASSERT_TRUE(channel.SendPdu(infra::MakeRange(eightBytes), [] {}));
     EXPECT_FALSE(channel.IsSenderIdle());
 }

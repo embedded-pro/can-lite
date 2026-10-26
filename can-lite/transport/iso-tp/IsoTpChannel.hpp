@@ -16,14 +16,16 @@ namespace services::iso_tp
         using PduReadyFunc = infra::Function<void(uint32_t dataId, infra::ConstByteRange pdu)>;
         using AbortFunc = infra::Function<void(uint32_t dataId, AbortReason reason)>;
 
-        virtual void Configure(uint32_t dataId, uint32_t fcId,
+        virtual void Configure(uint32_t rxId, uint32_t txId,
             RawSendFunc rawSend, PduReadyFunc onPduReady, AbortFunc onAbort) = 0;
+        virtual void EnableReception() = 0;
 
         virtual void Release() = 0;
 
         virtual bool IsOccupied() const = 0;
-        virtual uint32_t DataId() const = 0;
-        virtual uint32_t FcId() const = 0;
+        virtual bool IsReceptionEnabled() const = 0;
+        virtual uint32_t RxId() const = 0;
+        virtual uint32_t TxId() const = 0;
 
         virtual bool ProcessFrame(uint32_t canId, const hal::Can::Message& frame) = 0;
         virtual bool SendPdu(infra::ConstByteRange pdu, const infra::Function<void()>& onDone) = 0;

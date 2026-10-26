@@ -15,29 +15,39 @@ to travel as a single frame, unaware the transport exists.
 
 ## 1. Channels
 
-A channel is a pair of identifiers: one carrying data in one direction, one
-carrying flow control back. Each channel owns one sender and one receiver, which
-are independent — a channel can be transmitting one payload while reassembling
-another, because the two use different identifiers.
+A channel is a connection with one peer, made of two identifiers: the one the
+peer transmits on, which this node receives, and the one this node transmits on.
+Everything the peer sends arrives on the first, data and flow control alike, and
+everything this node sends leaves on the second. Each channel owns one sender
+and one receiver, which are independent: a channel can be transmitting one
+payload while reassembling another, because the data of one direction and the
+flow control of the other never share an identifier.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Free
-    Free --> Occupied : registered for reception,<br/>or claimed by a first transmission
-    Occupied --> Occupied : further transfers on the same pair
-    Occupied --> Free : released
+    Free --> SendOnly : first transmission to a new peer —<br/>claims only flow control
+    Free --> Receiving : registered for reception
+    SendOnly --> Receiving : registered for reception
+    SendOnly --> SendOnly : further transfers, failed or not
+    Receiving --> Receiving : further transfers in either direction,<br/>failed or not
+    SendOnly --> Free : released
+    Receiving --> Free : released — any transfer in progress<br/>ends without a report
 ```
 
-Two properties of that lifecycle matter in integration:
+Three properties of that lifecycle matter in integration:
 
-- **Channels are claimed, not pooled per transfer.** A channel stays occupied
-  after a transfer completes, ready for the next one on the same identifier
-  pair, until it is explicitly released. This is why the protocol layer releases
-  a channel when a transfer aborts (Chapter 6, §7) — otherwise a failed transfer
-  would hold a slot forever.
-- **Identifier pairs may not overlap.** Registration is refused if either
-  identifier already belongs to another channel, because overlapping pairs would
-  make routing ambiguous.
+- **Channels are claimed, not pooled per transfer.** A channel stays open after
+  a transfer completes **or fails**, ready for the next one with the same peer,
+  until the application releases it. A failure is reported and the transfer's
+  data discarded; it never costs the application its registration.
+- **One pair, both directions.** Registering to receive from a peer and sending
+  to it address the same channel, with the identifiers in opposite roles. A
+  pair that shares only one identifier with another channel is refused, because
+  overlapping pairs would make routing ambiguous.
+- **Releasing is silent.** A transfer still in progress when its channel is
+  released ends there, timers and all, without an abort report. Nothing from
+  it can reach whatever uses the slot next.
 
 Routing a received frame is a decision the channel makes and reports upward: the
 protocol layer offers every frame to the transport and continues its own
@@ -93,8 +103,8 @@ the standard's conservative reading: an unparseable request must not be read as
 
 > **A transfer's completion runs on success only.** A transfer that aborts
 > reports through the abort path instead. An application that handles only the
-> completion will wait forever — which is why the protocol layer subscribes to
-> the abort path and releases the channel there.
+> completion will wait forever. The abort path is the application's to
+> subscribe to: the protocol layer leaves it alone and keeps the channel open.
 
 The abort reasons and what raises each are listed in the glossary. Two are
 worth stating here because they are easy to get wrong.
@@ -113,6 +123,10 @@ frame never parsed. The standard requires the reserved values to abort rather
 than be read as permission to continue, which is the failure mode that matters
 — a corrupted nibble must never be mistaken for "carry on".
 
+A completion that arrives after its transfer has ended, by an abort, a release
+or a later transfer, is discarded. Each transfer carries its own token, so a
+driver reporting a stale failure cannot abort the transfer that came after.
+
 ## 3. The receiver
 
 ```mermaid
@@ -124,7 +138,10 @@ stateDiagram-v2
     receiving --> idle : declared length reached —<br/>payload delivered
     receiving --> idle : out-of-sequence frame — abort
     receiving --> idle : N_Cr expires — abort
-    receiving --> idle : a single frame arrives mid-transfer —<br/>partial discarded, single frame delivered
+    receiving --> idle : a valid single frame arrives —<br/>reception reported unexpected, single frame delivered
+    receiving --> receiving : a valid first frame arrives —<br/>reception reported unexpected, the new one begins
+    receiving --> receiving : malformed or unsolicited frame — ignored
+    idle --> idle : malformed or unsolicited frame — ignored
     idle --> idle : declared length exceeds the buffer —<br/>"overflow" sent, abort
 ```
 
@@ -136,13 +153,17 @@ worth understanding here rather than there:
   peer that sent a first frame is *waiting* for flow control and must be told to
   stop. A peer that sent a single frame has already finished and has nothing to
   stop.
-- **An unsolicited continuation frame is ignored, not treated as an error.**
-  Silence is the correct response to a frame that belongs to a transfer this
-  receiver is not part of.
+- **A frame the receiver cannot use is ignored, not treated as an error.** An
+  unsolicited continuation frame, an unknown protocol control nibble, a single
+  frame with an impossible length, a first frame too short or declaring a
+  length that fits in one frame: ISO 15765-2 has the receiver ignore every one,
+  and a reception in progress carries on. Silence is the correct response to a
+  frame that belongs to no transfer this receiver is part of.
 
-A single frame arriving mid-reassembly discards the partial transfer and is
-delivered as a complete payload — the pragmatic reading, since the peer has
-evidently moved on.
+A valid single or first frame arriving mid-reassembly means the peer has moved
+on. The partial transfer is discarded **and reported** as an unexpected frame,
+as the standard requires, and the new frame is processed as the start of a new
+reception.
 
 ## 4. A multi-frame transfer, end to end
 

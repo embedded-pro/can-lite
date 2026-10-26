@@ -194,8 +194,8 @@ sequenceDiagram
     Note over Bus: the peer loses power before it is delivered
     Note over Snd: N_Bs expires
     Snd->>Snd: abort — timers cancelled, sender idle
-    Snd->>Proto: abort reported
-    Proto->>Proto: the channel is released
+    Snd->>Proto: abort reported to the application
+    Note over Proto: the channel stays open for the next transfer
     Note over Snd: the caller's completion is NEVER called
 ```
 
@@ -205,31 +205,35 @@ only the completion waits forever.
 
 ## 8. Segmentation
 
-| #    | Condition                                                                   | Mechanism                                  | Observable outcome                                                                                                       |
-|------|-----------------------------------------------------------------------------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| 8.1  | Payload beyond the protocol's length field, or beyond the configured buffer | Refused when the transfer is requested     | Nothing is transmitted                                                                                                   |
-| 8.2  | Empty payload                                                               | Refused                                    | Segmentation has no zero-length encoding                                                                                 |
-| 8.3  | A second transfer while the channel's sender is busy                        | Refused                                    | One transfer at a time per channel; more concurrency means more channels                                                 |
-| 8.4  | No free channel                                                             | Refused                                    | Both registration and transmission report it                                                                             |
-| 8.5  | Registering an identifier already used by another channel                   | Lookup matches either identifier of a pair | Refused; overlapping pairs would make routing ambiguous                                                                  |
-| 8.6  | A channel never released after an abort                                     | Application responsibility                 | The slot stays occupied. The protocol layer releases it automatically, so this bites only a direct user of the transport |
-| 8.7  | No flow control within N_Bs                                                 | Sender timer                               | Abort                                                                                                                    |
-| 8.8  | No continuation frame within N_Cr                                           | Receiver timer                             | Abort; the partial payload is discarded                                                                                  |
-| 8.9  | The peer asks to wait too many times in a row                               | Wait limit                                 | Abort                                                                                                                    |
-| 8.10 | The peer reports overflow                                                   | Flow-status check                          | Abort                                                                                                                    |
-| 8.11 | A continuation frame out of sequence                                        | Sequence check                             | Abort; the partial payload is discarded                                                                                  |
-| 8.12 | The frame sequence number wraps                                             | Modular on both sides                      | Transparent; long payloads are ordinary                                                                                  |
-| 8.13 | A first frame declaring a length that would fit in one frame                | Length check                               | Abort — such a payload must be sent as a single frame                                                                    |
-| 8.14 | A first frame shorter than a full frame                                     | Size check                                 | Abort                                                                                                                    |
-| 8.15 | A first frame declaring more than the buffer holds                          | Capacity check                             | Overflow **is signalled** to the peer, then abort                                                                        |
-| 8.16 | A single frame longer than the buffer                                       | Capacity check                             | Abort, **without** signalling — the peer has already finished                                                            |
-| 8.17 | A single frame arriving mid-reassembly                                      | The partial transfer is discarded          | The single frame is delivered as a complete payload                                                                      |
-| 8.18 | An unsolicited continuation frame                                           | State check                                | Ignored silently — not an error                                                                                          |
-| 8.19 | An extra continuation frame after completion                                | The receiver is idle again                 | Ignored                                                                                                                  |
-| 8.20 | A frame carrying more bytes than remain                                     | Bounded by the declared length             | Surplus dropped, so padding from a padding-using peer is harmless on the last frame                                      |
-| 8.21 | A send fails mid-transfer                                                   | The failure is reported as an abort        | The reason is imprecise, the outcome correct                                                                             |
-| 8.22 | A pacing request the standard reserves                                      | Mapped to the slowest legal value          | Conservative by design                                                                                                   |
-| 8.23 | A peer that requires padded frames                                          | can-lite never pads                        | No interoperation. **Design limit** (Chapter 8, §6)                                                                      |
+| #    | Condition                                                                       | Mechanism                                  | Observable outcome                                                                             |
+|------|---------------------------------------------------------------------------------|--------------------------------------------|------------------------------------------------------------------------------------------------|
+| 8.1  | Payload beyond the protocol's length field, or beyond the configured buffer     | Refused when the transfer is requested     | Nothing is transmitted                                                                         |
+| 8.2  | Empty payload                                                                   | Refused                                    | Segmentation has no zero-length encoding                                                       |
+| 8.3  | A second transfer while the channel's sender is busy                            | Refused                                    | One transfer at a time per channel; more concurrency means more channels                       |
+| 8.4  | No free channel                                                                 | Refused                                    | Both registration and transmission report it                                                   |
+| 8.5  | A pair sharing one identifier with another channel                              | Lookup matches either identifier of a pair | Refused for both registration and transmission; overlapping pairs would make routing ambiguous |
+| 8.6  | A transfer fails on a registered channel                                        | Reported, never released                   | The channel stays open; the next transfer with that peer uses it as before                     |
+| 8.7  | No flow control within N_Bs                                                     | Sender timer                               | Abort                                                                                          |
+| 8.8  | No continuation frame within N_Cr                                               | Receiver timer                             | Abort; the partial payload is discarded                                                        |
+| 8.9  | The peer asks to wait too many times in a row                                   | Wait limit                                 | Abort                                                                                          |
+| 8.10 | The peer reports overflow                                                       | Flow-status check                          | Abort                                                                                          |
+| 8.11 | A continuation frame out of sequence                                            | Sequence check                             | Abort; the partial payload is discarded                                                        |
+| 8.12 | The frame sequence number wraps                                                 | Modular on both sides                      | Transparent; long payloads are ordinary                                                        |
+| 8.13 | A first frame declaring a length that would fit in one frame                    | Length check                               | Ignored, as ISO 15765-2 requires; a reception in progress carries on                           |
+| 8.14 | A first frame shorter than a full frame                                         | Size check                                 | Ignored; a reception in progress carries on                                                    |
+| 8.15 | A first frame declaring more than the buffer holds                              | Capacity check                             | Overflow **is signalled** to the peer, then abort                                              |
+| 8.16 | A single frame longer than the buffer                                           | Capacity check                             | Abort, **without** signalling — the peer has already finished                                  |
+| 8.17 | A valid single or first frame arriving mid-reassembly                           | The partial transfer is discarded          | Reported as an unexpected frame; the new frame starts a new reception                          |
+| 8.18 | An unsolicited continuation frame                                               | State check                                | Ignored silently — not an error                                                                |
+| 8.19 | An extra continuation frame after completion                                    | The receiver is idle again                 | Ignored                                                                                        |
+| 8.20 | A frame carrying more bytes than remain                                         | Bounded by the declared length             | Surplus dropped, so padding from a padding-using peer is harmless on the last frame            |
+| 8.21 | A send fails mid-transfer                                                       | The failure is reported as an abort        | Reported as send failed, distinct from anything the peer did; the channel stays open           |
+| 8.22 | A pacing request the standard reserves                                          | Mapped to the slowest legal value          | Conservative by design                                                                         |
+| 8.23 | A peer that requires padded frames                                              | can-lite never pads                        | No interoperation. **Design limit** (Chapter 8, §6)                                            |
+| 8.24 | An unknown protocol control nibble, or a single frame with an impossible length | Classification check                       | Ignored, as ISO 15765-2 requires; a reception in progress carries on                           |
+| 8.25 | Sending on the registered peer's own data identifier                            | Pair check                                 | Refused: data to a peer leaves on the transmit identifier, the reverse of the registered pair  |
+| 8.26 | A channel released mid-transfer                                                 | Timers cancelled, state reset              | Silent; nothing from the old transfer reaches the slot's next user                             |
+| 8.27 | A stale completion from a transfer that has ended                               | Per-transfer token                         | Discarded; it cannot abort the transfer that followed                                          |
 
 ## 9. Category level
 
