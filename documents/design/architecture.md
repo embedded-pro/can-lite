@@ -497,7 +497,7 @@ The transport layer provides multi-frame PDU segmentation and reassembly followi
 | `IsoTpTransportImpl` | Non-template concrete implementation; channel pool via `WithStorage<MaxPduSize, MaxChannels>`                                |
 | `IsoTpChannel`       | Non-template abstract channel interface used by `IsoTpTransportImpl`                                                         |
 | `IsoTpChannelImpl`   | Non-template concrete channel; composes `IsoTpSender` + `IsoTpReceiver` via `WithStorage<MaxPduSize>`                        |
-| `IsoTpSender`        | Non-template transmit FSM (SF → FF → wait-for-FC → CFs; N_Bs timeout); `WithStorage<MaxPduSize>` provides buffer             |
+| `IsoTpSender`        | Non-template transmit FSM (SF → FF → wait-for-FC → CFs; N_As and N_Bs timeouts); `WithStorage<MaxPduSize>` provides buffer   |
 | `IsoTpReceiver`      | Non-template receive FSM (SF dispatch or FF → wait-for-CFs; N_Cr timeout); `WithStorage<MaxPduSize>` provides buffer         |
 | `IsoTpFrameCodec`    | Stateless PCI encode/decode helpers                                                                                          |
 

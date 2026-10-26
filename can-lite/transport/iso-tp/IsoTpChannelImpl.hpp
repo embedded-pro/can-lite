@@ -33,6 +33,7 @@ namespace services::iso_tp
         void Configure(uint32_t newRxId, uint32_t newTxId,
             RawSendFunc rawSend, PduReadyFunc onPduReady, AbortFunc onAbort) override;
         void EnableReception() override;
+        void SetFlowControlParameters(uint8_t blockSize, uint8_t separationTime) override;
 
         void Release() override;
 

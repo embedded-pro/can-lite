@@ -1,5 +1,6 @@
 #include "can-lite/transport/iso-tp/IsoTpReceiver.hpp"
 #include "can-lite/transport/iso-tp/IsoTpFrameCodec.hpp"
+#include <algorithm>
 
 namespace services::iso_tp
 {
@@ -12,6 +13,12 @@ namespace services::iso_tp
         sendFcFunc = sendFc;
         onPduReadyFunc = onPduReady;
         onAbortFunc = onAbort;
+    }
+
+    void IsoTpReceiver::SetFlowControlParameters(uint8_t newBlockSize, uint8_t newSeparationTime)
+    {
+        blockSize = newBlockSize;
+        separationTime = newSeparationTime;
     }
 
     void IsoTpReceiver::ProcessFrame(const hal::Can::Message& frame)
@@ -84,6 +91,7 @@ namespace services::iso_tp
 
         expectedTotalLength = len;
         expectedSn = 1u;
+        framesInBlock = 0u;
         assemblyBuffer.clear();
         ++reception;
 
@@ -101,7 +109,7 @@ namespace services::iso_tp
 
     void IsoTpReceiver::HandleConsecutiveFrame(const hal::Can::Message& frame)
     {
-        if (state != ReceiverState::receivingCf)
+        if (state != ReceiverState::receivingCf || !HasConsecutiveFrameLength(frame))
             return;
 
         uint8_t sn = IsoTpFrameCodec::DecodeConsecutiveFrameSn(frame);
@@ -132,6 +140,23 @@ namespace services::iso_tp
                 onPduReadyFunc(infra::MakeRange(assemblyBuffer));
             assemblyBuffer.clear();
         }
+        else
+            ContinueBlock();
+    }
+
+    bool IsoTpReceiver::HasConsecutiveFrameLength(const hal::Can::Message& frame) const
+    {
+        auto remaining = static_cast<std::size_t>(expectedTotalLength) - assemblyBuffer.size();
+        return frame.size() >= 1u + std::min<std::size_t>(remaining, cfMaxDataBytes);
+    }
+
+    void IsoTpReceiver::ContinueBlock()
+    {
+        if (blockSize == 0u || ++framesInBlock != blockSize)
+            return;
+
+        framesInBlock = 0u;
+        SendFlowControl(FlowStatus::continueToSend);
     }
 
     void IsoTpReceiver::EndSupersededReception()
@@ -143,7 +168,7 @@ namespace services::iso_tp
     void IsoTpReceiver::SendFlowControl(FlowStatus status)
     {
         hal::Can::Message fc;
-        IsoTpFrameCodec::EncodeFlowControl(status, 0u, 0u, fc);
+        IsoTpFrameCodec::EncodeFlowControl(status, blockSize, separationTime, fc);
         if (!sendFcFunc)
             return;
 

@@ -12,18 +12,19 @@ components that own them — see
 
 ## 1. Timer inventory
 
-| Owner                 | Timer                         | Kind            | Restarted by                              | On expiry                                                |
-|-----------------------|-------------------------------|-----------------|-------------------------------------------|----------------------------------------------------------|
-| Server                | heartbeat                     | single-shot     | every outgoing frame from this node       | send a heartbeat                                         |
-| Server                | rate window                   | **repeating**   | itself                                    | reset both accepted-frame counts, ordinary and emergency |
-| Server                | client liveness               | single-shot     | every command this node accepts           | report the client offline                                |
-| Client                | heartbeat                     | single-shot     | every outgoing frame from this node       | broadcast a heartbeat                                    |
-| Client                | server liveness, one per slot | single-shot × 8 | every frame from that server              | report that server offline                               |
-| Client                | acknowledgement, one per slot | single-shot × 8 | reserving a number for that server        | report the command unanswered                            |
-| Firmware upgrade      | session                       | single-shot     | the commands that make progress           | report the session expired                               |
-| Segmentation sender   | N_Bs                          | single-shot     | sending a frame that awaits flow control  | abort the transfer                                       |
-| Segmentation sender   | separation                    | single-shot     | each frame, when the peer asks for pacing | send the next frame                                      |
-| Segmentation receiver | N_Cr                          | single-shot     | each accepted frame                       | abort the reassembly                                     |
+| Owner                 | Timer                         | Kind            | Restarted by                                           | On expiry                                                |
+|-----------------------|-------------------------------|-----------------|--------------------------------------------------------|----------------------------------------------------------|
+| Server                | heartbeat                     | single-shot     | every outgoing frame from this node                    | send a heartbeat                                         |
+| Server                | rate window                   | **repeating**   | itself                                                 | reset both accepted-frame counts, ordinary and emergency |
+| Server                | client liveness               | single-shot     | every command this node accepts                        | report the client offline                                |
+| Client                | heartbeat                     | single-shot     | every outgoing frame from this node                    | broadcast a heartbeat                                    |
+| Client                | server liveness, one per slot | single-shot × 8 | every frame from that server                           | report that server offline                               |
+| Client                | acknowledgement, one per slot | single-shot × 8 | reserving a number for that server                     | report the command unanswered                            |
+| Firmware upgrade      | session                       | single-shot     | the commands that make progress                        | report the session expired                               |
+| Segmentation sender   | N_As                          | single-shot     | handing a single or consecutive frame to the transport | abort the transfer                                       |
+| Segmentation sender   | N_Bs                          | single-shot     | sending a frame that awaits flow control               | abort the transfer                                       |
+| Segmentation sender   | separation                    | single-shot     | each frame, when the peer asks for pacing              | send the next frame                                      |
+| Segmentation receiver | N_Cr                          | single-shot     | each accepted frame                                    | abort the reassembly                                     |
 
 A fully loaded client — eight servers tracked, eight commands outstanding —
 holds **seventeen** live timers. A server holds three, plus one per firmware

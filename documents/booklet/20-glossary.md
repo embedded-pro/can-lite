@@ -44,6 +44,7 @@ abort callback, and the channel stays open on all of them (Chapter 8).
 
 | Reason                  | Raised when                                                                                                                                                                                                              |
 |-------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **N_As timeout**        | The sender handed a single or consecutive frame to the transport and was not told it was sent within N_As                                                                                                                |
 | **N_Bs timeout**        | The sender waited a full N_Bs for the flow control answering its first frame or its last block, and none arrived                                                                                                         |
 | **N_Cr timeout**        | The receiver waited a full N_Cr for the next consecutive frame of a transfer already in progress                                                                                                                         |
 | **Overflow**            | The peer declared its buffer too small for the announced length, or this receiver found the announced length too large for its own buffer                                                                                |

@@ -89,9 +89,18 @@ For payloads exceeding the 8-byte CAN frame limit, can-lite provides an optional
 
 | Parameter | Value   | Description                                                                                                      |
 |-----------|---------|------------------------------------------------------------------------------------------------------------------|
+| N_As      | 1000 ms | Sender timeout for a Single Frame or Consecutive Frame to be reported sent (REQ-CAN-047)                         |
 | N_Bs      | 1000 ms | Sender timeout waiting for a Flow Control frame                                                                  |
 | N_Cr      | 1000 ms | Receiver timeout waiting for a Consecutive Frame                                                                 |
 | N_WFTmax  | 16      | Maximum consecutive Flow Control `Wait` frames before the sender aborts (implementation-defined per ISO 15765-2) |
+
+The receiver advertises the block size and separation time it is configured
+with, through `IsoTpTransportImpl::Config` (default 0 and 0, meaning no
+pacing), and sends a further Flow Control frame after each complete block.
+Every frame of a transfer is charged against the receiving server's rate
+limit (§12). A node that receives long transfers alongside other traffic
+should therefore configure a separation time of at least 1000 / limit
+milliseconds, so that a peer cannot exceed the limit within one transfer.
 
 On `FS = Wait`, the sender restarts N_Bs and continues waiting rather than
 aborting immediately; only `N_WFTmax` consecutive `Wait` frames (or an N_Bs
@@ -116,6 +125,9 @@ The receiver handles unexpected frames as ISO 15765-2 requires (REQ-CAN-046):
   - a first frame shorter than eight bytes, or declaring fewer than eight
     bytes;
   - a consecutive frame while no reception is in progress;
+  - a consecutive frame shorter than eight bytes that is not the last of the
+    transfer, or a last one too short to hold the bytes still expected, so
+    that frames carrying no data cannot keep a reception alive;
   - a flow control frame.
 
   None of these disturbs a reception in progress.

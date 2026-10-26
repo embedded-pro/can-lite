@@ -36,6 +36,7 @@ namespace services::iso_tp
         void SendNextConsecutiveFrame();
         void ScheduleNextCf();
         void StartNBsTimer();
+        void StartNAsTimer();
         void Complete();
         void Abort(AbortReason reason);
         void Clear();
@@ -56,6 +57,7 @@ namespace services::iso_tp
 
         infra::BoundedVector<uint8_t>& pduBuffer;
 
+        infra::TimerSingleShot nAsTimer;
         infra::TimerSingleShot nBsTimer;
         infra::TimerSingleShot stMinTimer;
     };

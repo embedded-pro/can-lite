@@ -182,13 +182,17 @@ namespace
         aborted(dataId, iso_tp::AbortReason::overflow);
         aborted(dataId, iso_tp::AbortReason::unexpectedFrame);
         aborted(dataId, iso_tp::AbortReason::waitLimitExceeded);
+        aborted(dataId, iso_tp::AbortReason::sendFailed);
+        aborted(dataId, iso_tp::AbortReason::nAsTimeout);
 
         EXPECT_EQ("\r\nTracingIsoTpTransport: Abort dataId 0x18db33f1 reason nBsTimeout"
                   "\r\nTracingIsoTpTransport: Abort dataId 0x18db33f1 reason nCrTimeout"
                   "\r\nTracingIsoTpTransport: Abort dataId 0x18db33f1 reason overflow"
                   "\r\nTracingIsoTpTransport: Abort dataId 0x18db33f1 reason unexpectedFrame"
-                  "\r\nTracingIsoTpTransport: Abort dataId 0x18db33f1 reason waitLimitExceeded",
+                  "\r\nTracingIsoTpTransport: Abort dataId 0x18db33f1 reason waitLimitExceeded"
+                  "\r\nTracingIsoTpTransport: Abort dataId 0x18db33f1 reason sendFailed"
+                  "\r\nTracingIsoTpTransport: Abort dataId 0x18db33f1 reason nAsTimeout",
             stream.Storage());
-        EXPECT_EQ(5u, forwardCount);
+        EXPECT_EQ(7u, forwardCount);
     }
 }

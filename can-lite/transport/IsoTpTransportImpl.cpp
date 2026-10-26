@@ -3,8 +3,13 @@
 namespace services
 {
     IsoTpTransportImpl::IsoTpTransportImpl(infra::MemoryRange<iso_tp::IsoTpChannel*> channels, CanFrameTransport& transport)
+        : IsoTpTransportImpl(channels, transport, Config{ 0, 0 })
+    {}
+
+    IsoTpTransportImpl::IsoTpTransportImpl(infra::MemoryRange<iso_tp::IsoTpChannel*> channels, CanFrameTransport& transport, const Config& config)
         : channels(channels)
         , transport(transport)
+        , config(config)
     {}
 
     bool IsoTpTransportImpl::RegisterReceiveChannel(uint32_t dataId, uint32_t fcId)
@@ -108,6 +113,7 @@ namespace services
             {
                 OnAbort(did, r);
             });
+        ch->SetFlowControlParameters(config.blockSize, config.separationTime);
         return ch;
     }
 

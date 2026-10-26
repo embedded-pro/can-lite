@@ -37,10 +37,17 @@ namespace services
         : public IsoTpTransport
     {
     public:
+        struct Config
+        {
+            uint8_t blockSize;
+            uint8_t separationTime;
+        };
+
         template<uint16_t MaxPduSize, uint8_t MaxChannels = 4>
         class WithStorage;
 
         IsoTpTransportImpl(infra::MemoryRange<iso_tp::IsoTpChannel*> channels, CanFrameTransport& transport);
+        IsoTpTransportImpl(infra::MemoryRange<iso_tp::IsoTpChannel*> channels, CanFrameTransport& transport, const Config& config);
 
         bool RegisterReceiveChannel(uint32_t dataId, uint32_t fcId) override;
 
@@ -71,6 +78,7 @@ namespace services
 
         infra::MemoryRange<iso_tp::IsoTpChannel*> channels;
         CanFrameTransport& transport;
+        Config config;
         infra::Function<void(uint32_t, infra::ConstByteRange)> onPduReceived;
         infra::Function<void(uint32_t, iso_tp::AbortReason)> onAbortCallback;
     };
@@ -83,6 +91,10 @@ namespace services
     public:
         explicit WithStorage(CanFrameTransport& transport)
             : IsoTpTransportImpl(infra::MakeRange(this->channelPointers), transport)
+        {}
+
+        WithStorage(CanFrameTransport& transport, const Config& config)
+            : IsoTpTransportImpl(infra::MakeRange(this->channelPointers), transport, config)
         {}
     };
 }

@@ -350,3 +350,69 @@ TEST_F(IsoTpReceiverTest, Receive_ConsecutiveFrame_WhileIdle_Ignored)
     receiver.ProcessFrame(cf);
     EXPECT_TRUE(receiver.IsIdle());
 }
+
+TEST_F(IsoTpReceiverTest, Receive_ShortConsecutiveFrameThatIsNotTheLast_Ignored)
+{
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x10, 1, 2, 3, 4, 5, 6 }));
+
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8 }));
+
+    EXPECT_CALL(mocks, OnPduReady(_))
+        .WillOnce(Invoke([](infra::ConstByteRange pdu)
+            {
+                ASSERT_EQ(pdu.size(), 16u);
+                EXPECT_EQ(pdu[6], 7u);
+                EXPECT_EQ(pdu[15], 16u);
+            }));
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8, 9, 10, 11, 12, 13 }));
+    receiver.ProcessFrame(MakeMessage({ 0x22, 14, 15, 16 }));
+}
+
+TEST_F(IsoTpReceiverTest, Receive_LastConsecutiveFrameShorterThanTheRemainder_Ignored)
+{
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x09, 1, 2, 3, 4, 5, 6 }));
+
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8 }));
+    EXPECT_FALSE(receiver.IsIdle());
+
+    EXPECT_CALL(mocks, OnPduReady(_));
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8, 9 }));
+}
+
+TEST_F(IsoTpReceiverTest, Receive_ConsecutiveFramesWithoutData_DoNotKeepTheReceptionAlive)
+{
+    EXPECT_CALL(mocks, SendFc(_, _));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x08, 1, 2, 3, 4, 5, 6 }));
+
+    for (uint8_t sn = 1; sn != 10; ++sn)
+    {
+        ForwardTime(std::chrono::milliseconds(100));
+        receiver.ProcessFrame(MakeMessage({ static_cast<uint8_t>(0x20 | sn) }));
+    }
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nCrTimeout));
+    ForwardTime(std::chrono::milliseconds(100));
+}
+
+TEST_F(IsoTpReceiverTest, FlowControl_AdvertisesTheConfiguredBlockSizeAndSeparationTime)
+{
+    receiver.SetFlowControlParameters(2, 5);
+
+    EXPECT_CALL(mocks, SendFc(testing::ElementsAre(0x30, 2, 5), _));
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x20, 1, 2, 3, 4, 5, 6 }));
+}
+
+TEST_F(IsoTpReceiverTest, FlowControl_IsSentAgainAfterEachBlock)
+{
+    receiver.SetFlowControlParameters(2, 0);
+
+    EXPECT_CALL(mocks, SendFc(testing::ElementsAre(0x30, 2, 0), _)).Times(2);
+    receiver.ProcessFrame(MakeMessage({ 0x10, 0x16, 1, 2, 3, 4, 5, 6 }));
+    receiver.ProcessFrame(MakeMessage({ 0x21, 7, 8, 9, 10, 11, 12, 13 }));
+    receiver.ProcessFrame(MakeMessage({ 0x22, 14, 15, 16, 17, 18, 19, 20 }));
+
+    EXPECT_CALL(mocks, OnPduReady(_));
+    receiver.ProcessFrame(MakeMessage({ 0x23, 21, 22 }));
+}

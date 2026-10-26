@@ -49,6 +49,11 @@ namespace services::iso_tp
         receptionEnabled = true;
     }
 
+    void IsoTpChannelImpl::SetFlowControlParameters(uint8_t blockSize, uint8_t separationTime)
+    {
+        receiver.SetFlowControlParameters(blockSize, separationTime);
+    }
+
     void IsoTpChannelImpl::Release()
     {
         sender.Reset();

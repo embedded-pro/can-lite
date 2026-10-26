@@ -89,7 +89,9 @@ Four ordering choices in the pipeline are equally deliberate:
   multi-frame path uncounted: a transfer of any length would cost a single
   credit, and consecutive frames for a transfer that never completes would cost
   nothing at all. The reassembled unit is not charged again when it is
-  dispatched, so a transfer costs exactly what it occupied on the bus.
+  dispatched, so a transfer costs exactly what it occupied on the bus. A node
+  that receives long transfers paces its peers through the separation time
+  its receiver advertises (Chapter 8, §2).
 
 One consequence of the rate limiter is worth designing around rather than
 discovering: it counts within a fixed window that resets on a timer, so a burst
