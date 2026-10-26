@@ -114,12 +114,6 @@ namespace services
             uint8_t previousEvictIndex = 0;
         };
 
-        struct Discovery
-        {
-            uint16_t nodeId = 0;
-            infra::Function<void(std::optional<infra::ConstByteRange> categoryIds)> onDone;
-        };
-
         struct ServerLiveness
         {
             uint16_t nodeId = 0;
@@ -135,7 +129,8 @@ namespace services
         infra::TimerSingleShot heartbeatTimer;
         CanSystemCategoryClient systemCategory;
         infra::IntrusiveList<CanCategoryClient> categories;
-        std::optional<Discovery> discovery;
+        std::optional<uint16_t> discoveryNode;
+        infra::Function<void(std::optional<infra::ConstByteRange> categoryIds)> discoveryDone;
         infra::TimerSingleShot discoveryTimer;
         std::array<PerServerState, maxServers> serverStates;
         std::array<ServerLiveness, maxServers> serverLiveness;

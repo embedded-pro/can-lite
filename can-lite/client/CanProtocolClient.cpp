@@ -104,10 +104,11 @@ namespace services
 
     bool CanProtocolClient::DiscoverCategories(uint16_t nodeId, const infra::Function<void(std::optional<infra::ConstByteRange> categoryIds)>& onDone)
     {
-        if (discovery || nodeId == canBroadcastNodeId)
+        if (discoveryNode || nodeId == canBroadcastNodeId)
             return false;
 
-        discovery = Discovery{ nodeId, onDone };
+        discoveryNode = nodeId;
+        discoveryDone = onDone;
         discoveryTimer.Start(config.discoveryTimeout, [this]()
             {
                 CompleteDiscovery(std::nullopt);
@@ -117,7 +118,8 @@ namespace services
             return true;
 
         discoveryTimer.Cancel();
-        discovery.reset();
+        discoveryNode.reset();
+        discoveryDone = nullptr;
         return false;
     }
 
@@ -126,15 +128,16 @@ namespace services
         if (categoryId != canSystemCategoryId || messageType != canCategoryListResponseMessageTypeId)
             return;
 
-        if (discovery && discovery->nodeId == sourceNodeId)
+        if (discoveryNode == sourceNodeId)
             CompleteDiscovery(payload);
     }
 
     void CanProtocolClient::CompleteDiscovery(std::optional<infra::ConstByteRange> categoryIds)
     {
         discoveryTimer.Cancel();
-        auto onDone = discovery->onDone;
-        discovery.reset();
+        auto onDone = discoveryDone;
+        discoveryDone = nullptr;
+        discoveryNode.reset();
         onDone(categoryIds);
     }
 
