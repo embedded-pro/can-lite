@@ -22,7 +22,7 @@ namespace services
     {
     public:
         GsUsbAdapter() = default;
-        ~GsUsbAdapter() override;
+        ~GsUsbAdapter();
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;

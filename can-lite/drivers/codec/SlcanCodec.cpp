@@ -79,8 +79,8 @@ namespace services
         std::optional<SlcanFrame> ParseFrame(infra::BoundedConstString line)
         {
             const auto type = line.front();
-            const bool extended = type == 'T' || type == 'R';
-            const bool remote = type == 'r' || type == 'R';
+            const bool extended{ type == 'T' || type == 'R' };
+            const bool remote{ type == 'r' || type == 'R' };
             const auto idDigits = extended ? extendedIdDigits : standardIdDigits;
 
             const auto id = ParseHex(line, 1, idDigits);

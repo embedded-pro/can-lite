@@ -20,6 +20,11 @@ target_sources(can_lite.drivers_test PRIVATE
     TestSlcanCodec.cpp
 )
 
+if(TARGET can_lite.drivers.platform)
+    target_link_libraries(can_lite.drivers_test PRIVATE can_lite.drivers.platform)
+    target_sources(can_lite.drivers_test PRIVATE TestPlatformCanAdapter.cpp)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(can_lite.drivers_test PRIVATE can_lite.drivers.serial can_lite.drivers.socketcan)
     target_sources(can_lite.drivers_test PRIVATE TestPosixSerialPort.cpp TestSocketCanNetlink.cpp)

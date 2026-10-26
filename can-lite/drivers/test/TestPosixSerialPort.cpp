@@ -130,7 +130,7 @@ TEST_F(TestPosixSerialPort, refuses_io_while_closed)
 TEST_F(TestPosixSerialPort, refuses_a_write_while_the_port_has_no_room)
 {
     ASSERT_EQ(port.Open(Device()), SerialPortOpenResult::opened);
-    const int writer = ::open(devicePath, O_WRONLY | O_NOCTTY | O_NONBLOCK);
+    const int writer{ ::open(devicePath, O_WRONLY | O_NOCTTY | O_NONBLOCK) };
     ASSERT_GE(writer, 0);
 
     std::array<char, 256> filler{};
@@ -146,7 +146,7 @@ TEST_F(TestPosixSerialPort, refuses_a_write_while_the_port_has_no_room)
 TEST_F(TestPosixSerialPort, finishes_a_write_the_port_could_only_partly_take)
 {
     ASSERT_EQ(port.Open(Device()), SerialPortOpenResult::opened);
-    const int writer = ::open(devicePath, O_WRONLY | O_NOCTTY | O_NONBLOCK);
+    const int writer{ ::open(devicePath, O_WRONLY | O_NOCTTY | O_NONBLOCK) };
     ASSERT_GE(writer, 0);
 
     std::array<char, 256> filler{};
@@ -175,7 +175,7 @@ TEST_F(TestPosixSerialPort, finishes_a_write_the_port_could_only_partly_take)
 
     std::array<char, 2048> command{};
     command.fill('y');
-    const bool written = port.Write(infra::BoundedConstString(command.data(), command.size()));
+    const bool written{ port.Write(infra::BoundedConstString(command.data(), command.size())) };
     drainer.join();
 
     EXPECT_TRUE(written);

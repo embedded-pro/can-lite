@@ -13,7 +13,7 @@ namespace services
     {
     public:
         SocketCanAdapter() = default;
-        ~SocketCanAdapter() override;
+        ~SocketCanAdapter();
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;

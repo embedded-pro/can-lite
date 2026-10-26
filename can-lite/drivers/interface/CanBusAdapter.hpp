@@ -30,8 +30,6 @@ namespace services
     {
     public:
         CanBusAdapter() = default;
-        virtual ~CanBusAdapter() = default;
-
         CanBusAdapter(const CanBusAdapter&) = delete;
         CanBusAdapter& operator=(const CanBusAdapter&) = delete;
 
@@ -44,5 +42,8 @@ namespace services
 
         virtual void EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const = 0;
         virtual void EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const = 0;
+
+    protected:
+        ~CanBusAdapter() = default;
     };
 }

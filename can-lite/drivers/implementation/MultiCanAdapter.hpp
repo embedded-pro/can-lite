@@ -38,7 +38,7 @@ namespace services
         static constexpr std::size_t maxInterfaceNameLength{ 64 };
 
         explicit MultiCanAdapter(infra::BoundedVector<Backend>& backends);
-        ~MultiCanAdapter() override;
+        ~MultiCanAdapter();
 
         void Add(infra::BoundedConstString prefix, CanBusAdapter& adapter, infra::BoundedConstString alias = {});
 

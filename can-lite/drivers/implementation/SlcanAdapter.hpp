@@ -14,7 +14,7 @@ namespace services
     {
     public:
         explicit SlcanAdapter(SerialPort& port);
-        ~SlcanAdapter() override;
+        ~SlcanAdapter();
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;

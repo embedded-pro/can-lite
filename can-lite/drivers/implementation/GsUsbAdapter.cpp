@@ -22,7 +22,7 @@ namespace services
         template<class Visitor>
         void ForEachDevicePath(Visitor visit)
         {
-            HDEVINFO devices = SetupDiGetClassDevsW(&candleLightInterface, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+            HDEVINFO devices{ SetupDiGetClassDevsW(&candleLightInterface, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE) };
             if (devices == INVALID_HANDLE_VALUE)
                 return;
 
@@ -215,7 +215,7 @@ namespace services
         }
 
         const auto rawId = id.Get29BitId();
-        const bool success = WriteFrame(rawId, data);
+        const bool success{ WriteFrame(rawId, data) };
         if (success)
             NotifyObservers([rawId, &data](auto& observer)
                 {
@@ -236,7 +236,7 @@ namespace services
         OVERLAPPED overlapped{};
         overlapped.hEvent = writeEvent;
         ULONG written{};
-        const bool queued = WinUsb_WritePipe(usb, outPipe, frame.data(), static_cast<ULONG>(frame.size()), nullptr, &overlapped) != FALSE || GetLastError() == ERROR_IO_PENDING;
+        const bool queued{ WinUsb_WritePipe(usb, outPipe, frame.data(), static_cast<ULONG>(frame.size()), nullptr, &overlapped) != FALSE || GetLastError() == ERROR_IO_PENDING };
         return queued && WinUsb_GetOverlappedResult(usb, &overlapped, &written, TRUE) != FALSE && written == frame.size();
     }
 

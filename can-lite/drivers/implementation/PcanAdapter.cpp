@@ -162,7 +162,7 @@ namespace services
         message.length = static_cast<BYTE>(std::min<std::size_t>(data.size(), 8));
         std::memcpy(message.data, data.data(), message.length);
 
-        const bool success = write(channel, &message) == statusOk;
+        const bool success{ write(channel, &message) == statusOk };
         if (success)
             NotifyObservers([rawId = message.id, &data](auto& observer)
                 {
@@ -205,7 +205,7 @@ namespace services
 
     void PcanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
-        HMODULE probe = LoadLibraryA(libraryName);
+        HMODULE probe{ LoadLibraryA(libraryName) };
         if (probe == nullptr)
             return;
 
@@ -222,7 +222,7 @@ namespace services
 
     void PcanAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
     {
-        HMODULE probe = LoadLibraryA(libraryName);
+        HMODULE probe{ LoadLibraryA(libraryName) };
         if (probe == nullptr)
             callback("PCAN: PCANBasic.dll was not found; install the PEAK-System PCAN driver package");
         else

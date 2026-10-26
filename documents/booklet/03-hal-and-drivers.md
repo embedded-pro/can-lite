@@ -147,10 +147,19 @@ descriptor is a file descriptor. On Windows it is a waitable handle where the
 driver offers one — candleLight, and PCAN when its receive event could be
 installed — and −1 otherwise: Kvaser, and slcan, whose COM port offers no event.
 Calling the read entry point from a timer is always safe, because every adapter
-reads without blocking and bounds the work done per call. Adapters also defer their send completions through the event
-dispatcher rather than calling them from inside the send. That detail matters
-more than it looks: it guarantees the core layer's queue is never re-entered
-from inside its own send (Chapter 10, §2).
+reads without blocking and bounds the work done per call. Adapters also defer
+their send completions through the event dispatcher rather than calling them
+from inside the send. That detail matters more than it looks: it guarantees the
+core layer's queue is never re-entered from inside its own send (Chapter 10,
+§2).
+
+Sending is bounded rather than free of waits. Two adapters on Windows wait
+inside the send: candleLight waits for each frame's USB transfer to finish, up
+to its 100 ms pipe timeout, and the COM port under slcan writes synchronously,
+up to 50 ms. On Linux the only wait is a serial write that must finish a command
+the port took in part, up to 100 ms (§2.2). A host loop that services other work
+between frames should budget for these; making the Windows writes overlapped is
+a known, deliberate omission.
 
 ### 2.1 Several adapters behind one name
 

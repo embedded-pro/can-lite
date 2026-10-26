@@ -142,12 +142,12 @@ namespace services
         std::memcpy(frame.data, data.data(), frame.can_dlc);
 
         auto bytesWritten = write(socketDescriptor, &frame, sizeof(frame));
-        int savedErrno = errno;
-        bool success = (bytesWritten == static_cast<ssize_t>(sizeof(frame)));
+        int savedErrno{ errno };
+        bool success{ bytesWritten == static_cast<ssize_t>(sizeof(frame)) };
 
         if (success)
         {
-            uint32_t rawId = id.Get29BitId();
+            uint32_t rawId{ id.Get29BitId() };
             NotifyObservers([rawId, &data](auto& observer)
                 {
                     observer.OnFrameLog(true, rawId, data);
@@ -209,7 +209,7 @@ namespace services
 
     void SocketCanAdapter::Deliver(const struct can_frame& frame)
     {
-        uint32_t rawId = frame.can_id & CAN_EFF_MASK;
+        uint32_t rawId{ frame.can_id & CAN_EFF_MASK };
         CanFrame data;
         for (uint8_t i = 0; i < frame.can_dlc && i < 8; ++i)
             data.push_back(frame.data[i]);
@@ -225,7 +225,7 @@ namespace services
 
     void SocketCanAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
     {
-        int fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+        int fd{ socket(PF_CAN, SOCK_RAW | SOCK_CLOEXEC, CAN_RAW) };
         if (fd < 0)
         {
             callback("SocketCAN: the CAN kernel modules are not loaded; run sudo modprobe -a can can_raw (and vcan for a virtual bus)");
@@ -236,9 +236,9 @@ namespace services
 
     void SocketCanAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
-        static constexpr int arphrdCan = 280;
+        static constexpr int arphrdCan{ 280 };
 
-        DIR* dir = opendir("/sys/class/net");
+        DIR* dir{ opendir("/sys/class/net") };
         if (dir == nullptr)
             return;
 
@@ -250,11 +250,11 @@ namespace services
             char typePath[280];
             std::snprintf(typePath, sizeof(typePath), "/sys/class/net/%s/type", entry->d_name);
 
-            FILE* typeFile = std::fopen(typePath, "r");
+            FILE* typeFile{ std::fopen(typePath, "r") };
             if (typeFile != nullptr)
             {
-                int type = 0;
-                bool validRead = (std::fscanf(typeFile, "%d", &type) == 1);
+                int type{};
+                bool validRead{ std::fscanf(typeFile, "%d", &type) == 1 };
                 std::fclose(typeFile);
                 if (validRead && type == arphrdCan)
                     callback(entry->d_name);

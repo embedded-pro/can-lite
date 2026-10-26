@@ -97,7 +97,7 @@ namespace services
         }
 
         const auto rawId = id.Get29BitId();
-        const bool success = port.Write(EncodeSlcanFrame(rawId, true, data));
+        const bool success{ port.Write(EncodeSlcanFrame(rawId, true, data)) };
         if (success)
             NotifyObservers([rawId, &data](auto& observer)
                 {

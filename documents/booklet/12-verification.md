@@ -96,15 +96,23 @@ mapping.
 Stated plainly, because a verification chapter that lists only what is covered
 is misleading:
 
-| Not covered                                              | Why                                                                 | What stands in for it                                                   |
-|----------------------------------------------------------|---------------------------------------------------------------------|-------------------------------------------------------------------------|
-| Arbitration and priority                                 | The virtual bus delivers in send order                              | The bus-load arithmetic of Chapter 11                                   |
-| A driver that completes inside the send call             | The virtual bus completes asynchronously, as the interface promises | Unit tests that deliver the answer inside the send call (Chapter 7, §3) |
-| Bus errors, error frames, bus-off                        | Not modelled                                                        | Mocked send outcomes, and send failures injected on the virtual bus     |
-| Timing on target hardware                                | Host tests use a virtual clock                                      | Budgets computed in Chapter 11, validated per product                   |
-| More than two nodes end to end                           | The fixture couples one server and one client                       | Multi-server behaviour covered at the unit level                        |
-| Interoperability with third-party segmentation stacks    | No external stack in the loop                                       | The deliberate omissions of Chapter 8, §6                               |
-| Long-run behaviour — counter wrap over days, timer drift | Not simulated                                                       | Wrap-around tested directly at its boundary                             |
+| Not covered                                              | Why                                                                 | What stands in for it                                                                                                                               |
+|----------------------------------------------------------|---------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| Arbitration and priority                                 | The virtual bus delivers in send order                              | The bus-load arithmetic of Chapter 11                                                                                                               |
+| A driver that completes inside the send call             | The virtual bus completes asynchronously, as the interface promises | Unit tests that deliver the answer inside the send call (Chapter 7, §3)                                                                             |
+| Bus errors, error frames, bus-off                        | Not modelled                                                        | Mocked send outcomes, and send failures injected on the virtual bus                                                                                 |
+| Timing on target hardware                                | Host tests use a virtual clock                                      | Budgets computed in Chapter 11, validated per product                                                                                               |
+| More than two nodes end to end                           | The fixture couples one server and one client                       | Multi-server behaviour covered at the unit level                                                                                                    |
+| Interoperability with third-party segmentation stacks    | No external stack in the loop                                       | The deliberate omissions of Chapter 8, §6                                                                                                           |
+| Long-run behaviour — counter wrap over days, timer drift | Not simulated                                                       | Wrap-around tested directly at its boundary                                                                                                         |
+| Host adapters against real hardware                      | No adapter, controller or Windows runner in CI                      | Codec, slcan, serial, netlink and router tests on Linux; the Windows build compiles every adapter and links the platform composition into its tests |
 
 Each row is a place where Chapter 10 relies on reasoning rather than on a test,
 which is precisely why that chapter states the mechanism behind every outcome.
+
+The last row has a consequence for the coverage measure. The SocketCAN, PCAN,
+Kvaser and candleLight adapters and the Windows serial port do little besides
+move frames between the stack and an operating-system or vendor interface, so
+no unit test can run them. They are left out of the coverage figure and stay
+under static analysis; the logic they share is in the tested codec, slcan,
+serial, netlink and router code.
