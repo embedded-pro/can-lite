@@ -72,5 +72,7 @@ WHEN(R"(the server sends a category list response without a pending request)")
 
 THEN(R"(the client shall silently ignore the response)")
 {
-    SUCCEED();
+    auto& fixture = context.Get<ApplicationFixture>();
+    EXPECT_EQ(fixture.clientCan.sendCount, 0);
+    EXPECT_FALSE(context.Contains<CategoryDiscoveryResult>());
 }

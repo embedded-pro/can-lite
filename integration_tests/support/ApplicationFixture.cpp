@@ -13,10 +13,28 @@ namespace integration
         , server(serverCan, config)
         , serverObserver(server)
         , client(clientCan)
+        , clientObserver(client)
     {
-        EXPECT_CALL(serverObserver, Offline()).Times(testing::AnyNumber()).WillRepeatedly([this]()
+        EXPECT_CALL(serverObserver, Online()).WillRepeatedly([this]()
+            {
+                ++processedCount;
+                clientOnlineAsSeenByServer = true;
+            });
+        EXPECT_CALL(serverObserver, Offline()).WillRepeatedly([this]()
             {
                 clientOnlineAsSeenByServer = false;
+            });
+        EXPECT_CALL(clientObserver, OnServerOnline(testing::_)).WillRepeatedly([this](uint16_t)
+            {
+                ++serversOnlineAsSeenByClient;
+            });
+        EXPECT_CALL(clientObserver, OnServerOffline(testing::_)).WillRepeatedly([this](uint16_t)
+            {
+                --serversOnlineAsSeenByClient;
+            });
+        EXPECT_CALL(clientObserver, OnCommandAckTimeout(testing::_, testing::_, testing::_)).WillRepeatedly([this](uint16_t, uint8_t, uint8_t)
+            {
+                ++commandAckTimeouts;
             });
     }
 
@@ -42,8 +60,7 @@ namespace integration
     {
         RegisterDemoCategoryServerOnly();
 
-        clientTransport.emplace(clientCan, config.nodeId);
-        demoClient.emplace(*clientTransport, client);
+        demoClient.emplace(client.Transport(), client);
         demoClientObserver.emplace(*demoClient);
         client.RegisterCategory(*demoClient);
     }
@@ -60,10 +77,13 @@ namespace integration
         services::FirmwareUpgradeCategoryServer::Config fwuConfig{};
         fwuServer.emplace(server.Transport(), fwuConfig);
         fwuServerObserver.emplace(*fwuServer);
+        EXPECT_CALL(*fwuServerObserver, OnSessionTimeout()).Times(testing::AtMost(1)).WillOnce([this]()
+            {
+                fwuSessionTimedOut = true;
+            });
         server.RegisterCategory(*fwuServer);
 
-        fwuClientTransport.emplace(clientCan, config.nodeId);
-        fwuClient.emplace(*fwuClientTransport, client);
+        fwuClient.emplace(client.Transport(), client);
         fwuClientObserver.emplace(*fwuClient);
         client.RegisterCategory(*fwuClient);
     }

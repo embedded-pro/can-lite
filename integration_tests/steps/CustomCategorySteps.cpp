@@ -110,13 +110,18 @@ WHEN(R"(the server responds with value {int})", (std::int32_t value))
 {
     auto& fixture = context.Get<ApplicationFixture>();
 
-    EXPECT_CALL(*fixture.demoClientObserver, OnValueResponse(static_cast<int16_t>(value)));
+    EXPECT_CALL(*fixture.demoClientObserver, OnValueResponse(_)).WillOnce([&fixture](int16_t received)
+        {
+            fixture.receivedValue = received;
+        });
     fixture.capturedQueryValueResult(static_cast<int16_t>(value));
 }
 
-THEN(R"(the client observer shall receive a value response of {int})", (std::int32_t))
+THEN(R"(the client observer shall receive a value response of {int})", (std::int32_t value))
 {
-    SUCCEED();
+    auto& fixture = context.Get<ApplicationFixture>();
+    ASSERT_TRUE(fixture.receivedValue.has_value());
+    EXPECT_EQ(*fixture.receivedValue, static_cast<int16_t>(value));
 }
 
 WHEN(R"(the client sends a failing command)")
@@ -144,11 +149,18 @@ WHEN(R"(the server reports category error {string})", (const std::string& errorS
 
     auto error = errorStr == "busy" ? DemoError::busy : DemoError::notSupported;
 
-    EXPECT_CALL(*fixture.demoClientObserver, OnCategoryError(integration::demoFailId, error));
+    EXPECT_CALL(*fixture.demoClientObserver, OnCategoryError(_, _)).WillOnce([&fixture](uint8_t command, DemoError received)
+        {
+            fixture.receivedCategoryErrorCommand = command;
+            fixture.receivedCategoryError = received;
+        });
     fixture.capturedFailResult(error);
 }
 
-THEN(R"(the client observer shall receive a category error {string} for command {int})", (const std::string&, std::int32_t))
+THEN(R"(the client observer shall receive a category error {string} for command {int})", (const std::string& errorStr, std::int32_t command))
 {
-    SUCCEED();
+    auto& fixture = context.Get<ApplicationFixture>();
+    ASSERT_TRUE(fixture.receivedCategoryError.has_value());
+    EXPECT_EQ(*fixture.receivedCategoryError, errorStr == "busy" ? DemoError::busy : DemoError::notSupported);
+    EXPECT_EQ(fixture.receivedCategoryErrorCommand, static_cast<uint8_t>(command));
 }

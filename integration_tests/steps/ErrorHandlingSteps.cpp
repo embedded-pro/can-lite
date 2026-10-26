@@ -18,7 +18,9 @@ WHEN(R"(a frame is received with an 11-bit standard identifier)")
 
 THEN(R"(the server shall silently discard the frame)")
 {
-    SUCCEED();
+    auto& fixture = context.Get<ApplicationFixture>();
+    EXPECT_EQ(fixture.serverCan.sendCount, 0);
+    EXPECT_EQ(fixture.processedCount, 0);
 }
 
 WHEN(R"(the client receives a frame with an 11-bit standard identifier)")
@@ -33,7 +35,9 @@ WHEN(R"(the client receives a frame with an 11-bit standard identifier)")
 
 THEN(R"(the client shall silently discard the frame)")
 {
-    SUCCEED();
+    auto& fixture = context.Get<ApplicationFixture>();
+    EXPECT_EQ(fixture.clientCan.sendCount, 0);
+    EXPECT_EQ(fixture.serversOnlineAsSeenByClient, 0);
 }
 
 WHEN(R"(a CAN identifier is constructed with priority {int}, category {int}, message type {int}, and node ID {int})",
@@ -99,7 +103,7 @@ WHEN(R"(a heartbeat frame is sent addressed to the broadcast address {int})", (s
 THEN(R"(the server shall process the broadcast heartbeat)")
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    EXPECT_GT(fixture.processedCount, 0);
+    EXPECT_EQ(fixture.processedCount, 1);
 }
 
 WHEN(R"(a frame is received with unregistered category {int})", (std::int32_t category))
@@ -149,7 +153,15 @@ WHEN(R"(the client sends a set parameters command with only {int} bytes)", (std:
 
 THEN(R"(the demo server observer shall not have received a set parameters command)")
 {
-    SUCCEED();
+    auto& fixture = context.Get<ApplicationFixture>();
+    EXPECT_FALSE(fixture.receivedParameters.has_value());
+
+    ASSERT_GT(fixture.serverCan.sendCount, 0);
+    const auto& ack = fixture.serverCan.LastSent();
+    EXPECT_EQ(ExtractCanMessageType(ack.id.Get29BitId()), canCommandAckMessageTypeId);
+    ASSERT_GE(ack.data.size(), 3u);
+    EXPECT_EQ(ack.data[0], integration::demoCategoryId);
+    EXPECT_EQ(ack.data[1], integration::demoSetParametersId);
 }
 
 WHEN(R"(the client receives a response for unregistered category {int})", (std::int32_t category))

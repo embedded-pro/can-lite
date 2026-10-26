@@ -40,10 +40,12 @@ namespace integration
         testing::StrictMock<ServerObserverMock> serverObserver;
         bool clientOnlineAsSeenByServer = false;
         services::CanProtocolClient client;
+        testing::StrictMock<CanProtocolClientObserverMock> clientObserver;
+        int serversOnlineAsSeenByClient = 0;
+        int commandAckTimeouts = 0;
 
         std::optional<DemoCategoryServer> demoServer;
         std::optional<testing::StrictMock<DemoServerObserverMock>> demoServerObserver;
-        std::optional<services::CanFrameTransport> clientTransport;
         std::optional<DemoCategoryClient> demoClient;
         std::optional<testing::StrictMock<DemoClientObserverMock>> demoClientObserver;
 
@@ -51,12 +53,17 @@ namespace integration
         infra::Function<void(int16_t)> capturedQueryValueResult;
         infra::Function<void(DemoError)> capturedFailResult;
         std::optional<DemoParameters> receivedParameters;
+        std::optional<int16_t> receivedValue;
+        std::optional<DemoError> receivedCategoryError;
+        uint8_t receivedCategoryErrorCommand = 0;
 
         std::optional<services::FirmwareUpgradeCategoryServer> fwuServer;
         std::optional<testing::StrictMock<FirmwareUpgradeServerObserverMock>> fwuServerObserver;
-        std::optional<services::CanFrameTransport> fwuClientTransport;
         std::optional<services::FirmwareUpgradeCategoryClient> fwuClient;
         std::optional<testing::StrictMock<FirmwareUpgradeClientObserverMock>> fwuClientObserver;
+        std::optional<uint32_t> fwuBeginSize;
+        bool fwuProgressQueried = false;
+        bool fwuSessionTimedOut = false;
 
         infra::BoundedVector<SequencedTestCategory>::WithMaxSize<4> sequencedCategories;
         infra::BoundedVector<SimpleTestCategory>::WithMaxSize<4> simpleCategories;

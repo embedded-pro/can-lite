@@ -288,9 +288,9 @@ concurrently interleave their counters and are rejected with `sequenceError`.
 The counter only moves for accepted commands (REQ-CAN-043). `CanProtocolServer`
 records the incoming sequence byte **before** dispatching to the handler and
 restores the previous value if the handler rejects the payload or no handler
-matches. Recording first matters on synchronous buses and in the integration
-tests: an accepted handler's acknowledgement can make the client send its next
-command before dispatch returns. A rejecting handler sends nothing, so nothing
+matches. Recording first matters on buses that deliver synchronously: an
+accepted handler's acknowledgement can make the client send its next command
+before dispatch returns. A rejecting handler sends nothing, so nothing
 can re-enter between the record and the restore.
 
 Commands at emergency priority skip the check and, once accepted, set the
@@ -579,7 +579,23 @@ integration_tests/
 
 ### VirtualCan
 
-`VirtualCan` is a concrete `hal::Can` implementation that replaces hardware drivers in integration tests. Two `VirtualCan` instances are connected via `ConnectTo()`: frames sent by one are delivered to the other's receive callback, simulating a shared CAN bus without mocking `SendData`/`ReceiveData`. `InjectFrame()` allows direct frame injection for testing error paths.
+`VirtualCan` is a concrete `hal::Can` implementation that replaces hardware
+drivers in integration tests. Two `VirtualCan` instances are connected via
+`ConnectTo()`: frames sent by one are delivered to the other's receive
+callback, simulating a shared CAN bus without mocking `SendData`/`ReceiveData`.
+
+- **Asynchronous, like a driver.** Delivery to the peer and the send
+  completion are scheduled on the event dispatcher, in send order, rather than
+  run inside `SendData`. So the scenarios exercise the call graph a hardware
+  driver produces, not a re-entrant one no target can.
+- **Delivery between steps.** An after-step hook runs the dispatcher, so
+  everything a step set in motion has been delivered before the next step
+  starts. `ForwardTime()` delivers as time passes.
+- **Recording.** Every frame sent is recorded (`SentFrames()`, `LastSent()`,
+  `sendCount`), so Then steps can assert that nothing was sent, or exactly what
+  was.
+- **Injection.** `InjectFrame()` delivers a frame straight to the node's own
+  receive callback, for frames no correct peer would send.
 
 ### ApplicationFixture
 
@@ -587,14 +603,26 @@ integration_tests/
 
 - A pair of connected `VirtualCan` instances (server-side and client-side).
 - `CanProtocolServer` and `CanProtocolClient` wired to their respective CAN interfaces.
-- `StrictMock` observers for the server and (optionally) the demo category.
-- Optional demo category components (`CanFrameTransport`, `DemoCategoryServer`/`Client`, observers) activated via `RegisterDemoCategory()`. The demo category (`0x3`) is the reference application category used to validate the extension API end to end.
+- `StrictMock` observers for the server, the client and (optionally) the categories.
+- Optional demo category components (`DemoCategoryServer`/`Client`, observers) activated via `RegisterDemoCategory()`. The client side uses the client's own `Transport()`, as an application must. The demo category (`0x3`) is the reference application category used to validate the extension API end to end.
 - Optional Firmware Upgrade components (`FirmwareUpgradeCategoryServer`/`Client`, observers) activated via `RegisterFirmwareUpgrade()`.
 - Dynamic test categories (`SequencedTestCategory`, `SimpleTestCategory`) for sequence and discovery testing.
 
 ### StrictMock Everywhere
 
-All mock observers use `testing::StrictMock`. Unexpected calls cause immediate test failure, ensuring every interaction is explicitly expected.
+All mock observers use `testing::StrictMock`. Category observers carry explicit
+per-step expectations, so an unexpected call fails the scenario.
+
+The protocol objects' observers are notified on every heartbeat, received frame
+and timeout. The fixture therefore records those notifications:
+
+- the client's online state as the server sees it, and the count of processed
+  heartbeats;
+- the number of servers the client sees online;
+- command acknowledgement timeouts.
+
+Then steps assert the recorded state. An after-scenario hook fails any scenario
+that ends with a command acknowledgement timed out.
 
 ### Cucumber Context API
 

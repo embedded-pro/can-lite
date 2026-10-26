@@ -37,6 +37,7 @@ Feature: Error Handling
     And a sequenced test category with ID 4 is registered on the server
     When the client sends a set parameters command with only 3 bytes
     Then the demo server observer shall not have received a set parameters command
+    And the server shall send an acknowledgement with status "invalidPayload"
 
   Scenario: Client silently ignores messages from unregistered categories
     When the client receives a response for unregistered category 14
