@@ -13,6 +13,7 @@ target_link_libraries(can_lite.integration_tests.support PUBLIC
     can_lite.client
     can_lite.categories.firmware_upgrade
     can_lite.core
+    can_lite.transport
     infra.timer
     infra.timer_test_helper
     GTest::gmock

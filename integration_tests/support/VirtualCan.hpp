@@ -3,6 +3,7 @@
 #include "hal/interfaces/Can.hpp"
 #include "infra/util/BoundedDeque.hpp"
 #include <cstddef>
+#include <optional>
 
 namespace integration
 {
@@ -21,6 +22,9 @@ namespace integration
         void ConnectTo(VirtualCan& other);
         void InjectFrame(Id id, const Message& data);
         void Disconnect();
+        void LoseFramesOn(Id id);
+        void FailFramesOn(Id id);
+        void DeliverEveryFrame();
 
         const Frame& LastSent() const;
         const infra::BoundedDeque<Frame>& SentFrames() const;
@@ -40,6 +44,8 @@ namespace integration
         static constexpr std::size_t framesInFlight = 4;
 
         VirtualCan* peer = nullptr;
+        std::optional<Id> lostId;
+        std::optional<Id> failedId;
         infra::Function<void(Id, const Message&)> receiveCallback;
         infra::BoundedDeque<Frame>::WithMaxSize<recordedFrames> sentFrames;
         infra::BoundedDeque<InFlight>::WithMaxSize<framesInFlight> inFlight;

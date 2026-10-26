@@ -51,6 +51,22 @@ namespace integration
         peer = nullptr;
     }
 
+    void VirtualCan::LoseFramesOn(Id id)
+    {
+        lostId = id;
+    }
+
+    void VirtualCan::FailFramesOn(Id id)
+    {
+        failedId = id;
+    }
+
+    void VirtualCan::DeliverEveryFrame()
+    {
+        lostId.reset();
+        failedId.reset();
+    }
+
     const VirtualCan::Frame& VirtualCan::LastSent() const
     {
         really_assert(!sentFrames.empty());
@@ -67,7 +83,13 @@ namespace integration
         auto delivery = inFlight.front();
         inFlight.pop_front();
 
-        if (peer)
+        if (failedId == delivery.frame.id)
+        {
+            delivery.onDone(false);
+            return;
+        }
+
+        if (peer && lostId != delivery.frame.id)
             peer->Receive(delivery.frame.id, delivery.frame.data);
 
         delivery.onDone(true);

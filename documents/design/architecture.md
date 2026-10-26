@@ -593,6 +593,9 @@ callback, simulating a shared CAN bus without mocking `SendData`/`ReceiveData`.
   was.
 - **Injection.** `InjectFrame()` delivers a frame straight to the node's own
   receive callback, for frames no correct peer would send.
+- **Faults.** `LoseFramesOn(id)` drops every frame sent on one identifier
+  while reporting it sent, `FailFramesOn(id)` reports its transmission as
+  failed, and `DeliverEveryFrame()` clears both.
 
 ### ApplicationFixture
 
@@ -604,6 +607,7 @@ callback, simulating a shared CAN bus without mocking `SendData`/`ReceiveData`.
 - Optional demo category components (`DemoCategoryServer`/`Client`, observers) activated via `RegisterDemoCategory()`. The client side uses the client's own `Transport()`, as an application must. The demo category (`0x3`) is the reference application category used to validate the extension API end to end.
 - Optional Firmware Upgrade components (`FirmwareUpgradeCategoryServer`/`Client`, observers) activated via `RegisterFirmwareUpgrade()`.
 - Dynamic test categories (`SequencedTestCategory`, `SimpleTestCategory`) for sequence and discovery testing.
+- Optional ISO-TP wiring activated via `ConnectIsoTp()`: an `IsoTpTransportImpl` attached to each protocol object, a receive channel on the server for the `PduTestCategory` (`0x4`), and abort callbacks recorded on both nodes.
 
 ### StrictMock Everywhere
 

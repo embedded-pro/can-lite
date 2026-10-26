@@ -40,6 +40,13 @@ namespace integration
 
     ApplicationFixture::~ApplicationFixture()
     {
+        if (clientIsoTp)
+            client.DetachIsoTpTransport();
+        if (serverIsoTp)
+            server.DetachIsoTpTransport();
+        if (pduCategory)
+            server.UnregisterCategory(*pduCategory);
+
         if (demoClient)
             client.UnregisterCategory(*demoClient);
         if (demoServer)
@@ -86,6 +93,37 @@ namespace integration
         fwuClient.emplace(client.Transport(), client);
         fwuClientObserver.emplace(*fwuClient);
         client.RegisterCategory(*fwuClient);
+    }
+
+    void ApplicationFixture::ConnectIsoTp()
+    {
+        pduCategory.emplace(server.Transport());
+        server.RegisterCategory(*pduCategory);
+
+        serverIsoTp.emplace(server.Transport());
+        server.AttachIsoTpTransport(*serverIsoTp);
+        serverIsoTp->SetOnAbort([this](uint32_t, services::iso_tp::AbortReason reason)
+            {
+                serverIsoTpFailure = reason;
+            });
+        serverIsoTp->RegisterReceiveChannel(PduDataId(), PduFlowControlId());
+
+        clientIsoTp.emplace(client.Transport());
+        client.AttachIsoTpTransport(*clientIsoTp);
+        clientIsoTp->SetOnAbort([this](uint32_t, services::iso_tp::AbortReason reason)
+            {
+                clientIsoTpFailure = reason;
+            });
+    }
+
+    uint32_t ApplicationFixture::PduDataId() const
+    {
+        return services::MakeCanId(services::CanPriority::command, pduCategoryId, pduUploadId, config.nodeId);
+    }
+
+    uint32_t ApplicationFixture::PduFlowControlId() const
+    {
+        return services::MakeCanId(services::CanPriority::response, pduCategoryId, pduUploadFlowControlId, config.nodeId);
     }
 
     SequencedTestCategory& ApplicationFixture::RegisterSequencedCategory(uint8_t id)

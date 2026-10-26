@@ -2,6 +2,8 @@
 
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanMessageHandler.hpp"
+#include "infra/util/BoundedVector.hpp"
+#include "infra/util/ByteRange.hpp"
 #include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
@@ -16,6 +18,10 @@ namespace integration
     static constexpr uint8_t demoFailId = 0x03;
 
     static constexpr uint8_t demoValueResponseId = 0x82;
+
+    static constexpr uint8_t pduCategoryId = 0x04;
+    static constexpr uint8_t pduUploadId = 0x10;
+    static constexpr uint8_t pduUploadFlowControlId = 0x90;
 
     enum class DemoError : uint8_t
     {
@@ -129,6 +135,24 @@ namespace integration
 
     private:
         uint8_t catId;
+    };
+
+    class PduTestCategory : public services::CanCategoryServer
+    {
+    public:
+        explicit PduTestCategory(services::CanFrameTransport& transport);
+
+        uint8_t Id() const override;
+        bool RequiresSequenceValidation() const override;
+
+        infra::BoundedVector<uint8_t>::WithMaxSize<64> received;
+        int pduCount = 0;
+
+    private:
+        bool HandleFrame(const hal::Can::Message& data);
+        bool HandlePdu(infra::ConstByteRange pdu);
+
+        services::CanMessageHandler<PduTestCategory> upload{ pduUploadId, *this, &PduTestCategory::HandleFrame, &PduTestCategory::HandlePdu };
     };
 
     class SimpleTestCategory : public services::CanCategoryServer

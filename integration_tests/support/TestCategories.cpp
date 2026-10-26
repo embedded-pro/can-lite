@@ -183,6 +183,34 @@ namespace integration
         return true;
     }
 
+    PduTestCategory::PduTestCategory(services::CanFrameTransport& transport)
+        : services::CanCategoryServer(transport)
+    {
+        AddMessageType(upload);
+    }
+
+    uint8_t PduTestCategory::Id() const
+    {
+        return pduCategoryId;
+    }
+
+    bool PduTestCategory::RequiresSequenceValidation() const
+    {
+        return false;
+    }
+
+    bool PduTestCategory::HandleFrame(const hal::Can::Message&)
+    {
+        return false;
+    }
+
+    bool PduTestCategory::HandlePdu(infra::ConstByteRange pdu)
+    {
+        ++pduCount;
+        received.assign(pdu.begin(), pdu.end());
+        return true;
+    }
+
     SimpleTestCategory::SimpleTestCategory(services::CanFrameTransport& transport, uint8_t id)
         : services::CanCategoryServer(transport)
         , catId(id)

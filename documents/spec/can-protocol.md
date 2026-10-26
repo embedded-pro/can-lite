@@ -168,14 +168,27 @@ transmit identifier (REQ-CAN-035):
   either of its identifiers. Releasing ends any transfer in progress on it
   without a report.
 
-The implementation uses `WithStorage` for zero-heap construction. All internal components (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`) are non-template classes that receive their PDU buffer storage via `infra::WithStorage` aliases, following the EMIL convention:
+The implementation uses `WithStorage` for zero-heap construction. All internal
+components (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`) are
+non-template classes that receive their PDU buffer storage via
+`infra::WithStorage` aliases, following the EMIL convention. An application
+sizes `IsoTpTransportImpl::WithStorage<MaxPduSize, MaxChannels>` over the
+protocol object's own frame transport, attaches it with
+`AttachIsoTpTransport`, and opens each receive channel with
+`RegisterReceiveChannel`.
 
-```cpp
-IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
-protocolServer.AttachIsoTpTransport(isoTp);
-
-isoTp.RegisterReceiveChannel(dataId, fcId);
-```
+**Sending to a category.** Sending is the application's: neither protocol
+object nor any category calls `SendPdu`. A PDU addressed to a server category
+travels on a data identifier built like a command's (§5): command priority,
+the category, the message type and the server's node ID. The receiving
+protocol object dispatches the reassembled PDU to that category's segmented
+handler, through the same admission, sequence and acknowledgement path as a
+single frame (§11). For a category that validates sequence numbers, the
+PDU's first byte is the sequence number. The application reserves it from
+the client, which is the sequence source; it cancels the reservation if
+`SendPdu` refuses the transfer, and returns the number if the transfer is
+reported through the abort callback. `SendPdu`'s completion runs only when
+the transfer succeeds.
 
 **Addressing constraint.** `IsoTpTransportImpl` routes frames to channels purely
 by the literal CAN ID carried in `dataId`/`fcId` — the sender's identity is not
