@@ -18,9 +18,10 @@ Feature: Rate Limiting
   Scenario: Rate counter resets after one second
     Given a CAN bus with a server at node 1 and rate limit 2
     And a CAN bus client connected to the same bus
-    When the client sends 2 heartbeat messages to the server
+    And the client goes silent
+    When 2 heartbeat messages reach the server
     And 1 second elapses
-    And the client sends 1 heartbeat messages to the server
+    And a heartbeat message reaches the server
     Then the server shall have processed 3 messages
 
   @REQ-CAN-022

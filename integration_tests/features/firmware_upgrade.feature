@@ -15,26 +15,30 @@ Feature: Firmware Upgrade
   @REQ-FWU-015
   Scenario: Session timeout fires after inactivity
     When the client sends a begin upgrade command with firmware size 1024
-    And 30 seconds elapse expecting a session timeout
+    And 30 seconds elapse
+    Then the firmware upgrade session shall have timed out
 
   @REQ-FWU-015
   Scenario: Data block resets the session timeout
     When the client sends a begin upgrade command with firmware size 12
-    And 25 seconds elapse without a session timeout
+    And 25 seconds elapse
     And the client sends data block 0
-    And 25 seconds elapse without a session timeout
+    And 25 seconds elapse
+    Then the firmware upgrade session shall not have timed out
 
   @REQ-FWU-015
   Scenario: Abort stops the session timeout
     When the client sends a begin upgrade command with firmware size 12
     And the client sends an abort command
-    And 60 seconds elapse without a session timeout
+    And 60 seconds elapse
+    Then the firmware upgrade session shall not have timed out
 
   @REQ-FWU-015
   Scenario: Verify stops the session timeout
     When the client sends a begin upgrade command with firmware size 12
     And the client sends a verify command with CRC32 305419896
-    And 60 seconds elapse without a session timeout
+    And 60 seconds elapse
+    Then the firmware upgrade session shall not have timed out
 
   @REQ-FWU-009
   Scenario: Query progress is forwarded to observer

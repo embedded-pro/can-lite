@@ -65,15 +65,16 @@ THEN(R"(the server shall have transmitted a heartbeat frame)")
     auto& fixture = context.Get<ApplicationFixture>();
     ASSERT_GT(fixture.serverCan.sendCount, 0);
 
-    uint32_t rawId = fixture.serverCan.lastSentId.Get29BitId();
+    uint32_t rawId = fixture.serverCan.LastSent().id.Get29BitId();
     EXPECT_EQ(ExtractCanMessageType(rawId), canHeartbeatMessageTypeId);
 }
 
 THEN(R"(the heartbeat frame shall contain protocol version {int})", (std::int32_t version))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    ASSERT_GE(fixture.serverCan.lastSentData.size(), 1u);
-    EXPECT_EQ(fixture.serverCan.lastSentData[0], static_cast<uint8_t>(version));
+    ASSERT_GT(fixture.serverCan.sendCount, 0);
+    ASSERT_GE(fixture.serverCan.LastSent().data.size(), 1u);
+    EXPECT_EQ(fixture.serverCan.LastSent().data[0], static_cast<uint8_t>(version));
 }
 
 WHEN(R"(a heartbeat is sent by the server after {int} second)", (std::int32_t seconds))
@@ -85,8 +86,9 @@ WHEN(R"(a heartbeat is sent by the server after {int} second)", (std::int32_t se
 THEN(R"(the heartbeat payload byte 0 shall equal {int})", (std::int32_t value))
 {
     auto& fixture = context.Get<ApplicationFixture>();
-    ASSERT_GE(fixture.serverCan.lastSentData.size(), 1u);
-    EXPECT_EQ(fixture.serverCan.lastSentData[0], static_cast<uint8_t>(value));
+    ASSERT_GT(fixture.serverCan.sendCount, 0);
+    ASSERT_GE(fixture.serverCan.LastSent().data.size(), 1u);
+    EXPECT_EQ(fixture.serverCan.LastSent().data[0], static_cast<uint8_t>(value));
 }
 
 WHEN(R"(the client sends a command with category {int} and unknown message type {int} to the server)", (std::int32_t category, std::int32_t msgType))
@@ -104,10 +106,11 @@ WHEN(R"(the client sends a command with category {int} and unknown message type 
 THEN(R"(the server shall send an acknowledgement with status {string})", (const std::string& statusStr))
 {
     auto& fixture = context.Get<ApplicationFixture>();
+    ASSERT_GT(fixture.serverCan.sendCount, 0);
 
-    ASSERT_GE(fixture.serverCan.lastSentData.size(), 3u);
+    ASSERT_GE(fixture.serverCan.LastSent().data.size(), 3u);
 
-    uint32_t rawId = fixture.serverCan.lastSentId.Get29BitId();
+    uint32_t rawId = fixture.serverCan.LastSent().id.Get29BitId();
     EXPECT_EQ(ExtractCanMessageType(rawId), canCommandAckMessageTypeId);
 
     auto expectedStatus = CanAckStatus::success;
@@ -124,7 +127,7 @@ THEN(R"(the server shall send an acknowledgement with status {string})", (const 
     else if (statusStr == "categoryError")
         expectedStatus = CanAckStatus::categoryError;
 
-    EXPECT_EQ(static_cast<CanAckStatus>(fixture.serverCan.lastSentData[2]), expectedStatus);
+    EXPECT_EQ(static_cast<CanAckStatus>(fixture.serverCan.LastSent().data[2]), expectedStatus);
 }
 
 WHEN(R"(the client sends a status request to the server)")
@@ -145,9 +148,9 @@ THEN(R"(the server shall respond with a heartbeat message)")
 
     ASSERT_GT(fixture.serverCan.sendCount, 0);
 
-    uint32_t rawId = fixture.serverCan.lastSentId.Get29BitId();
+    uint32_t rawId = fixture.serverCan.LastSent().id.Get29BitId();
     EXPECT_EQ(ExtractCanCategory(rawId), canSystemCategoryId);
     EXPECT_EQ(ExtractCanMessageType(rawId), canHeartbeatMessageTypeId);
-    ASSERT_GE(fixture.serverCan.lastSentData.size(), 1u);
-    EXPECT_EQ(fixture.serverCan.lastSentData[0], canProtocolVersion);
+    ASSERT_GE(fixture.serverCan.LastSent().data.size(), 1u);
+    EXPECT_EQ(fixture.serverCan.LastSent().data[0], canProtocolVersion);
 }

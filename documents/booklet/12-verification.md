@@ -58,6 +58,14 @@ mock, which lets a scenario do two different things:
   acknowledgement, a wrong sequence number, an unknown category, a
   standard-identifier frame — and disconnect to model bus loss.
 
+It also keeps the promise the hardware interface makes: delivery and the send
+completion happen after the send call has returned, never inside it. A
+virtual bus that delivered synchronously would exercise a re-entrant call graph
+no driver produces, and would hide timing that real nodes see. One example is
+a client heartbeat landing in a rate window that has already been reset. Every
+frame is recorded, so a scenario can assert that a node stayed silent rather
+than assume it.
+
 The second is what makes most of Chapter 10 testable at the integration level
 rather than only in unit tests.
 
@@ -85,14 +93,15 @@ mapping.
 Stated plainly, because a verification chapter that lists only what is covered
 is misleading:
 
-| Not covered                                              | Why                                           | What stands in for it                                 |
-|----------------------------------------------------------|-----------------------------------------------|-------------------------------------------------------|
-| Arbitration and priority                                 | The virtual bus delivers in send order        | The bus-load arithmetic of Chapter 11                 |
-| Bus errors, error frames, bus-off                        | Not modelled                                  | Failure paths driven through mocked send outcomes     |
-| Timing on target hardware                                | Host tests use a virtual clock                | Budgets computed in Chapter 11, validated per product |
-| More than two nodes end to end                           | The fixture couples one server and one client | Multi-server behaviour covered at the unit level      |
-| Interoperability with third-party segmentation stacks    | No external stack in the loop                 | The deliberate omissions of Chapter 8, §6             |
-| Long-run behaviour — counter wrap over days, timer drift | Not simulated                                 | Wrap-around tested directly at its boundary           |
+| Not covered                                              | Why                                                                 | What stands in for it                                                   |
+|----------------------------------------------------------|---------------------------------------------------------------------|-------------------------------------------------------------------------|
+| Arbitration and priority                                 | The virtual bus delivers in send order                              | The bus-load arithmetic of Chapter 11                                   |
+| A driver that completes inside the send call             | The virtual bus completes asynchronously, as the interface promises | Unit tests that deliver the answer inside the send call (Chapter 7, §3) |
+| Bus errors, error frames, bus-off                        | Not modelled                                                        | Failure paths driven through mocked send outcomes                       |
+| Timing on target hardware                                | Host tests use a virtual clock                                      | Budgets computed in Chapter 11, validated per product                   |
+| More than two nodes end to end                           | The fixture couples one server and one client                       | Multi-server behaviour covered at the unit level                        |
+| Interoperability with third-party segmentation stacks    | No external stack in the loop                                       | The deliberate omissions of Chapter 8, §6                               |
+| Long-run behaviour — counter wrap over days, timer drift | Not simulated                                                       | Wrap-around tested directly at its boundary                             |
 
 Each row is a place where Chapter 10 relies on reasoning rather than on a test,
 which is precisely why that chapter states the mechanism behind every outcome.

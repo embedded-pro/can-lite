@@ -1,17 +1,23 @@
 #include "support/VirtualCan.hpp"
+#include "infra/event/EventDispatcher.hpp"
+#include "infra/util/ReallyAssert.hpp"
 
 namespace integration
 {
     void VirtualCan::SendData(Id id, const Message& data, const infra::Function<void(bool)>& onDone)
     {
-        lastSentId = id;
-        lastSentData = data;
+        really_assert(!inFlight.full());
+
+        if (sentFrames.full())
+            sentFrames.pop_front();
+        sentFrames.push_back(Frame{ id, data });
         sendCount++;
 
-        if (peer)
-            peer->Receive(id, data);
-
-        onDone(true);
+        inFlight.push_back(InFlight{ Frame{ id, data }, onDone });
+        infra::EventDispatcher::Instance().Schedule([this]()
+            {
+                DeliverOldest();
+            });
     }
 
     void VirtualCan::ReceiveData(const infra::Function<void(Id, const Message&)>& callback)
@@ -43,5 +49,27 @@ namespace integration
             peer->peer = nullptr;
 
         peer = nullptr;
+    }
+
+    const VirtualCan::Frame& VirtualCan::LastSent() const
+    {
+        really_assert(!sentFrames.empty());
+        return sentFrames.back();
+    }
+
+    const infra::BoundedDeque<VirtualCan::Frame>& VirtualCan::SentFrames() const
+    {
+        return sentFrames;
+    }
+
+    void VirtualCan::DeliverOldest()
+    {
+        auto delivery = inFlight.front();
+        inFlight.pop_front();
+
+        if (peer)
+            peer->Receive(delivery.frame.id, delivery.frame.data);
+
+        delivery.onDone(true);
     }
 }
