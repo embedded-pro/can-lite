@@ -66,7 +66,6 @@ namespace services
         CanFrameTransport& Transport();
         const CanFrameTransport& Transport() const;
 
-        // CanSequenceSource
         uint8_t ReserveSequence(uint16_t nodeId, uint8_t category, uint8_t messageType) override;
         void CancelReservation(uint16_t nodeId, uint8_t sequence) override;
         void ReturnSequence(uint16_t nodeId, uint8_t sequence) override;

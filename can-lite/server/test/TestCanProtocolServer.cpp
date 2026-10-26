@@ -356,8 +356,6 @@ namespace
 
     TEST_F(CanProtocolServerTest, UnknownSystemMessageType_AcksUnknownCommand)
     {
-        // 0x7E is within the command range (<= canLastCommandMessageTypeId) but
-        // not registered by the System category.
         auto id = MakeSystemId(0x7E);
 
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
@@ -374,8 +372,6 @@ namespace
 
     TEST_F(CanProtocolServerTest, ResponseRangeMessageType_SilentlyIgnored)
     {
-        // 0x80+ is reserved for responses; the server must never treat it as a
-        // command (see H-4) even if no handler happens to match it either.
         auto id = MakeSystemId(0x80);
 
         SimulateRx(id, MakeMessage({}));
@@ -496,8 +492,6 @@ namespace
         EXPECT_EQ(limitedServer.Statistics().rateLimited, 1u);
     }
 
-    // REQ-CAN-006.1: one server serves exactly one client, so a second client's
-    // interleaved stream breaks the shared sequence counter by design.
     TEST_F(CanProtocolServerTest, SequenceValidation_RejectsInterleavedSecondClient)
     {
         EXPECT_CALL(observerMock, Online());
@@ -1087,21 +1081,16 @@ namespace
                 cb(true);
             });
 
-        // At t=800ms, receive a status request — server sends a heartbeat and resets the timer
         ForwardTime(std::chrono::milliseconds(800));
         SimulateRx(statusRequestId, MakeMessage({}));
         EXPECT_EQ(heartbeatCount, 1);
 
-        // At t=1000ms, the original timer would have fired — but it was deferred to t=1800ms
         ForwardTime(std::chrono::milliseconds(200));
         EXPECT_EQ(heartbeatCount, 1);
 
-        // At t=1800ms, the deferred heartbeat fires
         ForwardTime(std::chrono::milliseconds(800));
         EXPECT_EQ(heartbeatCount, 2);
     }
-
-    // === ISO-TP transport integration ===
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_ProcessFrameInterceptsMessage)
     {
@@ -1528,7 +1517,6 @@ namespace
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         server.AttachIsoTpTransport(mockIsoTp);
 
-        // nodeId=2 != config.nodeId(1) and != canBroadcastNodeId(0)
         uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x42, 2);
         uint8_t pduData[] = { 0xDE };
         capturedPduCallback(rawId, infra::MakeRange(pduData));
@@ -1624,7 +1612,6 @@ namespace
         EXPECT_CALL(mockIsoTp, SetOnPduReceived(_)).WillOnce(SaveArg<0>(&capturedPduCallback));
         server.AttachIsoTpTransport(mockIsoTp);
 
-        // message type 0x7E is within the command range but not registered in emptyCategory
         uint32_t rawId = MakeCanId(CanPriority::command, 0x05, 0x7E, 1);
         uint8_t pduData[] = { 0xAA };
 

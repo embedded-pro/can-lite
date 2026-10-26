@@ -30,8 +30,6 @@ namespace services
         uint8_t sequence{};
     };
 
-    // Held as a base class so its members are constructed before the CanCategory
-    // subobject that receives references to them.
     class CanCategoryContextStub
     {
     protected:

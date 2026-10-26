@@ -210,16 +210,8 @@ All 29 bits of the extended CAN ID are structured as follows:
 
 ```text
 Bit:  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  12  11  10  9   8   7   6   5   4   3   2   1   0
-     |----  Priority  ----|-- Category --|------  Message Type  ------|----------------- Node ID -------------------|
-     |     5 bits (0-31)  |  4 bits (0-F)|       8 bits (0-FF)       |             12 bits (0-FFF)                  |
-```
-
-```mermaid
-packet-beta
-  0-11: "Node ID (12b)"
-  12-19: "Msg Type (8b)"
-  20-23: "Category (4b)"
-  24-28: "Priority (5b)"
+     |----- Priority ----|--- Category --|--------- Message Type --------|------------------- Node ID -------------------|
+     |   5 bits (0-1F)   |  4 bits (0-F) |         8 bits (0-FF)         |                12 bits (0-FFF)                |
 ```
 
 **Field Encoding:**

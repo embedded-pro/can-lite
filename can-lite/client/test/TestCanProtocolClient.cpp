@@ -57,8 +57,6 @@ namespace
         CanProtocolClient client{ canMock };
     };
 
-    // === RegisterCategory / UnregisterCategory ===
-
     TEST_F(CanProtocolClientTest, RegisterCategory_DispatchesReceivedMessages)
     {
         class TestMessageType : public CanMessageType
@@ -220,8 +218,6 @@ namespace
 
         EXPECT_EQ(constClient.Transport().NodeId(), canBroadcastNodeId);
     }
-
-    // === DiscoverCategories ===
 
     class CanProtocolClientDiscoveryTest
         : public CanProtocolClientTest
@@ -419,8 +415,6 @@ namespace
         client.DetachIsoTpTransport();
     }
 
-    // === Edge cases ===
-
     TEST_F(CanProtocolClientTest, IgnoresStandard11BitId)
     {
         auto id = hal::Can::Id::Create11BitId(0x100);
@@ -559,8 +553,6 @@ namespace
     {
         EXPECT_EQ(&client.Transport(), &client.Transport());
     }
-
-    // === Server liveness ===
 
     class CommandingCategory
         : public CanCategoryClient
@@ -835,8 +827,6 @@ namespace
         ExpectHeartbeats(1);
         ForwardTime(std::chrono::seconds(1));
     }
-
-    // === ISO-TP transport integration ===
 
     TEST_F(CanProtocolClientTest, AttachIsoTpTransport_ProcessFrameInterceptsMessage)
     {

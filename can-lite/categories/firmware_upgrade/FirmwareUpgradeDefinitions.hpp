@@ -6,7 +6,6 @@ namespace services
 {
     static constexpr uint8_t firmwareUpgradeCategoryId = 0x01;
 
-    // Command message type IDs (Client → Server) 0x00–0x7F
     static constexpr uint8_t fwuBeginUpgradeId = 0x00;
     static constexpr uint8_t fwuDataBlockId = 0x01;
     static constexpr uint8_t fwuVerifyId = 0x02;
@@ -14,7 +13,6 @@ namespace services
     static constexpr uint8_t fwuAbortId = 0x04;
     static constexpr uint8_t fwuQueryProgressId = 0x05;
 
-    // Response message type IDs (Server → Client) 0x80+
     static constexpr uint8_t fwuBeginResponseId = 0x80;
     static constexpr uint8_t fwuDataBlockAckId = 0x81;
     static constexpr uint8_t fwuVerifyResponseId = 0x82;

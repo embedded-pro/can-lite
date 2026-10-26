@@ -109,7 +109,6 @@ namespace services::iso_tp
         if (stMin >= 0xF1u && stMin <= 0xF9u)
             return std::chrono::microseconds((stMin - 0xF0u) * 100);
 
-        // ISO 15765-2: reserved values (0x80-0xF0, 0xFA-0xFF) shall be treated as 0x7F (127 ms).
         return std::chrono::milliseconds(0x7Fu);
     }
 }

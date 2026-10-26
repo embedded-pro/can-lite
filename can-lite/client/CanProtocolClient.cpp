@@ -355,8 +355,6 @@ namespace services
             }
         }
 
-        // All slots are tracking other servers: evict the oldest tracked entry
-        // (round robin) instead of silently dropping the newly observed node.
         auto& evicted = serverLiveness[nextLivenessEvictIndex];
         nextLivenessEvictIndex = static_cast<uint8_t>((nextLivenessEvictIndex + 1) % serverLiveness.size());
         evicted.timeoutTimer.Cancel();

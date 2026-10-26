@@ -7,7 +7,6 @@ namespace services
 {
     static constexpr uint8_t focMotorCategoryId = 0x02;
 
-    // Command message type IDs (Client → Server)
     static constexpr uint8_t focQueryMotorTypeId = 0x00;
     static constexpr uint8_t focStartId = 0x01;
     static constexpr uint8_t focStopId = 0x02;
@@ -18,7 +17,6 @@ namespace services
     static constexpr uint8_t focIdentifyMechanicalId = 0x07;
     static constexpr uint8_t focRequestTelemetryId = 0x08;
     static constexpr uint8_t focSetEncoderResolutionId = 0x09;
-    // 0x0A is intentionally reserved (unused in this revision)
     static constexpr uint8_t focClearFaultId = 0x0B;
     static constexpr uint8_t focEmergencyStopId = 0x0C;
     static constexpr uint8_t focConfigureTelemetryRateId = 0x0D;
@@ -44,7 +42,6 @@ namespace services
         applicationError = 5
     };
 
-    // Scale factors
     static constexpr int32_t focPidScale = 1;
     static constexpr int32_t focResistanceScale = 1000;
     static constexpr int32_t focInductanceScale = 1000;

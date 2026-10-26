@@ -119,7 +119,7 @@ supplies both itself; FetchContent remains the simpler route.
 │   ├── transport/              # ISO-TP segmentation layer (ISO 15765-2)
 │   │   ├── IsoTpTransport.hpp          # Abstract interface
 │   │   ├── IsoTpTransportImpl.hpp/cpp  # Concrete impl (WithStorage, zero-heap)
-│   │   ├── iso-tp/                     # ISO 15765-2 internals (all non-template with WithStorage)
+│   │   ├── iso-tp/                     # ISO 15765-2 channel, sender, receiver and frame codec
 │   │   └── test/                       # Transport unit tests
 │   ├── tracing/                # Opt-in tracing decorators, one per layer
 │   │   ├── TracingCan.hpp              # hal::Can decorator: decoded bus frames
@@ -128,12 +128,19 @@ supplies both itself; FetchContent remains the simpler route.
 │   │   ├── TracingCanProtocolClientObserver.hpp  # liveness and ack timeouts
 │   │   └── test/                       # Tracing unit tests
 │   └── drivers/                # Host CAN adapters: SocketCAN, slcan, candleLight, PCAN, Kvaser
+│       ├── interface/                  # CanBusAdapter, SerialPort
+│       ├── codec/                      # slcan lines, gs_usb frames and bit timing
+│       ├── implementation/             # The adapters, the router and the platform set
+│       └── test/                       # Driver unit tests
+├── integration_tests/          # BDD features, step definitions and the shared fixture
 ├── examples/                   # Reference application categories, not built by default
 │   └── foc_motor/              # FOC Motor Control category (copy into your project)
 ├── documents/
+│   ├── booklet/                # Design booklet chapters
 │   ├── design/                 # Architecture & category authoring guide
 │   ├── requirements/           # Protocol requirements (YAML)
 │   └── spec/                   # Protocol specification (Markdown)
+├── scripts/                    # Design booklet build
 └── CMakeLists.txt
 ```
 

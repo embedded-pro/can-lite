@@ -73,8 +73,10 @@ float = fixed / scale_factor
 
 ## 6. Message Types — Commands (Client → Server)
 
-All commands are sent at `CanPriority::command`. Byte\[0\] is the
-sequence number (see main spec Section 11).
+All commands except Emergency Stop (§6.12) are sent at
+`CanPriority::command`; Emergency Stop is sent at `CanPriority::emergency`.
+Byte\[0\] is the sequence number (see main spec Section 11). Command `0x0A`
+is reserved and unused in this revision.
 
 ### 6.1 Query Motor Type (0x00)
 
@@ -95,8 +97,9 @@ Energize the motor and begin closed-loop control.
 |------|----------|-------|------------------|
 | 0    | Sequence | uint8 | Sequence counter |
 
-Server responds with a command acknowledgement. Transitions motor state
-from Idle → Running.
+Server responds with a command acknowledgement carrying the status the
+application reports. The application moves the motor from Idle → Running, or
+reports `invalidState` when the motor is already running or faulted.
 
 ### 6.3 Stop (0x02)
 
@@ -106,8 +109,8 @@ De-energize the motor and return to idle.
 |------|----------|-------|------------------|
 | 0    | Sequence | uint8 | Sequence counter |
 
-Server responds with a command acknowledgement. Transitions motor state
-from Running → Idle.
+Server responds with a command acknowledgement once the application has moved
+the motor from Running → Idle.
 
 ### 6.4 Set PID Current (0x03)
 

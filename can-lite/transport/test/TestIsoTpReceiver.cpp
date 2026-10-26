@@ -214,7 +214,6 @@ TEST_F(IsoTpReceiverTest, Receive_FirstFrame_WhileReceivingCF_ReportsTheInterrup
 
 TEST_F(IsoTpReceiverTest, Receive_SingleFrame_ExceedsMaxSize_Aborts)
 {
-    // Use a receiver with max size 4 so a 5-byte payload overflows
     using SmallReceiver = IsoTpReceiver::WithStorage<4>;
     StrictMock<MockCallbacks> smallMocks;
     SmallReceiver smallReceiver;

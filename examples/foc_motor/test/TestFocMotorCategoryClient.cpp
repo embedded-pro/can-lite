@@ -55,8 +55,6 @@ namespace
         StrictMock<FocMotorCategoryClientObserverMock> observer{ client };
     };
 
-    // --- Basic properties ---
-
     TEST_F(TestFocMotorCategoryClient, Id)
     {
         EXPECT_EQ(client.Id(), focMotorCategoryId);
@@ -66,8 +64,6 @@ namespace
     {
         EXPECT_FALSE(client.RequiresSequenceValidation());
     }
-
-    // --- Response handling ---
 
     TEST_F(TestFocMotorCategoryClientWithObserver, MotorTypeResponse_ParsesMode)
     {
@@ -208,8 +204,6 @@ namespace
     {
         EXPECT_EQ(client.HandleMessage(0x81, hal::Can::Message{}), CanDispatchResult::unknownMessageType);
     }
-
-    // --- Command sending ---
 
     TEST_F(TestFocMotorCategoryClient, SendQueryMotorType_SendsCorrectFrame)
     {

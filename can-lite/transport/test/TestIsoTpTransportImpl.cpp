@@ -217,10 +217,8 @@ TEST_F(IsoTpTransportImplTest, FailedReception_KeepsTheChannelRegistered)
 
 TEST_F(IsoTpTransportImplTest, SendPdu_AllChannelsFull_ReturnsFalse)
 {
-    // Start 4 multi-frame sends on distinct channels — they stay in waitingForFc state
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 
-    // Only the first SendPdu fires SendData immediately; the rest are queued by the transport
     EXPECT_CALL(canMock, SendData(_, _, _)).Times(1);
 
     EXPECT_TRUE(isoTp.SendPdu(0x600u, 0x601u, infra::MakeRange(pdu), [] {}));

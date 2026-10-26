@@ -97,7 +97,7 @@ classDiagram
 Both base classes own the `CanFrameTransport` reference and expose protected send helpers that fill in the category ID and priority, so a concrete category never touches the frame layer directly. Client categories additionally take a `CanSequenceSource`, which supplies the per-server sequence byte — this keeps categories independent of `CanProtocolClient`, so they link `can_lite.core` only.
 
 Default sequence validation:
-- **Server categories** default to `true` — incoming commands carry a sequence byte for replay protection.
+- **Server categories** default to `true` — incoming commands carry a sequence byte, so the server rejects duplicated and out-of-order commands. This is an ordering check, not a security mechanism (spec §11 and §16).
 - **Client categories** default to `false` — responses do not require sequence validation.
 
 ## 4. Message Type Dispatch
@@ -150,35 +150,11 @@ All category handlers use `infra::Subject<Observer>` / `infra::SingleObserver<Ob
 - **Auto-attach/detach**: The observer attaches in its constructor and detaches in its destructor — no manual registration needed.
 - **Zero-cost when unobserved**: `NotifyObservers()` checks for a null observer pointer (single) or iterates an empty list (multiple) before dispatching, making it safe to call with no observer attached.
 
-**Example — an application category (server side):**
-
-```cpp
-// Observer interface (pure virtual callbacks for each command)
-class MyCategoryServerObserver
-    : public infra::SingleObserver<MyCategoryServerObserver, MyCategoryServer>
-{
-public:
-    using infra::SingleObserver<MyCategoryServerObserver, MyCategoryServer>::SingleObserver;
-
-    virtual void OnSetParameters(int16_t first, const infra::Function<void()>& onDone) = 0;
-};
-
-// Subject (the category handler)
-class MyCategoryServer
-    : public CanCategoryServer
-    , public infra::Subject<MyCategoryServerObserver>
-{ ... };
-
-// Application attaches by constructing an observer
-class MyHandler : public MyCategoryServerObserver
-{
-public:
-    explicit MyHandler(MyCategoryServer& server)
-        : MyCategoryServerObserver(server) {}
-
-    void OnSetParameters(int16_t first, const infra::Function<void()>& onDone) override { ... }
-};
-```
+An application category is the subject; its observer interface derives from
+`infra::SingleObserver` over that category, and the application attaches by
+constructing its implementation of the interface with the category as the
+argument. The authoring guide, §7, describes the interface's shape;
+`examples/foc_motor/` is a worked example.
 
 ## 6. System Category Design
 
@@ -248,24 +224,11 @@ See [Extending can-lite with categories](extending-categories.md) for the full a
 
 ## 8. CAN Identifier Layout
 
-All 29 bits of the extended CAN ID encode routing information:
-
-```text
-[28:24] Priority     (5 bits)  — message urgency
-[23:20] Category     (4 bits)  — functional group (0x0 = System)
-[19:12] Message Type (8 bits)  — specific command/response within category
-[11:0]  Node ID      (12 bits) — target server address (0x000 = broadcast)
-```
-
-Priority values (lower = higher priority on the CAN bus):
-
-| Priority  | Value | Usage                                 |
-|-----------|-------|---------------------------------------|
-| Emergency | 0     | Reserved for safety-critical messages |
-| Command   | 4     | Client-to-server commands             |
-| Response  | 8     | Server-to-client responses            |
-| Telemetry | 12    | Periodic data streams                 |
-| Heartbeat | 16    | Presence detection                    |
+The identifier layout and the priority levels are specified in the
+[protocol specification](../spec/can-protocol.md), §5 and §6. Library and
+category code builds and takes identifiers apart only through `MakeCanId()` and
+the `ExtractCan*()` helpers in `CanProtocolDefinitions.hpp`, so the layout is
+encoded in one place.
 
 ## 9. Sequence Validation
 
@@ -429,60 +392,10 @@ same-priority frames stays FIFO.
 
 ## 10. Directory Structure
 
-```text
-can-lite/
-├── core/                          # Protocol primitives
-│   ├── CanCategory.hpp/cpp        # Base class + Server/Client subclasses
-│   ├── CanMessageType.hpp         # Message handler interface
-│   ├── CanMessageHandler.hpp      # Binds a message type ID to a member function
-│   ├── CanPayload.hpp/cpp         # Bounds-checked big-endian payload reader/writer
-│   ├── CanSequenceSource.hpp      # Per-server sequence supply for client categories
-│   ├── CanProtocolDefinitions.hpp # CAN ID layout, constants, enums
-│   ├── CanFrameCodec.hpp/cpp      # Fixed-point encoding helpers
-│   ├── CanFrameTransport.hpp/cpp  # Async send queue over hal::Can
-│   └── test/                      # Unit tests + can_lite.test_util doubles
-├── categories/
-│   ├── system/                    # Built-in System category (0x00)
-│   │   ├── CanSystemCategoryServer.hpp/cpp
-│   │   └── CanSystemCategoryClient.hpp/cpp
-│   └── firmware_upgrade/          # Firmware Upgrade category (0x01)
-│       ├── FirmwareUpgradeDefinitions.hpp
-│       ├── FirmwareUpgradeCategoryServer.hpp/cpp
-│       ├── FirmwareUpgradeCategoryClient.hpp/cpp
-│       └── test/
-├── transport/                     # ISO-TP segmentation layer
-│   ├── IsoTpTransport.hpp         # Abstract interface
-│   ├── IsoTpTransportImpl.hpp/cpp # Non-template concrete impl (WithStorage)
-│   └── iso-tp/                    # ISO 15765-2 internals
-│       ├── IsoTpChannel.hpp       # Non-template abstract channel interface
-│       ├── IsoTpChannelImpl.hpp/cpp # Non-template concrete channel (WithStorage<MaxPduSize>)
-│       ├── IsoTpSender.hpp/cpp    # Non-template transmit FSM (WithStorage<MaxPduSize>)
-│       ├── IsoTpReceiver.hpp/cpp  # Non-template receive FSM (WithStorage<MaxPduSize>)
-│       ├── IsoTpFrameCodec.hpp/cpp # PCI encoding/decoding
-│       └── IsoTpTypes.hpp         # Enums, constants (FrameType, FlowStatus, AbortReason)
-├── server/                        # CanProtocolServer
-│   ├── CanProtocolServer.hpp/cpp
-│   └── test/
-├── client/                        # CanProtocolClient
-│   ├── CanProtocolClient.hpp/cpp
-│   └── test/
-├── tracing/                       # Optional tracing decorators (§13)
-│   ├── TracingCan.hpp/cpp                        # hal::Can decorator
-│   ├── TracingIsoTpTransport.hpp/cpp             # IsoTpTransport decorator
-│   ├── TracingCanProtocolServerObserver.hpp/cpp  # protocol-layer events
-│   ├── TracingCanProtocolClientObserver.hpp/cpp
-│   └── test/
-└── drivers/                       # Host CAN adapters (booklet chapter 3)
-    ├── interface/                 # CanBusAdapter, SerialPort
-    ├── codec/                     # slcan lines, gs_usb frames and bit timing
-    ├── implementation/            # SocketCAN, slcan, candleLight, PCAN, Kvaser, router, platform set
-    └── test/
-
-examples/                          # Not built by default (CAN_LITE_BUILD_EXAMPLES)
-└── foc_motor/                     # Reference application category
-```
-
-Application categories live in the consuming project, not in `can-lite/categories/`.
+The repository layout is in the [README](../../README.md#project-structure).
+Each component directory holds its unit tests in a `test/` subdirectory, and
+application categories live in the consuming project, not in
+`can-lite/categories/`.
 
 ## 10.1 ISO-TP Transport Layer
 
@@ -516,12 +429,9 @@ classes that own that storage and construct the class on top of it.
   `WithStorage<MaxPduSize, MaxChannels>` owns the channels and the pointer
   table it passes in, and is an `IsoTpTransportImpl`.
 
-**Attachment pattern:**
-
-```cpp
-IsoTpTransportImpl::WithStorage<64, 4> isoTp{ canFrameTransport };
-protocolServer.AttachIsoTpTransport(isoTp);
-```
+**Attachment pattern:** an `IsoTpTransportImpl::WithStorage`, sized for the
+largest PDU and the number of channels, is constructed over the protocol
+object's own `CanFrameTransport` and handed to `AttachIsoTpTransport()`.
 
 `AttachIsoTpTransport` stores a raw pointer and installs the PDU callback on
 the transport, so the transport must outlive the attachment. It leaves the
@@ -663,15 +573,13 @@ The category layer has no decorator. `CanCategory::HandleMessage` and `HandlePdu
 
 ### Wiring
 
-```cpp
-services::TracingCan tracingCan{ realCan, tracer };
-services::CanProtocolServer server{ tracingCan, config };
-
-services::TracingIsoTpTransport tracingIsoTp{ isoTp, tracer };
-server.AttachIsoTpTransport(tracingIsoTp);
-
-services::TracingCanProtocolServerObserver serverTrace{ server, tracer };
-```
+Each decorator wraps the seam it instruments and takes the tracer as a
+constructor argument. `TracingCan` wraps the real `hal::Can`, and the protocol
+object is constructed over the decorator instead. `TracingIsoTpTransport` wraps
+the ISO-TP transport, and the decorator is what gets attached to the protocol
+object. `TracingCanProtocolServerObserver` and
+`TracingCanProtocolClientObserver` attach to the protocol object like any other
+protocol observer, beside the application's own.
 
 ### Line format
 

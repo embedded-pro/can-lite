@@ -50,8 +50,6 @@ namespace integration
         virtual void OnFail(const infra::Function<void(DemoError)>& onResult) = 0;
     };
 
-    // Reference application category covering the shapes a consumer-defined category
-    // needs: fire-and-forget command, payload command, query/response, category error.
     class DemoCategoryServer
         : public services::CanCategoryServer
         , public infra::Subject<DemoCategoryServerObserver>
