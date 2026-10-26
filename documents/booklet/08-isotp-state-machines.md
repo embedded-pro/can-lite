@@ -59,15 +59,17 @@ mechanism by which segmentation is transparent.
 ```mermaid
 stateDiagram-v2
     [*] --> idle
-    idle --> sendingSingle : payload fits in one frame
+    idle --> sendingSingle : payload fits in one frame —<br/>N_As armed
     sendingSingle --> idle : frame sent — the caller's completion runs
+    sendingSingle --> idle : N_As expires — abort
     idle --> waitingForFlowControl : payload needs several frames —<br/>first frame sent, N_Bs armed
     waitingForFlowControl --> sendingConsecutive : peer says continue —<br/>adopt its block size and separation time
     waitingForFlowControl --> waitingForFlowControl : peer says wait —<br/>N_Bs restarted, up to the wait limit
     waitingForFlowControl --> idle : peer says overflow — abort
     waitingForFlowControl --> idle : flow control undecodable or reserved —<br/>abort as an unexpected frame
     waitingForFlowControl --> idle : N_Bs expires, or the wait limit<br/>is exceeded — abort
-    sendingConsecutive --> sendingConsecutive : frame sent, block not exhausted —<br/>next one after the separation time
+    sendingConsecutive --> sendingConsecutive : frame sent, block not exhausted —<br/>next one after the separation time, N_As armed
+    sendingConsecutive --> idle : N_As expires — abort
     sendingConsecutive --> waitingForFlowControl : block exhausted —<br/>N_Bs armed again
     sendingConsecutive --> idle : last frame sent —<br/>the caller's completion runs
     sendingConsecutive --> idle : a send fails — abort
@@ -90,11 +92,14 @@ control frame that arrives inside that window cancel a timer that was never
 started, after which the late completion would arm N_Bs against a transfer that
 has already moved on to sending, aborting a healthy transfer.
 
-**Pacing is the peer's to choose.** can-lite's own receiver never asks a peer to
-slow down or to pause between blocks, because reassembly is a copy into a
-preallocated buffer and needs no pacing. Its sender nevertheless implements the
-general case — honouring whatever block size and separation time a peer asks
-for — so it interoperates with conventional stacks that do pace transfers. A
+**Pacing is the receiver's to choose.** Reassembly is a copy into a
+preallocated buffer and needs no pacing for its own sake, so can-lite's
+receiver asks for none by default. The rate limit is the reason to ask: every
+frame of a transfer is charged against it, and an unpaced peer can spend a
+second's budget within one transfer. A node can therefore configure the block
+size and separation time its receiver advertises. The sender implements the
+general case, honouring whatever block size and separation time a peer asks
+for, so it interoperates with conventional stacks that pace transfers. A
 pacing request it cannot parse is treated as the slowest legal value, which is
 the standard's conservative reading: an unparseable request must not be read as
 "go as fast as you like".
@@ -217,12 +222,11 @@ than eight bytes.
 Beyond the parameters in the specification, four things are simply not
 implemented, and each has a cost worth knowing before choosing this transport:
 
-| Omission                               | Cost                                                                                              |
-|----------------------------------------|---------------------------------------------------------------------------------------------------|
-| Frames are never padded to full length | A peer that requires 8-byte frames will not interoperate; short frames keep a loaded bus shorter  |
-| The receiver never requests pacing     | A receiver that needed it would have to become a configurable policy; nothing in the library does |
-| Only normal addressing                 | No address extension, no mixed addressing                                                         |
-| Classic CAN only                       | The length field and frame sizes assume 8-byte frames                                             |
+| Omission                               | Cost                                                                                             |
+|----------------------------------------|--------------------------------------------------------------------------------------------------|
+| Frames are never padded to full length | A peer that requires 8-byte frames will not interoperate; short frames keep a loaded bus shorter |
+| Only normal addressing                 | No address extension, no mixed addressing                                                        |
+| Classic CAN only                       | The length field and frame sizes assume 8-byte frames                                            |
 
 The first two are the pair worth revisiting first if can-lite ever has to talk
 to a third-party stack, because they are the ones a conventional diagnostic

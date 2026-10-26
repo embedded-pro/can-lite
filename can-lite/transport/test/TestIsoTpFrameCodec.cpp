@@ -1,6 +1,7 @@
 #include "can-lite/transport/iso-tp/IsoTpFrameCodec.hpp"
 #include "can-lite/transport/test/IsoTpTestHelper.hpp"
 #include "gtest/gtest.h"
+#include <array>
 
 using namespace services::iso_tp;
 using namespace services::iso_tp::test;
@@ -31,8 +32,6 @@ TEST(IsoTpFrameCodec, DecodeFrameType_FlowControl)
 
 TEST(IsoTpFrameCodec, DecodeFrameType_InvalidPciNibble_IsUnknown)
 {
-    // PCI nibbles 0x4-0xF are not defined by ISO 15765-2; they must decode as
-    // unknown so callers can abort instead of silently ignoring the frame.
     for (uint8_t nibble = 0x4; nibble <= 0xF; ++nibble)
     {
         auto msg = MakeMessage({ static_cast<uint8_t>(nibble << 4), 0x00 });
@@ -208,4 +207,52 @@ TEST(IsoTpFrameCodec, StMinToDuration_Reserved)
     EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xF0), std::chrono::milliseconds(0x7F));
     EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xFA), std::chrono::milliseconds(0x7F));
     EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xFF), std::chrono::milliseconds(0x7F));
+}
+
+TEST(IsoTpFrameCodec, DecodeFrameType_EmptyFrame_IsUnknown)
+{
+    EXPECT_EQ(IsoTpFrameCodec::DecodeFrameType(hal::Can::Message{}), FrameType::unknown);
+}
+
+TEST(IsoTpFrameCodec, DecodeSingleFrameLength_EmptyFrame_IsZero)
+{
+    EXPECT_EQ(IsoTpFrameCodec::DecodeSingleFrameLength(hal::Can::Message{}), 0u);
+}
+
+TEST(IsoTpFrameCodec, DecodeFirstFrameTotalLength_FrameWithoutLengthByte_IsZero)
+{
+    EXPECT_EQ(IsoTpFrameCodec::DecodeFirstFrameTotalLength(MakeMessage({ 0x10 })), 0u);
+}
+
+TEST(IsoTpFrameCodec, DecodeConsecutiveFrameSn_EmptyFrame_IsZero)
+{
+    EXPECT_EQ(IsoTpFrameCodec::DecodeConsecutiveFrameSn(hal::Can::Message{}), 0u);
+}
+
+TEST(IsoTpFrameCodec, EncodeSingleFrame_EmptyPdu_IsRefused)
+{
+    hal::Can::Message out;
+    EXPECT_FALSE(IsoTpFrameCodec::EncodeSingleFrame(infra::ConstByteRange{}, out));
+}
+
+TEST(IsoTpFrameCodec, EncodeFirstFrame_PduThatFitsASingleFrame_IsRefused)
+{
+    std::array<uint8_t, sfMaxPayloadBytes> pdu{};
+    hal::Can::Message out;
+    EXPECT_FALSE(IsoTpFrameCodec::EncodeFirstFrame(infra::MakeRange(pdu), out));
+}
+
+TEST(IsoTpFrameCodec, EncodeFirstFrame_PduBeyondTheLengthField_IsRefused)
+{
+    std::array<uint8_t, ffMaxPduLength + 1> pdu{};
+    hal::Can::Message out;
+    EXPECT_FALSE(IsoTpFrameCodec::EncodeFirstFrame(infra::MakeRange(pdu), out));
+}
+
+TEST(IsoTpFrameCodec, EncodeFirstFrame_LongestPdu_EncodesItsLength)
+{
+    std::array<uint8_t, ffMaxPduLength> pdu{};
+    hal::Can::Message out;
+    ASSERT_TRUE(IsoTpFrameCodec::EncodeFirstFrame(infra::MakeRange(pdu), out));
+    EXPECT_EQ(IsoTpFrameCodec::DecodeFirstFrameTotalLength(out), ffMaxPduLength);
 }

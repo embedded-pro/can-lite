@@ -15,7 +15,7 @@ namespace services::iso_tp
         static bool EncodeSingleFrame(infra::ConstByteRange pdu, hal::Can::Message& out);
         static uint8_t DecodeSingleFrameLength(const hal::Can::Message& frame);
 
-        static void EncodeFirstFrame(infra::ConstByteRange pdu, hal::Can::Message& out);
+        static bool EncodeFirstFrame(infra::ConstByteRange pdu, hal::Can::Message& out);
         static uint16_t DecodeFirstFrameTotalLength(const hal::Can::Message& frame);
 
         static uint8_t EncodeConsecutiveFrame(uint8_t sn, infra::ConstByteRange remaining, hal::Can::Message& out);

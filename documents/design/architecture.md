@@ -497,27 +497,25 @@ The transport layer provides multi-frame PDU segmentation and reassembly followi
 | `IsoTpTransportImpl` | Non-template concrete implementation; channel pool via `WithStorage<MaxPduSize, MaxChannels>`                                |
 | `IsoTpChannel`       | Non-template abstract channel interface used by `IsoTpTransportImpl`                                                         |
 | `IsoTpChannelImpl`   | Non-template concrete channel; composes `IsoTpSender` + `IsoTpReceiver` via `WithStorage<MaxPduSize>`                        |
-| `IsoTpSender`        | Non-template transmit FSM (SF → FF → wait-for-FC → CFs; N_Bs timeout); `WithStorage<MaxPduSize>` provides buffer             |
+| `IsoTpSender`        | Non-template transmit FSM (SF → FF → wait-for-FC → CFs; N_As and N_Bs timeouts); `WithStorage<MaxPduSize>` provides buffer   |
 | `IsoTpReceiver`      | Non-template receive FSM (SF dispatch or FF → wait-for-CFs; N_Cr timeout); `WithStorage<MaxPduSize>` provides buffer         |
 | `IsoTpFrameCodec`    | Stateless PCI encode/decode helpers                                                                                          |
 
 **WithStorage pattern — zero-heap construction chain:**
 
-All ISO-TP classes are non-template at their API surface. Sizes are injected via nested `WithStorage` type aliases that use EMIL's `infra::WithStorage` to compose storage ownership:
+All ISO-TP classes are non-template: their constructors take references to the
+storage they work on, and sizes appear only in the nested `WithStorage`
+classes that own that storage and construct the class on top of it.
 
-```cpp
-// IsoTpSender takes BoundedVector<uint8_t>& — WithStorage provides the buffer
-IsoTpSender::WithStorage<MaxPduSize>  // IS-A IsoTpSender
-
-// IsoTpReceiver — same pattern
-IsoTpReceiver::WithStorage<MaxPduSize>  // IS-A IsoTpReceiver
-
-// IsoTpChannelImpl composes sender + receiver storage in a nested struct
-IsoTpChannelImpl::WithStorage<MaxPduSize>  // IS-A IsoTpChannelImpl IS-A IsoTpChannel
-
-// IsoTpTransportImpl composes a BoundedVector of channels
-IsoTpTransportImpl::WithStorage<MaxPduSize, MaxChannels>  // IS-A IsoTpTransportImpl
-```
+- `IsoTpSender` and `IsoTpReceiver` take a `BoundedVector<uint8_t>&` for the
+  PDU being sent or reassembled. Their `WithStorage<MaxPduSize>` is EMIL's
+  `infra::WithStorage`, which provides the buffer.
+- `IsoTpChannelImpl` takes an `IsoTpSender&` and an `IsoTpReceiver&`. Its
+  `WithStorage<MaxPduSize>` owns one sender and one receiver of that size and
+  is an `IsoTpChannelImpl`.
+- `IsoTpTransportImpl` takes a range of `IsoTpChannel*`. Its
+  `WithStorage<MaxPduSize, MaxChannels>` owns the channels and the pointer
+  table it passes in, and is an `IsoTpTransportImpl`.
 
 **Attachment pattern:**
 

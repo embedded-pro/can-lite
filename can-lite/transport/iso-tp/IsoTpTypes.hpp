@@ -42,9 +42,11 @@ namespace services::iso_tp
         overflow,
         unexpectedFrame,
         waitLimitExceeded,
-        sendFailed
+        sendFailed,
+        nAsTimeout
     };
 
+    static constexpr infra::Duration nAsTimeout = std::chrono::milliseconds(1000);
     static constexpr infra::Duration nBsTimeout = std::chrono::milliseconds(1000);
     static constexpr infra::Duration nCrTimeout = std::chrono::milliseconds(1000);
 
@@ -56,6 +58,7 @@ namespace services::iso_tp
     static constexpr uint8_t sfMaxPayloadBytes = 7u;
     static constexpr uint8_t ffFirstDataOffset = 2u;
     static constexpr uint8_t ffFirstDataBytes = 6u;
+    static constexpr uint16_t ffMaxPduLength = 0x0FFFu;
     static constexpr uint8_t cfMaxDataBytes = 7u;
     static constexpr uint8_t snMask = 0x0Fu;
 }

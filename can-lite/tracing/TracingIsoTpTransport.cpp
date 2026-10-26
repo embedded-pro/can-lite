@@ -28,6 +28,8 @@ namespace services
                     return "waitLimitExceeded";
                 case iso_tp::AbortReason::sendFailed:
                     return "sendFailed";
+                case iso_tp::AbortReason::nAsTimeout:
+                    return "nAsTimeout";
             }
             return "unknown";
         }

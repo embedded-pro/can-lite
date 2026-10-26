@@ -615,3 +615,48 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_SendCompletionNeverArrives_StillTimesOut
 
     EXPECT_TRUE(sender.IsIdle());
 }
+
+TEST_F(IsoTpSenderTest, Send_SingleFrame_DriverNeverCompletes_AbortsAfterNAs)
+{
+    uint8_t pdu[] = { 0xAB };
+    EXPECT_CALL(mocks, SendFrame(_, _));
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+    ForwardTime(std::chrono::milliseconds(999));
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nAsTimeout));
+    ForwardTime(std::chrono::milliseconds(1));
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_SingleFrame_CompletedInTime_DoesNotAbort)
+{
+    uint8_t pdu[] = { 0xAB };
+    infra::Function<void(bool)> done;
+    EXPECT_CALL(mocks, SendFrame(_, _)).WillOnce(testing::SaveArg<1>(&done));
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+    ForwardTime(std::chrono::milliseconds(999));
+
+    done(true);
+    ForwardTime(std::chrono::seconds(2));
+    EXPECT_TRUE(sender.IsIdle());
+}
+
+TEST_F(IsoTpSenderTest, Send_ConsecutiveFrame_DriverNeverCompletes_AbortsAfterNAs)
+{
+    uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    EXPECT_CALL(mocks, SendFrame(_, _))
+        .WillOnce([](const hal::Can::Message&, const infra::Function<void(bool)>& done)
+            {
+                done(true);
+            })
+        .WillOnce(testing::Return());
+    ASSERT_TRUE(sender.Send(infra::MakeRange(pdu), [] {}));
+
+    hal::Can::Message fc;
+    IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0u, fc);
+    sender.ProcessFlowControl(fc);
+    ForwardTime(std::chrono::milliseconds(999));
+
+    EXPECT_CALL(mocks, OnAbort(AbortReason::nAsTimeout));
+    ForwardTime(std::chrono::milliseconds(1));
+}

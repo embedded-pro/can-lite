@@ -33,14 +33,18 @@ namespace services::iso_tp
         return frame[0] & 0x0Fu;
     }
 
-    void IsoTpFrameCodec::EncodeFirstFrame(infra::ConstByteRange pdu, hal::Can::Message& out)
+    bool IsoTpFrameCodec::EncodeFirstFrame(infra::ConstByteRange pdu, hal::Can::Message& out)
     {
+        if (pdu.size() <= sfMaxPayloadBytes || pdu.size() > ffMaxPduLength)
+            return false;
+
         auto len = static_cast<uint16_t>(pdu.size());
         out.clear();
         out.push_back(static_cast<uint8_t>(0x10u | ((len >> 8u) & 0x0Fu)));
         out.push_back(static_cast<uint8_t>(len & 0xFFu));
         for (std::size_t i = 0; i < ffFirstDataBytes && i < pdu.size(); ++i)
             out.push_back(pdu[i]);
+        return true;
     }
 
     uint16_t IsoTpFrameCodec::DecodeFirstFrameTotalLength(const hal::Can::Message& frame)

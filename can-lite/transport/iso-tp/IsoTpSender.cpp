@@ -1,5 +1,6 @@
 #include "can-lite/transport/iso-tp/IsoTpSender.hpp"
 #include "can-lite/transport/iso-tp/IsoTpFrameCodec.hpp"
+#include "infra/util/ReallyAssert.hpp"
 
 namespace services::iso_tp
 {
@@ -17,7 +18,7 @@ namespace services::iso_tp
     {
         if (pdu.empty())
             return false;
-        if (pdu.size() > 0x0FFFu)
+        if (pdu.size() > ffMaxPduLength)
             return false;
         if (state != SenderState::idle)
             return false;
@@ -95,12 +96,15 @@ namespace services::iso_tp
 
         if (pduBuffer.size() <= sfMaxPayloadBytes)
         {
-            IsoTpFrameCodec::EncodeSingleFrame(infra::MakeRange(pduBuffer), frame);
+            auto encoded = IsoTpFrameCodec::EncodeSingleFrame(infra::MakeRange(pduBuffer), frame);
+            really_assert(encoded);
             state = SenderState::sendingSf;
+            StartNAsTimer();
             sendFrameFunc(frame, [this, current = transfer](bool success)
                 {
                     if (current != transfer)
                         return;
+                    nAsTimer.Cancel();
                     if (!success)
                         Abort(AbortReason::sendFailed);
                     else
@@ -109,7 +113,8 @@ namespace services::iso_tp
         }
         else
         {
-            IsoTpFrameCodec::EncodeFirstFrame(infra::MakeRange(pduBuffer), frame);
+            auto encoded = IsoTpFrameCodec::EncodeFirstFrame(infra::MakeRange(pduBuffer), frame);
+            really_assert(encoded);
             bytesSent = ffFirstDataBytes;
             state = SenderState::waitingForFc;
             StartNBsTimer();
@@ -126,6 +131,14 @@ namespace services::iso_tp
         nBsTimer.Start(nBsTimeout, [this]()
             {
                 Abort(AbortReason::nBsTimeout);
+            });
+    }
+
+    void IsoTpSender::StartNAsTimer()
+    {
+        nAsTimer.Start(nAsTimeout, [this]()
+            {
+                Abort(AbortReason::nAsTimeout);
             });
     }
 
@@ -174,10 +187,12 @@ namespace services::iso_tp
             }
         }
 
+        StartNAsTimer();
         sendFrameFunc(frame, [this, allSent, current = transfer](bool success)
             {
                 if (current != transfer)
                     return;
+                nAsTimer.Cancel();
                 if (!success)
                     Abort(AbortReason::sendFailed);
                 else if (allSent)
@@ -204,6 +219,7 @@ namespace services::iso_tp
 
     void IsoTpSender::Clear()
     {
+        nAsTimer.Cancel();
         nBsTimer.Cancel();
         stMinTimer.Cancel();
         state = SenderState::idle;

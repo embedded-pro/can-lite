@@ -358,3 +358,12 @@ TEST_F(IsoTpTransportImplTest, SendPdu_DispatchesPduToCallback)
     EXPECT_TRUE(callbackInvoked);
     EXPECT_EQ(receivedDataId, dataId);
 }
+
+TEST_F(IsoTpTransportImplTest, ConfiguredFlowControl_IsAdvertisedOnTheTransmitIdentifier)
+{
+    IsoTpTransportImpl::WithStorage<TestPduSize> pacedIsoTp{ transport, IsoTpTransportImpl::Config{ 4, 10 } };
+    ASSERT_TRUE(pacedIsoTp.RegisterReceiveChannel(dataId, fcId));
+
+    EXPECT_CALL(canMock, SendData(hal::Can::Id::Create29BitId(fcId), testing::ElementsAre(0x30u, 4u, 10u), _));
+    EXPECT_TRUE(pacedIsoTp.ProcessFrame(dataId, MakeFrame({ 0x10u, 0x20u, 1u, 2u, 3u, 4u, 5u, 6u })));
+}

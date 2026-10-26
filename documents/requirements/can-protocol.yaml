@@ -377,8 +377,11 @@
   shall: >
     The sender shall wait for a Flow Control (ContinueToSend) frame from
     the receiver before transmitting Consecutive Frames. The receiver shall
-    emit a Flow Control frame after receiving the First Frame. Block size
-    (BS=0) and separation time (STmin) fields shall be honoured. On
+    emit a Flow Control frame after receiving the First Frame, advertising
+    the block size and separation time it is configured with (default 0
+    and 0), and a further Flow Control frame after each complete block
+    when the block size is not 0. The sender shall honour the block size
+    and separation time it receives. On
     Flow Status = Wait, the sender shall restart the N_Bs timer and
     continue waiting rather than aborting, up to N_WFTmax (16) consecutive
     Wait frames, after which it shall abort. On Flow Status = Overflow,
@@ -437,14 +440,24 @@
     It shall ignore a frame with an unknown protocol control nibble, a
     single frame whose length is zero, above seven or beyond the frame, a
     first frame shorter than eight bytes or declaring fewer than eight
-    bytes, a consecutive frame while no reception is in progress, and a
-    flow control frame. A valid single or first frame arriving during a
-    reception shall end that reception, reported as an unexpected frame,
-    and shall then be processed as a new reception. A transfer that fails
-    shall be discarded and reported once through the transport's abort
-    callback; the channel shall stay open. The protocol objects shall not
-    install the abort callback, which belongs to the application, and
-    shall not release channels.
+    bytes, a consecutive frame while no reception is in progress, a
+    consecutive frame shorter than eight bytes that is not the last of the
+    transfer or, when it is the last, too short to hold the bytes still
+    expected, and a flow control frame. A valid single or first frame
+    arriving during a reception shall end that reception, reported as an
+    unexpected frame, and shall then be processed as a new reception. A
+    transfer that fails shall be discarded and reported once through the
+    transport's abort callback; the channel shall stay open. The protocol
+    objects shall not install the abort callback, which belongs to the
+    application, and shall not release channels.
+
+- id: REQ-CAN-047
+  title: ISO-TP N_As timeout
+  shall: >
+    The sender shall abort a transfer and notify the abort callback with
+    reason nAsTimeout if a Single Frame or a Consecutive Frame that is not
+    followed by a wait for Flow Control has not been reported sent within
+    1000 ms of being handed to the CAN transport.
 
 # --- Bidirectional Liveness and Sequence Recovery ---
 

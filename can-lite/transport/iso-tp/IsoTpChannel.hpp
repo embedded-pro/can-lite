@@ -19,6 +19,7 @@ namespace services::iso_tp
         virtual void Configure(uint32_t rxId, uint32_t txId,
             RawSendFunc rawSend, PduReadyFunc onPduReady, AbortFunc onAbort) = 0;
         virtual void EnableReception() = 0;
+        virtual void SetFlowControlParameters(uint8_t blockSize, uint8_t separationTime) = 0;
 
         virtual void Release() = 0;
 
