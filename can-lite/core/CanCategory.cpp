@@ -1,10 +1,14 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
+#include "infra/util/ReallyAssert.hpp"
 
 namespace services
 {
     void CanCategory::AddMessageType(CanMessageType& messageType)
     {
+        for (const auto& existing : messageTypes)
+            really_assert(existing.Id() != messageType.Id());
+
         messageTypes.push_back(messageType);
     }
 

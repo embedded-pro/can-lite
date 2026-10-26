@@ -25,7 +25,9 @@ namespace services
     static constexpr uint8_t canFirstApplicationCategoryId = 0x02;
     static constexpr uint8_t canLastApplicationCategoryId = 0x0F;
 
+    static constexpr std::size_t canMaxFramePayloadSize = 8;
     static constexpr uint8_t canMaxRegisteredCategories = 8;
+    static_assert(canMaxRegisteredCategories <= canMaxFramePayloadSize);
 
     static constexpr uint8_t canCategoryErrorResponseMessageTypeId = 0xFE;
 
@@ -52,7 +54,7 @@ namespace services
         categoryError = 7
     };
 
-    static constexpr const char* CanAckStatusToString(CanAckStatus status)
+    constexpr const char* CanAckStatusToString(CanAckStatus status)
     {
         switch (status)
         {

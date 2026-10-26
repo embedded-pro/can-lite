@@ -214,6 +214,13 @@ namespace
         EXPECT_EQ(testCategory.msg.handleCount, 1);
     }
 
+    TEST_F(CanProtocolClientTest, TransportIsReadableThroughAConstClientAndAddressesNoNodeOfItsOwn)
+    {
+        const CanProtocolClient& constClient = client;
+
+        EXPECT_EQ(constClient.Transport().NodeId(), canBroadcastNodeId);
+    }
+
     // === DiscoverCategories ===
 
     class CanProtocolClientDiscoveryTest

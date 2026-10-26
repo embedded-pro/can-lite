@@ -249,13 +249,13 @@ namespace
     TEST_F(CanFrameTransportTest, SendNotificationFiresForAnImmediateSend)
     {
         int notifications = 0;
-        transport.SetOnSendNotification([&notifications]
+        CanFrameTransport notifyingTransport{ can, ownNodeId, [&notifications]
             {
                 ++notifications;
-            });
+            } };
 
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [](bool) {});
+        notifyingTransport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [](bool) {});
 
         EXPECT_EQ(notifications, 1);
     }
@@ -263,16 +263,32 @@ namespace
     TEST_F(CanFrameTransportTest, SendNotificationFiresForAQueuedSend)
     {
         int notifications = 0;
-        transport.SetOnSendNotification([&notifications]
+        CanFrameTransport notifyingTransport{ can, ownNodeId, [&notifications]
             {
                 ++notifications;
-            });
+            } };
 
         ExpectOneSend();
-        transport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [](bool) {});
-        transport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [](bool) {});
+        notifyingTransport.SendFrame(CanPriority::command, 0x1, 0x01, MakeMessage({}), [](bool) {});
+        notifyingTransport.SendFrame(CanPriority::command, 0x1, 0x02, MakeMessage({}), [](bool) {});
 
         EXPECT_EQ(notifications, 2);
+    }
+
+    TEST_F(CanFrameTransportTest, RefusedFrameRaisesNoSendNotification)
+    {
+        int notifications = 0;
+        CanFrameTransport notifyingTransport{ can, ownNodeId, [&notifications]
+            {
+                ++notifications;
+            } };
+
+        ExpectOneSend();
+        for (uint8_t i = 0; i <= ordinaryCapacity; ++i)
+            notifyingTransport.SendFrame(CanPriority::command, 0x1, i, MakeMessage({}), [](bool) {});
+        ASSERT_FALSE(notifyingTransport.SendFrame(CanPriority::command, 0x1, 0x09, MakeMessage({}), [](bool) {}));
+
+        EXPECT_EQ(notifications, ordinaryCapacity + 1);
     }
 
     TEST_F(CanFrameTransportTest, SendRawFramePassesTheIdentifierThrough)

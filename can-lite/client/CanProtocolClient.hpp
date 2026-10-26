@@ -64,6 +64,7 @@ namespace services
         void DetachIsoTpTransport();
 
         CanFrameTransport& Transport();
+        const CanFrameTransport& Transport() const;
 
         // CanSequenceSource
         uint8_t ReserveSequence(uint16_t nodeId, uint8_t category, uint8_t messageType) override;

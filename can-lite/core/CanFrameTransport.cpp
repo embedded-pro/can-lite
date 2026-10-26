@@ -1,5 +1,4 @@
 #include "can-lite/core/CanFrameTransport.hpp"
-#include "infra/util/ReallyAssert.hpp"
 #include <algorithm>
 
 namespace services
@@ -32,6 +31,12 @@ namespace services
         , nodeId(nodeId)
     {}
 
+    CanFrameTransport::CanFrameTransport(hal::Can& can, uint16_t nodeId, const infra::Function<void()>& onSendNotification)
+        : can(can)
+        , nodeId(nodeId)
+        , onSendNotification(onSendNotification)
+    {}
+
     void CanFrameTransport::SetNodeId(uint16_t newNodeId)
     {
         nodeId = newNodeId;
@@ -40,17 +45,6 @@ namespace services
     uint16_t CanFrameTransport::NodeId() const
     {
         return nodeId;
-    }
-
-    void CanFrameTransport::SetOnSendNotification(infra::Function<void()> callback)
-    {
-        really_assert(!onSendNotification);
-        onSendNotification = callback;
-    }
-
-    void CanFrameTransport::ClearOnSendNotification()
-    {
-        onSendNotification = nullptr;
     }
 
     bool CanFrameTransport::SendFrame(CanPriority priority, uint8_t category, uint8_t messageType,
