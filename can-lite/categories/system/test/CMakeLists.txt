@@ -9,5 +9,6 @@ target_link_libraries(can_lite.categories.system_test PRIVATE
 )
 
 target_sources(can_lite.categories.system_test PRIVATE
-    TestCanSystemCategory.cpp
+    TestCanSystemCategoryClient.cpp
+    TestCanSystemCategoryServer.cpp
 )

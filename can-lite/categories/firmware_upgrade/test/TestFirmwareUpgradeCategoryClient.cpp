@@ -10,7 +10,6 @@ namespace
 {
     using namespace services;
     using testing::_;
-    using testing::AnyNumber;
     using testing::Invoke;
     using testing::StrictMock;
 
@@ -39,10 +38,6 @@ namespace
             explicit FixtureInit(StrictMock<hal::CanMock>& canMock)
             {
                 EXPECT_CALL(canMock, ReceiveData(_)).Times(2);
-                EXPECT_CALL(canMock, SendData(_, _, _)).Times(AnyNumber()).WillRepeatedly(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
-                    {
-                        cb(true);
-                    }));
             }
         } fixtureInit{ canMock };
 
@@ -182,7 +177,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(2, 0);
-        client.HandleMessage(fwuBeginResponseId, data);
+        EXPECT_EQ(client.HandleMessage(fwuBeginResponseId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, DataBlockAck_ParsesStatusAndIndex)
@@ -200,7 +195,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(2, 0);
-        client.HandleMessage(fwuDataBlockAckId, data);
+        EXPECT_EQ(client.HandleMessage(fwuDataBlockAckId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, VerifyResponse_ParsesStatus)
@@ -215,7 +210,7 @@ namespace
     TEST_F(TestFirmwareUpgradeCategoryClient, VerifyResponse_EmptyIgnored)
     {
         hal::Can::Message data;
-        client.HandleMessage(fwuVerifyResponseId, data);
+        EXPECT_EQ(client.HandleMessage(fwuVerifyResponseId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ActivateResponse_ParsesStatus)
@@ -230,7 +225,7 @@ namespace
     TEST_F(TestFirmwareUpgradeCategoryClient, ActivateResponse_EmptyIgnored)
     {
         hal::Can::Message data;
-        client.HandleMessage(fwuActivateResponseId, data);
+        EXPECT_EQ(client.HandleMessage(fwuActivateResponseId, data), CanDispatchResult::rejected);
     }
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ProgressResponse_ParsesAllFields)
@@ -249,7 +244,7 @@ namespace
     {
         hal::Can::Message data;
         data.resize(4, 0);
-        client.HandleMessage(fwuProgressResponseId, data);
+        EXPECT_EQ(client.HandleMessage(fwuProgressResponseId, data), CanDispatchResult::rejected);
     }
 
     // --- Boundary values (high-bit fields) ---

@@ -2,8 +2,12 @@ add_library(can_lite.test_util INTERFACE)
 
 target_sources(can_lite.test_util INTERFACE
     CanCategoryStubs.hpp
+    CanCommandAcknowledgerMock.hpp
     CanMock.hpp
     CanSequenceSourceMock.hpp
+    ../../client/test/CanProtocolClientObserverMock.hpp
+    ../../server/test/CanProtocolServerObserverMock.hpp
+    ../../transport/test/IsoTpTransportMock.hpp
 )
 
 target_include_directories(can_lite.test_util INTERFACE
@@ -28,8 +32,10 @@ target_link_libraries(can_lite.core_test PRIVATE
 
 target_sources(can_lite.core_test PRIVATE
     TestCanCategory.cpp
+    TestCanFrameCodec.cpp
     TestCanFrameTransport.cpp
     TestCanMessageHandler.cpp
+    TestCanMessageType.cpp
     TestCanPayload.cpp
-    TestCanProtocolCore.cpp
+    TestCanProtocolDefinitions.cpp
 )
