@@ -23,6 +23,15 @@
             "shall": {
                 "type": "string",
                 "pattern": "(?i)shall"
+            },
+            "tests": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_]*$"
+                }
             }
         }
     }

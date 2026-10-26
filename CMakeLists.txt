@@ -56,6 +56,8 @@ if (CAN_LITE_BUILD_TESTS)
     emil_enable_testing()
 endif()
 
+set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME can_lite)
+
 add_subdirectory(can-lite)
 
 install(DIRECTORY can-lite
@@ -64,6 +66,8 @@ install(DIRECTORY can-lite
     PATTERN "test" EXCLUDE
     PATTERN "test_doubles" EXCLUDE
 )
+
+unset(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME)
 
 set(CAN_LITE_FORMAT_DIRECTORIES can-lite)
 
@@ -81,6 +85,10 @@ emil_folderize_all_targets()
 emil_coverage_targets(DIRECTORIES .)
 
 set(CPACK_GENERATOR "ZIP;TGZ")
+set(CPACK_ARCHIVE_COMPONENT_INSTALL On)
+set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
+set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY On)
+set(CPACK_COMPONENTS_ALL can_lite)
 set(CPACK_SOURCE_IGNORE_FILES ".vs/;.git/;build/;output/;.venv/")
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")

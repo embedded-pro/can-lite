@@ -1,5 +1,5 @@
 function(can_lite_add_driver target)
-    add_library(${target} ${EMIL_EXCLUDE_FROM_ALL})
+    add_library(${target} STATIC)
 
     target_include_directories(${target} PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"
@@ -12,6 +12,12 @@ function(can_lite_add_driver target)
     )
 
     target_sources(${target} PRIVATE ${ARGN})
+
+    emil_install(${target}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
 endfunction()
 
 can_lite_add_driver(can_lite.drivers.slcan

@@ -1,4 +1,4 @@
-add_library(can_lite.tracing ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.tracing STATIC)
 
 target_include_directories(can_lite.tracing PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>"
@@ -21,7 +21,7 @@ emil_install(can_lite.tracing
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-add_library(can_lite.tracing_iso_tp ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.tracing_iso_tp STATIC)
 
 target_include_directories(can_lite.tracing_iso_tp PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>"
@@ -44,7 +44,7 @@ emil_install(can_lite.tracing_iso_tp
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-add_library(can_lite.tracing_protocol ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.tracing_protocol STATIC)
 
 target_include_directories(can_lite.tracing_protocol PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>"

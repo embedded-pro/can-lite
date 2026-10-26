@@ -1,4 +1,4 @@
-add_library(can_lite.core ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.core STATIC)
 
 target_include_directories(can_lite.core PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>"

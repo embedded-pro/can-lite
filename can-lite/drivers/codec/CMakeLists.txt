@@ -1,4 +1,4 @@
-add_library(can_lite.drivers.codec ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.drivers.codec STATIC)
 
 target_include_directories(can_lite.drivers.codec PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"
@@ -14,4 +14,10 @@ target_sources(can_lite.drivers.codec PRIVATE
     GsUsbProtocol.hpp
     SlcanCodec.cpp
     SlcanCodec.hpp
+)
+
+emil_install(can_lite.drivers.codec
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )

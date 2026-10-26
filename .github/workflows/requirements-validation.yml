@@ -29,6 +29,14 @@ jobs:
         with:
           schema-path: documents/tools/requirement.schema.json
           requirements-dir: documents/requirements
+          sources-dir: .
+
+      - name: Validate example requirements
+        uses: ./.github/actions/validate-requirements
+        with:
+          schema-path: documents/tools/requirement.schema.json
+          requirements-dir: examples
+          sources-dir: examples
 
       - name: Generate PDF
         timeout-minutes: 15

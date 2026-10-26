@@ -74,22 +74,28 @@ rather than only in unit tests.
 
 ## 4. Traceability, honestly
 
-Requirements are schema-validated on every push and pull request, and Appendix A
-of this booklet is generated from the same files at build time, so the booklet
-and the requirements cannot drift.
+Requirements — the library's and the example category's — are schema-validated
+on every push and pull request, and Appendix A of this booklet is generated from
+the same files at build time, so the booklet and the requirements cannot drift.
+
+A requirement may list the unit tests that cover it. The check fails when a
+listed test does not exist, so a list cannot outlive a renamed or deleted test.
+The example category lists its tests for every requirement; the library's own
+requirements do not yet.
 
 Two caveats are recorded in the requirements themselves and are worth repeating
 where a reader will see them:
 
-- **Traceability is not enforced.** Scenario tags naming requirements are a
-  convention; no CI step fails when a requirement has no covering test.
+- **Coverage is not enforced.** Scenario tags naming requirements are a
+  convention, and a requirement without a list is accepted; no CI step fails
+  when a requirement has no covering test.
 - **Tagging is partial by construction.** Tags exist where the mapping is
   unambiguous; much of the suite verifies behaviour that several requirements
   imply jointly.
 
-Closing the gap needs a schema change plus a CI step that fails on an uncovered
-requirement — follow-up work, deliberately not approximated with an inaccurate
-mapping.
+Closing the rest of the gap means listing tests for every library requirement
+and then making a list mandatory — follow-up work, deliberately not
+approximated with an inaccurate mapping.
 
 ## 5. Where verification stops
 

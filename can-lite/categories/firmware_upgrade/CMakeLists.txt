@@ -1,4 +1,4 @@
-add_library(can_lite.categories.firmware_upgrade ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.categories.firmware_upgrade STATIC)
 
 target_include_directories(can_lite.categories.firmware_upgrade PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"

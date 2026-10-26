@@ -1,6 +1,6 @@
 add_subdirectory(iso-tp)
 
-add_library(can_lite.transport ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.transport STATIC)
 
 target_include_directories(can_lite.transport PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>"

@@ -42,7 +42,7 @@ jobs:
       - uses: lukka/run-cmake@5d55ea7949e25f69f0ecb516d8d572297e03a956 # v10.9
         with:
           configurePreset: "host"
-          buildPreset: "host-Debug-WithPackage"
+          buildPreset: "host-Debug"
           testPreset: "host"
           configurePresetAdditionalArgs: "['-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
       - name: Run Integration Tests
@@ -90,6 +90,8 @@ jobs:
           files: integration-test-report.xml
           report_individual_runs: true
           report_suite_logs: info
+      - name: Package a Release build
+        run: cmake --build --preset host-Release-WithPackage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: can_lite
