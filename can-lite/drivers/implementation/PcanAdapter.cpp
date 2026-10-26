@@ -121,8 +121,12 @@ namespace services
 
         channel = candidate;
         readEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-        if (const auto setValue = Load<SetValue>("CAN_SetValue"); setValue != nullptr && readEvent != nullptr)
-            setValue(channel, parameterReceiveEvent, &readEvent, sizeof(readEvent));
+        const auto setValue = Load<SetValue>("CAN_SetValue");
+        if (readEvent != nullptr && (setValue == nullptr || setValue(channel, parameterReceiveEvent, &readEvent, sizeof(readEvent)) != statusOk))
+        {
+            CloseHandle(readEvent);
+            readEvent = nullptr;
+        }
         return true;
     }
 

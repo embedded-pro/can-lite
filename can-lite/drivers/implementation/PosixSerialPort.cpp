@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/file.h>
 #include <termios.h>
 #include <unistd.h>
@@ -17,6 +18,7 @@ namespace services
         constexpr std::size_t maxPathLength{ 256 };
         constexpr int maxPortIndex{ 32 };
         constexpr std::array<const char*, 2> portPrefixes{ "/dev/ttyACM", "/dev/ttyUSB" };
+        constexpr int partialWriteTimeoutMs{ 100 };
 
         SerialPortOpenResult ResultFor(int error)
         {
@@ -35,6 +37,17 @@ namespace services
                 default:
                     return SerialPortOpenResult::failed;
             }
+        }
+
+        bool WaitWritable(int descriptor)
+        {
+            pollfd ready{ descriptor, POLLOUT, 0 };
+            return ::poll(&ready, 1, partialWriteTimeoutMs) > 0 && (ready.revents & POLLOUT) != 0;
+        }
+
+        bool IsWouldBlock(int error)
+        {
+            return error == EAGAIN || error == EWOULDBLOCK;
         }
 
         void ConfigureRaw(int descriptor)
@@ -101,6 +114,11 @@ namespace services
             const auto written = ::write(descriptor, bytes.data() + offset, bytes.size() - offset);
             if (written > 0)
                 offset += static_cast<std::size_t>(written);
+            else if (written < 0 && IsWouldBlock(errno) && offset > 0)
+            {
+                if (!WaitWritable(descriptor))
+                    return false;
+            }
             else if (written == 0 || errno != EINTR)
                 return false;
         }

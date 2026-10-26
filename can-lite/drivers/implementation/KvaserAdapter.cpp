@@ -31,6 +31,7 @@ namespace services
         } };
 
         using InitializeLibrary = void(WINAPI*)();
+        using UnloadLibrary = int(WINAPI*)();
         using GetNumberOfChannels = int(WINAPI*)(int*);
         using OpenChannel = int(WINAPI*)(int, int);
         using SetBusParams = int(WINAPI*)(int, long, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
@@ -69,6 +70,13 @@ namespace services
         if (const auto initialize = LoadFrom<InitializeLibrary>(canlib, "canInitializeLibrary"))
             initialize();
         return canlib;
+    }
+
+    void KvaserAdapter::UnloadCanlib(HMODULE canlib)
+    {
+        if (const auto unload = LoadFrom<UnloadLibrary>(canlib, "canUnloadLibrary"))
+            unload();
+        FreeLibrary(canlib);
     }
 
     bool KvaserAdapter::Connect(infra::BoundedConstString interfaceName, uint32_t bitrate)
@@ -204,7 +212,7 @@ namespace services
             for (int index = 0; index < std::min(count, maxChannels); ++index)
                 ReportChannelNumber(static_cast<uint32_t>(index), callback);
 
-        FreeLibrary(probe);
+        UnloadCanlib(probe);
     }
 
     void KvaserAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
@@ -238,7 +246,7 @@ namespace services
         }
 
         if (library != nullptr)
-            FreeLibrary(library);
+            UnloadCanlib(library);
         library = nullptr;
         handle = -1;
     }

@@ -1,7 +1,7 @@
 #include "can-lite/drivers/implementation/SlcanAdapter.hpp"
 #include "infra/event/EventDispatcher.hpp"
 #include <array>
-#include <utility>
+#include <optional>
 
 namespace services
 {
@@ -9,6 +9,9 @@ namespace services
     {
         constexpr std::size_t readChunkSize{ 128 };
         constexpr std::size_t maxReadChunks{ 16 };
+        constexpr uint8_t closeReply{ 1 };
+        constexpr uint8_t openCommandReplies{ 3 };
+        constexpr infra::Duration handshakeTimeout{ std::chrono::seconds(1) };
 
         infra::BoundedConstString OpenFailure(SerialPortOpenResult result)
         {
@@ -62,30 +65,27 @@ namespace services
         }
 
         decoder.Reset();
-        awaitingCloseResponse = true;
-        NotifyObservers([](auto& observer)
+        state = LinkState::opening;
+        repliesReceived = 0;
+        handshakeTimer.Start(handshakeTimeout, [this]()
             {
-                observer.OnConnectionChanged(true);
+                FailHandshake("The slcan adapter did not answer; check that the port belongs to an slcan device");
             });
         return true;
     }
 
     void SlcanAdapter::Disconnect()
     {
-        if (!IsConnected())
+        if (state == LinkState::closed)
             return;
 
         port.Write(SlcanCloseCommand());
-        port.Close();
-        NotifyObservers([](auto& observer)
-            {
-                observer.OnConnectionChanged(false);
-            });
+        Close(std::nullopt);
     }
 
     bool SlcanAdapter::IsConnected() const
     {
-        return port.IsOpen();
+        return state == LinkState::open;
     }
 
     void SlcanAdapter::SendData(Id id, const Message& data, const infra::Function<void(bool success)>& actionOnCompletion)
@@ -121,7 +121,7 @@ namespace services
 
     void SlcanAdapter::ProcessReadEvent()
     {
-        for (std::size_t chunk = 0; chunk < maxReadChunks && IsConnected(); ++chunk)
+        for (std::size_t chunk = 0; chunk < maxReadChunks && state != LinkState::closed; ++chunk)
             if (!ReadAvailable())
                 return;
     }
@@ -144,7 +144,7 @@ namespace services
             return false;
         }
 
-        for (std::size_t index = 0; index < *received && IsConnected(); ++index)
+        for (std::size_t index = 0; index < *received && state != LinkState::closed; ++index)
             if (const auto item = decoder.Feed(static_cast<char>(buffer[index])))
                 Dispatch(*item);
 
@@ -153,13 +153,53 @@ namespace services
 
     void SlcanAdapter::Dispatch(const SlcanDecoder::Item& item)
     {
-        if (item.event != SlcanDecoder::Event::frame && std::exchange(awaitingCloseResponse, false))
-            return;
-
-        if (item.event == SlcanDecoder::Event::error)
+        if (state == LinkState::opening)
+            Handshake(item);
+        else if (item.event == SlcanDecoder::Event::error)
             ReportError("The slcan adapter rejected a command");
         else if (item.event == SlcanDecoder::Event::frame && item.frame.extended && !item.frame.remote)
             Deliver(item.frame);
+    }
+
+    void SlcanAdapter::Handshake(const SlcanDecoder::Item& item)
+    {
+        if (item.event == SlcanDecoder::Event::frame || ++repliesReceived == closeReply)
+            return;
+
+        if (item.event == SlcanDecoder::Event::error)
+            FailHandshake("The slcan adapter rejected the bitrate or the open command");
+        else if (repliesReceived == openCommandReplies)
+            CompleteHandshake();
+    }
+
+    void SlcanAdapter::CompleteHandshake()
+    {
+        handshakeTimer.Cancel();
+        state = LinkState::open;
+        NotifyObservers([](auto& observer)
+            {
+                observer.OnConnectionChanged(true);
+            });
+    }
+
+    void SlcanAdapter::FailHandshake(infra::BoundedConstString message)
+    {
+        Close(message);
+    }
+
+    void SlcanAdapter::Close(std::optional<infra::BoundedConstString> error)
+    {
+        handshakeTimer.Cancel();
+        port.Close();
+        state = LinkState::closed;
+
+        if (error.has_value())
+            ReportError(*error);
+
+        NotifyObservers([](auto& observer)
+            {
+                observer.OnConnectionChanged(false);
+            });
     }
 
     void SlcanAdapter::Deliver(const SlcanFrame& frame)
@@ -175,12 +215,7 @@ namespace services
 
     void SlcanAdapter::Lost()
     {
-        port.Close();
-        ReportError("The slcan adapter was disconnected");
-        NotifyObservers([](auto& observer)
-            {
-                observer.OnConnectionChanged(false);
-            });
+        Close("The slcan adapter was disconnected");
     }
 
     void SlcanAdapter::ReportError(infra::BoundedConstString message)

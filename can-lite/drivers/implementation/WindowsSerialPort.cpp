@@ -101,7 +101,7 @@ namespace services
 
     intptr_t WindowsSerialPort::Handle() const
     {
-        return reinterpret_cast<intptr_t>(handle);
+        return -1;
     }
 
     void WindowsSerialPort::EnumeratePorts(const infra::Function<void(infra::BoundedConstString)>& callback) const

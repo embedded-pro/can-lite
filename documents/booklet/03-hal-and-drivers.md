@@ -106,16 +106,16 @@ classDiagram
     CanBusAdapterObserver --> CanBusAdapter : observes
 ```
 
-| Adapter       | Platform       | Interface names                           | Needs on the machine                                   |
-|---------------|----------------|-------------------------------------------|--------------------------------------------------------|
-| SocketCAN     | Linux          | the network interface, `can0`             | the CAN kernel modules                                 |
-| slcan         | Linux, Windows | the serial port, `/dev/ttyACM0` or `COM3` | nothing beyond the operating system's serial driver    |
-| candleLight   | Windows        | `1`, `2`, … in enumeration order          | WinUSB, which candleLight firmware binds automatically |
-| PCAN-Basic    | Windows        | `1` to `16`, the USB channel              | the PEAK-System driver package (`PCANBasic.dll`)       |
-| Kvaser CANlib | Windows        | `0`, `1`, …                               | the Kvaser CANlib driver (`canlib32.dll`)              |
+| Adapter       | Platform       | Interface names                           | Needs on the machine                                   | Bitrates                                        |
+|---------------|----------------|-------------------------------------------|--------------------------------------------------------|-------------------------------------------------|
+| SocketCAN     | Linux          | the network interface, `can0`             | the CAN kernel modules                                 | whatever the controller's kernel driver can hit |
+| slcan         | Linux, Windows | the serial port, `/dev/ttyACM0` or `COM3` | nothing beyond the operating system's serial driver    | the nine Lawicel rates, 10 kbit/s to 1 Mbit/s   |
+| candleLight   | Windows        | `1`, `2`, … in enumeration order          | WinUSB, which candleLight firmware binds automatically | any rate the controller's clock divides exactly |
+| PCAN-Basic    | Windows        | `1` to `16`, the USB channel              | the PEAK-System driver package (`PCANBasic.dll`)       | the same nine rates as slcan                    |
+| Kvaser CANlib | Windows        | `0`, `1`, …                               | the Kvaser CANlib driver (`canlib32.dll`)              | CANlib's predefined rates: no 20 or 800 kbit/s  |
 
 Vendor libraries are loaded when an adapter connects or enumerates, never
-linked. Every adapter therefore builds without a vendor SDK, and a machine
+linked, and released through the vendor's own unload call where it has one. Every adapter therefore builds without a vendor SDK, and a machine
 without the vendor driver gets an explanation instead of a failure to start.
 The pure parts — slcan line encoding and decoding, gs_usb host frames and the
 bit-timing search — live in a codec library with no platform dependency, so the
@@ -144,9 +144,10 @@ nothing.
 entry point to call when it becomes readable, so a host application can service
 the bus from its own loop instead of dedicating a thread to it. On Linux the
 descriptor is a file descriptor. On Windows it is a waitable handle where the
-driver offers one and −1 otherwise; calling the read entry point from a timer is
-always safe, because every adapter reads without blocking and bounds the work
-done per call. Adapters also defer their send completions through the event
+driver offers one — candleLight, and PCAN when its receive event could be
+installed — and −1 otherwise: Kvaser, and slcan, whose COM port offers no event.
+Calling the read entry point from a timer is always safe, because every adapter
+reads without blocking and bounds the work done per call. Adapters also defer their send completions through the event
 dispatcher rather than calling them from inside the send. That detail matters
 more than it looks: it guarantees the core layer's queue is never re-entered
 from inside its own send (Chapter 10, §2).
@@ -189,14 +190,31 @@ The platform composition registers the set for the build platform:
 | Linux    | SocketCAN without a prefix, slcan as `slcan:` with the alias `CANable:`         |
 | Windows  | `PCAN:`, `Kvaser:`, slcan as `slcan:` with the alias `CANable:`, `candleLight:` |
 
-### 2.2 slcan and candleLight specifics
+### 2.2 SocketCAN, slcan and candleLight specifics
 
-slcan opens a channel with three commands: close, select the bitrate, open. An
-adapter that is already closed rejects the first, so the answer to that close
-is ignored; a rejection of anything after it is reported. Only the nine Lawicel
-bitrates (10 kbit/s to 1 Mbit/s) can be selected. When the serial port cannot be
-opened the reason is named — not found, in use, or access denied (on Linux the
-user must be in the `dialout` group).
+SocketCAN checks the interface before touching it, then sets the bitrate over
+the kernel's routing netlink, the interface `ip link` itself uses: the link is
+taken down, given the new bit timing and brought back up. It does this only for
+a CAN controller that is not already up at that bitrate, so a virtual CAN
+interface, which has no bit timing, is left alone, and so is an interface an
+administrator configured beforehand. Changing the bitrate needs root or
+`CAP_NET_ADMIN`; a refusal is reported and the connection refused, rather than
+the bus opening at a rate nobody asked for. Each read call drains up to 256
+frames; remote and error frames are dropped.
+
+slcan opens a channel with three commands: close, select the bitrate, open.
+Connecting writes them and returns; the adapter reports itself connected only
+once the device has acknowledged the bitrate and the open command. A device
+that is already closed rejects the first command, so the answer to that close is
+ignored. A rejection of either of the others, or a second of silence, closes the
+port, says why and reports the connection lost — so a serial port that is not
+an slcan device does not appear to connect. The handshake is timed, which is why
+the slcan adapter needs the timer service, as the protocol objects do.
+Rejections after the channel is open are reported as errors. When the serial
+port cannot be opened the reason is named — not found, in use, or access denied
+(on Linux the user must be in the `dialout` group). A write the port cannot take
+in one piece is finished within 100 ms or fails, so a command is never left
+half-written on the line.
 
 candleLight adapters describe their CAN controller's timing limits. The adapter
 searches those limits for timing that divides the controller clock exactly into
