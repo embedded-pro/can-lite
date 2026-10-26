@@ -104,7 +104,7 @@ namespace services
 
     bool CanProtocolClient::DiscoverCategories(uint16_t nodeId, const infra::Function<void(std::optional<infra::ConstByteRange> categoryIds)>& onDone)
     {
-        if (discoveryNode || nodeId == canBroadcastNodeId)
+        if (discoveryNode.has_value() || nodeId == canBroadcastNodeId)
             return false;
 
         discoveryNode = nodeId;

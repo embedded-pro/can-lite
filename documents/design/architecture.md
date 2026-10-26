@@ -200,7 +200,9 @@ The system category on the server is **fully automatic** — no public API is ex
 
 The system category on the client sends the category list request (`RequestCategoryList(nodeId)`) and has no observer. Both answers a server sends it — command acknowledgements (§9.4) and category list responses — are handled in `CanProtocolClient` itself, because they need the source node ID, which the category dispatch layer does not pass down to individual message handlers.
 
-The application reaches discovery through `CanProtocolClient::DiscoverCategories(nodeId, onDone)`, because it may want to enumerate a server's capabilities. One discovery is pending at a time; only the asked server's answer completes it, with the category IDs, and `Config::discoveryTimeout` (default 1 s) completes it without an answer. A request while one is pending, or to the broadcast address, returns `false`.
+The application reaches discovery through `CanProtocolClient::DiscoverCategories(nodeId, onDone)`, because it may want to enumerate a server's capabilities.
+One discovery is pending at a time; only the asked server's answer completes it, with the category IDs, and `Config::discoveryTimeout` (default 1 s) completes it without an answer.
+A request while one is pending, or to the broadcast address, returns `false`.
 
 ## 7. Bidirectional Category Pattern
 
