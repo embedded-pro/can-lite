@@ -3,11 +3,23 @@
 
 namespace services
 {
+    namespace
+    {
+        CanAckStatus ToAckStatus(FwuError status)
+        {
+            return status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError;
+        }
+    }
+
+    FirmwareUpgradeCategoryServer::FirmwareUpgradeCategoryServer(CanFrameTransport& transport)
+        : FirmwareUpgradeCategoryServer(transport, Config{})
+    {}
+
     FirmwareUpgradeCategoryServer::FirmwareUpgradeCategoryServer(CanFrameTransport& transport, const Config& config)
         : CanCategoryServer(transport)
         , config(config)
     {
-        AddMessageTypes(beginUpgrade, dataBlock, verify, activate, abort, queryProgress);
+        AddMessageTypes(beginUpgrade, dataBlock, verify, activate, abortUpgrade, queryProgress);
     }
 
     uint8_t FirmwareUpgradeCategoryServer::Id() const
@@ -20,47 +32,64 @@ namespace services
         return false;
     }
 
-    void FirmwareUpgradeCategoryServer::SendBeginResponse(FwuError status, uint16_t pageSize)
+    void FirmwareUpgradeCategoryServer::CompleteBeginUpgrade(FwuError status, uint16_t pageSize)
     {
+        if (status == FwuError::ok)
+            StartSessionTimer();
+
         CanPayloadWriter payload;
         payload.WriteUInt8(static_cast<uint8_t>(status)).WriteUInt16(pageSize);
 
         SendResponse(fwuBeginResponseId, payload);
+        SendCommandAck(fwuBeginUpgradeId, ToAckStatus(status));
     }
 
-    void FirmwareUpgradeCategoryServer::SendDataBlockAck(FwuError status, uint16_t blockIndex)
+    void FirmwareUpgradeCategoryServer::CompleteDataBlock(uint16_t blockIndex, FwuError status)
     {
+        if (status == FwuError::ok)
+            StartSessionTimer();
+
         CanPayloadWriter payload;
         payload.WriteUInt8(static_cast<uint8_t>(status)).WriteUInt16(blockIndex);
 
         SendResponse(fwuDataBlockAckId, payload);
+        SendCommandAck(fwuDataBlockId, ToAckStatus(status));
     }
 
-    void FirmwareUpgradeCategoryServer::SendVerifyResponse(FwuError status)
+    void FirmwareUpgradeCategoryServer::CompleteVerify(FwuError status)
     {
-        CanPayloadWriter payload;
-        payload.WriteUInt8(static_cast<uint8_t>(status));
-
-        SendResponse(fwuVerifyResponseId, payload);
+        CompleteWithStatus(fwuVerifyId, fwuVerifyResponseId, status);
     }
 
-    void FirmwareUpgradeCategoryServer::SendActivateResponse(FwuError status)
+    void FirmwareUpgradeCategoryServer::CompleteActivate(FwuError status)
     {
-        CanPayloadWriter payload;
-        payload.WriteUInt8(static_cast<uint8_t>(status));
-
-        SendResponse(fwuActivateResponseId, payload);
+        CompleteWithStatus(fwuActivateId, fwuActivateResponseId, status);
     }
 
-    void FirmwareUpgradeCategoryServer::SendProgressResponse(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks)
+    void FirmwareUpgradeCategoryServer::CompleteAbort()
+    {
+        SendCommandAck(fwuAbortId, CanAckStatus::success);
+    }
+
+    void FirmwareUpgradeCategoryServer::CompleteQueryProgress(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks)
     {
         CanPayloadWriter payload;
         payload.WriteUInt8(static_cast<uint8_t>(state)).WriteUInt16(blocksReceived).WriteUInt16(totalBlocks);
 
         SendResponse(fwuProgressResponseId, payload);
+        SendCommandAck(fwuQueryProgressId, CanAckStatus::success);
     }
 
-    void FirmwareUpgradeCategoryServer::ResetSessionTimer()
+    void FirmwareUpgradeCategoryServer::CompleteWithStatus(uint8_t commandId, uint8_t responseId, FwuError status)
+    {
+        CanPayloadWriter payload;
+        payload.WriteUInt8(static_cast<uint8_t>(status));
+
+        SendResponse(responseId, payload);
+        SendCommandAck(commandId, ToAckStatus(status));
+    }
+
+    void FirmwareUpgradeCategoryServer::StartSessionTimer()
     {
         sessionTimeoutTimer.Start(config.sessionTimeout, [this]()
             {
@@ -89,16 +118,13 @@ namespace services
         if (!reader.Valid())
             return false;
 
-        ResetSessionTimer();
-
-        NotifyObservers([this, firmwareSize](auto& observer)
-            {
-                observer.OnBeginUpgrade(firmwareSize, [this](FwuError status, uint16_t pageSize)
-                    {
-                        SendBeginResponse(status, pageSize);
-                        SendCommandAck(fwuBeginUpgradeId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
-                    });
-            });
+        if (!HasObserver())
+            CompleteBeginUpgrade(FwuError::notReady, 0);
+        else
+            GetObserver().OnBeginUpgrade(firmwareSize, [this](FwuError status, uint16_t pageSize)
+                {
+                    CompleteBeginUpgrade(status, pageSize);
+                });
 
         return true;
     }
@@ -107,24 +133,18 @@ namespace services
     {
         CanPayloadReader reader{ data };
         auto blockIndex = reader.ReadUInt16();
+        auto blockData = reader.ReadRemaining();
 
         if (!reader.Valid())
             return false;
 
-        ResetSessionTimer();
-
-        hal::Can::Message payload;
-        for (auto byte : reader.ReadRemaining())
-            payload.push_back(byte);
-
-        NotifyObservers([this, blockIndex, payload](auto& observer)
-            {
-                observer.OnDataBlock(blockIndex, payload, [this, blockIndex](FwuError status)
-                    {
-                        SendDataBlockAck(status, blockIndex);
-                        SendCommandAck(fwuDataBlockId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
-                    });
-            });
+        if (!HasObserver())
+            CompleteDataBlock(blockIndex, FwuError::notReady);
+        else
+            GetObserver().OnDataBlock(blockIndex, blockData, [this, blockIndex](FwuError status)
+                {
+                    CompleteDataBlock(blockIndex, status);
+                });
 
         return true;
     }
@@ -139,14 +159,13 @@ namespace services
 
         StopSessionTimer();
 
-        NotifyObservers([this, expectedCrc32](auto& observer)
-            {
-                observer.OnVerify(expectedCrc32, [this](FwuError status)
-                    {
-                        SendVerifyResponse(status);
-                        SendCommandAck(fwuVerifyId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
-                    });
-            });
+        if (!HasObserver())
+            CompleteVerify(FwuError::notReady);
+        else
+            GetObserver().OnVerify(expectedCrc32, [this](FwuError status)
+                {
+                    CompleteVerify(status);
+                });
 
         return true;
     }
@@ -155,14 +174,13 @@ namespace services
     {
         StopSessionTimer();
 
-        NotifyObservers([this](auto& observer)
-            {
-                observer.OnActivate([this](FwuError status)
-                    {
-                        SendActivateResponse(status);
-                        SendCommandAck(fwuActivateId, status == FwuError::ok ? CanAckStatus::success : CanAckStatus::categoryError);
-                    });
-            });
+        if (!HasObserver())
+            CompleteActivate(FwuError::notReady);
+        else
+            GetObserver().OnActivate([this](FwuError status)
+                {
+                    CompleteActivate(status);
+                });
 
         return true;
     }
@@ -171,27 +189,26 @@ namespace services
     {
         StopSessionTimer();
 
-        NotifyObservers([this](auto& observer)
-            {
-                observer.OnAbort([this]()
-                    {
-                        SendCommandAck(fwuAbortId, CanAckStatus::success);
-                    });
-            });
+        if (!HasObserver())
+            CompleteAbort();
+        else
+            GetObserver().OnAbort([this]()
+                {
+                    CompleteAbort();
+                });
 
         return true;
     }
 
     bool FirmwareUpgradeCategoryServer::HandleQueryProgress(const hal::Can::Message&)
     {
-        NotifyObservers([this](auto& observer)
-            {
-                observer.OnQueryProgress([this](FwuState state, uint16_t blocksReceived, uint16_t totalBlocks)
-                    {
-                        SendProgressResponse(state, blocksReceived, totalBlocks);
-                        SendCommandAck(fwuQueryProgressId, CanAckStatus::success);
-                    });
-            });
+        if (!HasObserver())
+            CompleteQueryProgress(FwuState::idle, 0, 0);
+        else
+            GetObserver().OnQueryProgress([this](FwuState state, uint16_t blocksReceived, uint16_t totalBlocks)
+                {
+                    CompleteQueryProgress(state, blocksReceived, totalBlocks);
+                });
 
         return true;
     }

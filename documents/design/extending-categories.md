@@ -253,8 +253,9 @@ are reported automatically by category discovery.
 `UnregisterCategory()` returns `false`, changing nothing, if the category is
 not registered on that server or if it is the server's built-in system
 category. On success it clears the acknowledger the server handed the category,
-so a later acknowledgement attempt asserts rather than calling into a server
-that no longer owns it.
+so a later acknowledgement — from an asynchronous completion that outlived the
+registration, say — is dropped rather than sent through a server that no longer
+owns it.
 
 A registered category is a node in the server's or client's intrusive list and
 does not unlink itself. Unregister a category before destroying it: otherwise

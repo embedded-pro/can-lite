@@ -873,7 +873,7 @@ namespace
         ASSERT_TRUE(server.RegisterCategory(testCategory));
         ASSERT_TRUE(server.UnregisterCategory(testCategory));
 
-        EXPECT_DEATH(testCategory.Acknowledge(), "");
+        testCategory.Acknowledge();
     }
 
     TEST_F(CanProtocolServerTest, UnregisterCategory_UnknownCategoryReturnsFalse)

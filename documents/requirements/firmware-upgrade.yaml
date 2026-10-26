@@ -145,9 +145,32 @@
 - id: REQ-FWU-015
   title: Session inactivity timeout
   shall: >
-    The server shall abort a firmware upgrade session if no DataBlock,
-    Verify, Activate, or Abort command is received within a configurable
-    inactivity timeout period (default 30 s) after BeginUpgrade or the last
-    DataBlock. On timeout the server shall transition to Idle state and notify
-    the application via the OnSessionTimeout() observer callback. QueryProgress
-    commands shall not reset the inactivity timer.
+    The server shall abort a firmware upgrade session if, after its
+    application accepts BeginUpgrade or the last DataBlock, no further
+    DataBlock is accepted and no Verify, Activate, or Abort command is
+    received within a configurable inactivity timeout period (default
+    30 s). On timeout the server shall transition to Idle state and notify
+    the application via the OnSessionTimeout() observer callback. A
+    refused BeginUpgrade shall not open a session and a refused DataBlock
+    shall not extend one. QueryProgress commands shall not reset the
+    inactivity timer.
+
+# --- Server Without an Application ---
+
+- id: REQ-FWU-016
+  title: Commands without an application
+  shall: >
+    When no application is attached to the firmware upgrade category, the
+    server shall answer Begin Upgrade, Data Block, Verify, and Activate
+    with their response carrying NotReady and a categoryError
+    acknowledgement, acknowledge Abort with success, and answer Query
+    Progress with state Idle, zero blocks, and a success acknowledgement.
+
+# --- Response Validation ---
+
+- id: REQ-FWU-017
+  title: Undefined status and state values
+  shall: >
+    The client shall discard a firmware upgrade response whose status is
+    not a defined error code, or whose state is not a defined upgrade
+    state, without notifying its application.

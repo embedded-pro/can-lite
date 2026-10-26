@@ -152,7 +152,11 @@ namespace services::iso_tp
 
     void IsoTpReceiver::ContinueBlock()
     {
-        if (blockSize == 0u || ++framesInBlock != blockSize)
+        if (blockSize == 0u)
+            return;
+
+        ++framesInBlock;
+        if (framesInBlock != blockSize)
             return;
 
         framesInBlock = 0u;
