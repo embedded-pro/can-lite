@@ -1,6 +1,5 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanFrameTransport.hpp"
-#include "infra/util/ReallyAssert.hpp"
 
 namespace services
 {
@@ -56,8 +55,8 @@ namespace services
 
     void CanCategoryServer::SendCommandAck(uint8_t messageType, CanAckStatus status)
     {
-        really_assert(acknowledger != nullptr);
-        acknowledger->SendCommandAck(Id(), messageType, status);
+        if (acknowledger != nullptr)
+            acknowledger->SendCommandAck(Id(), messageType, status);
     }
 
     CanFrameTransport& CanCategoryServer::Transport()

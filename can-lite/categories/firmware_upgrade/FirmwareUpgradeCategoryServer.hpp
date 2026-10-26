@@ -4,6 +4,7 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanMessageHandler.hpp"
 #include "infra/timer/Timer.hpp"
+#include "infra/util/ByteRange.hpp"
 #include "infra/util/Function.hpp"
 #include "infra/util/Observer.hpp"
 #include <cstdint>
@@ -19,7 +20,7 @@ namespace services
         using infra::SingleObserver<FirmwareUpgradeCategoryServerObserver, FirmwareUpgradeCategoryServer>::SingleObserver;
 
         virtual void OnBeginUpgrade(uint32_t firmwareSize, const infra::Function<void(FwuError, uint16_t)>& onResult) = 0;
-        virtual void OnDataBlock(uint16_t blockIndex, const hal::Can::Message& data, const infra::Function<void(FwuError)>& onResult) = 0;
+        virtual void OnDataBlock(uint16_t blockIndex, infra::ConstByteRange data, const infra::Function<void(FwuError)>& onResult) = 0;
         virtual void OnVerify(uint32_t expectedCrc32, const infra::Function<void(FwuError)>& onResult) = 0;
         virtual void OnActivate(const infra::Function<void(FwuError)>& onResult) = 0;
         virtual void OnAbort(const infra::Function<void()>& onDone) = 0;
@@ -37,17 +38,20 @@ namespace services
             infra::Duration sessionTimeout = std::chrono::seconds(30);
         };
 
+        explicit FirmwareUpgradeCategoryServer(CanFrameTransport& transport);
         FirmwareUpgradeCategoryServer(CanFrameTransport& transport, const Config& config);
 
         uint8_t Id() const override;
         bool RequiresSequenceValidation() const override;
 
     private:
-        void SendBeginResponse(FwuError status, uint16_t pageSize);
-        void SendDataBlockAck(FwuError status, uint16_t blockIndex);
-        void SendVerifyResponse(FwuError status);
-        void SendActivateResponse(FwuError status);
-        void SendProgressResponse(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks);
+        void CompleteBeginUpgrade(FwuError status, uint16_t pageSize);
+        void CompleteDataBlock(uint16_t blockIndex, FwuError status);
+        void CompleteVerify(FwuError status);
+        void CompleteActivate(FwuError status);
+        void CompleteAbort();
+        void CompleteQueryProgress(FwuState state, uint16_t blocksReceived, uint16_t totalBlocks);
+        void CompleteWithStatus(uint8_t commandId, uint8_t responseId, FwuError status);
 
         bool HandleBeginUpgrade(const hal::Can::Message& data);
         bool HandleDataBlock(const hal::Can::Message& data);
@@ -56,7 +60,7 @@ namespace services
         bool HandleAbort(const hal::Can::Message& data);
         bool HandleQueryProgress(const hal::Can::Message& data);
 
-        void ResetSessionTimer();
+        void StartSessionTimer();
         void StopSessionTimer();
         void HandleSessionTimeout();
 
@@ -67,7 +71,7 @@ namespace services
         CanMessageHandler<FirmwareUpgradeCategoryServer> dataBlock{ fwuDataBlockId, *this, &FirmwareUpgradeCategoryServer::HandleDataBlock };
         CanMessageHandler<FirmwareUpgradeCategoryServer> verify{ fwuVerifyId, *this, &FirmwareUpgradeCategoryServer::HandleVerify };
         CanMessageHandler<FirmwareUpgradeCategoryServer> activate{ fwuActivateId, *this, &FirmwareUpgradeCategoryServer::HandleActivate };
-        CanMessageHandler<FirmwareUpgradeCategoryServer> abort{ fwuAbortId, *this, &FirmwareUpgradeCategoryServer::HandleAbort };
+        CanMessageHandler<FirmwareUpgradeCategoryServer> abortUpgrade{ fwuAbortId, *this, &FirmwareUpgradeCategoryServer::HandleAbort };
         CanMessageHandler<FirmwareUpgradeCategoryServer> queryProgress{ fwuQueryProgressId, *this, &FirmwareUpgradeCategoryServer::HandleQueryProgress };
     };
 }

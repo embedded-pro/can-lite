@@ -62,6 +62,7 @@ namespace integration
         std::optional<services::FirmwareUpgradeCategoryClient> fwuClient;
         std::optional<testing::StrictMock<FirmwareUpgradeClientObserverMock>> fwuClientObserver;
         std::optional<uint32_t> fwuBeginSize;
+        std::optional<services::FwuError> fwuBeginResponseStatus;
         bool fwuProgressQueried = false;
         bool fwuSessionTimedOut = false;
 

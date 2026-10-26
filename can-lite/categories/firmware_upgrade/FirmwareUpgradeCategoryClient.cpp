@@ -3,6 +3,19 @@
 
 namespace services
 {
+    namespace
+    {
+        constexpr bool IsFwuError(uint8_t value)
+        {
+            return value <= static_cast<uint8_t>(FwuError::sessionTimeout);
+        }
+
+        constexpr bool IsFwuState(uint8_t value)
+        {
+            return value <= static_cast<uint8_t>(FwuState::error);
+        }
+    }
+
     FirmwareUpgradeCategoryClient::FirmwareUpgradeCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource)
         : CanCategoryClient(transport, sequenceSource)
     {
@@ -13,8 +26,6 @@ namespace services
     {
         return firmwareUpgradeCategoryId;
     }
-
-    // Commands carry no sequence byte: the server orders transfers by block index instead.
 
     bool FirmwareUpgradeCategoryClient::SendBeginUpgrade(uint16_t targetNodeId, uint32_t firmwareSize)
     {
@@ -58,15 +69,15 @@ namespace services
     bool FirmwareUpgradeCategoryClient::HandleBeginResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
-        auto status = static_cast<FwuError>(reader.ReadUInt8());
+        auto status = reader.ReadUInt8();
         auto pageSize = reader.ReadUInt16();
 
-        if (!reader.Valid())
+        if (!reader.Valid() || !IsFwuError(status))
             return false;
 
         NotifyObservers([status, pageSize](auto& observer)
             {
-                observer.OnBeginResponse(status, pageSize);
+                observer.OnBeginResponse(static_cast<FwuError>(status), pageSize);
             });
 
         return true;
@@ -75,15 +86,15 @@ namespace services
     bool FirmwareUpgradeCategoryClient::HandleDataBlockAck(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
-        auto status = static_cast<FwuError>(reader.ReadUInt8());
+        auto status = reader.ReadUInt8();
         auto blockIndex = reader.ReadUInt16();
 
-        if (!reader.Valid())
+        if (!reader.Valid() || !IsFwuError(status))
             return false;
 
         NotifyObservers([status, blockIndex](auto& observer)
             {
-                observer.OnDataBlockAck(status, blockIndex);
+                observer.OnDataBlockAck(static_cast<FwuError>(status), blockIndex);
             });
 
         return true;
@@ -92,14 +103,14 @@ namespace services
     bool FirmwareUpgradeCategoryClient::HandleVerifyResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
-        auto status = static_cast<FwuError>(reader.ReadUInt8());
+        auto status = reader.ReadUInt8();
 
-        if (!reader.Valid())
+        if (!reader.Valid() || !IsFwuError(status))
             return false;
 
         NotifyObservers([status](auto& observer)
             {
-                observer.OnVerifyResponse(status);
+                observer.OnVerifyResponse(static_cast<FwuError>(status));
             });
 
         return true;
@@ -108,14 +119,14 @@ namespace services
     bool FirmwareUpgradeCategoryClient::HandleActivateResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
-        auto status = static_cast<FwuError>(reader.ReadUInt8());
+        auto status = reader.ReadUInt8();
 
-        if (!reader.Valid())
+        if (!reader.Valid() || !IsFwuError(status))
             return false;
 
         NotifyObservers([status](auto& observer)
             {
-                observer.OnActivateResponse(status);
+                observer.OnActivateResponse(static_cast<FwuError>(status));
             });
 
         return true;
@@ -124,16 +135,16 @@ namespace services
     bool FirmwareUpgradeCategoryClient::HandleProgressResponse(const hal::Can::Message& data)
     {
         CanPayloadReader reader{ data };
-        auto state = static_cast<FwuState>(reader.ReadUInt8());
+        auto state = reader.ReadUInt8();
         auto blocksReceived = reader.ReadUInt16();
         auto totalBlocks = reader.ReadUInt16();
 
-        if (!reader.Valid())
+        if (!reader.Valid() || !IsFwuState(state))
             return false;
 
         NotifyObservers([state, blocksReceived, totalBlocks](auto& observer)
             {
-                observer.OnProgressResponse(state, blocksReceived, totalBlocks);
+                observer.OnProgressResponse(static_cast<FwuState>(state), blocksReceived, totalBlocks);
             });
 
         return true;

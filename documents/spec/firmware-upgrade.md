@@ -61,13 +61,24 @@ transfers (thousands of blocks).
 | 3     | SequenceError  | Block index out of order or duplicate      |
 | 4     | WriteError     | Flash write/erase failure                  |
 | 5     | CrcMismatch    | CRC32 verification failed                  |
-| 6     | NotReady       | Activate requested before verify passed    |
+| 6     | NotReady       | Activate before verify, or no application  |
 | 7     | InvalidState   | Command not valid in current upgrade state |
 | 8     | SessionTimeout | No activity within the session timeout     |
 
 ## 4. Message Types — Commands (Client → Server)
 
 All commands are sent at `CanPriority::command`.
+
+Every command is answered by its response from Section 5, followed by a
+command acknowledgement for the same command
+([can-protocol.md](can-protocol.md) §8.1.2): `success` when the
+response's status is Ok, `categoryError` otherwise.
+Abort has no response, so its acknowledgement alone answers it. Query
+Progress is always acknowledged `success`.
+
+The commands carry no sequence byte, so the client's protocol layer runs
+no acknowledgement timeout for them. A client application that must
+detect a lost answer times out on the response itself (Section 7.5).
 
 ### 4.1 Begin Upgrade (0x00)
 
@@ -142,21 +153,42 @@ The server responds with a Progress Response (0x85).
 
 ### 4.7 Session Timeout
 
-If the server does not receive a DataBlock, Verify, Activate, or Abort
-command within a configurable inactivity period (default 30 s) after
-a BeginUpgrade or the last DataBlock, the server automatically aborts
-the upgrade session and transitions to Idle state. The application is
-notified via the `OnSessionTimeout()` observer callback.
+A session opens when the server's application accepts a BeginUpgrade
+with status Ok. If no further DataBlock is accepted, and no Verify,
+Activate or Abort command arrives, within a configurable inactivity
+period (default 30 s) after the accepted BeginUpgrade or the last
+accepted DataBlock, the server automatically aborts the upgrade session
+and transitions to Idle state. The application is notified via the
+`OnSessionTimeout()` observer callback.
 
+A refused BeginUpgrade opens no session, and a refused DataBlock does not
+extend one. Verify, Activate and Abort stop the timer when they arrive,
+whatever their outcome; a DataBlock accepted afterwards starts it again.
 QueryProgress does not reset the session timer.
 
 The session timeout is configured per-category-instance via
 `FirmwareUpgradeCategoryServer::Config::sessionTimeout`.
 
+### 4.8 Server Without an Application
+
+A server whose firmware upgrade category has no application attached
+answers every command itself, and opens no session:
+
+- Begin Upgrade, Data Block, Verify and Activate are answered by their
+  response with status `NotReady`, and acknowledged `categoryError`. The
+  Data Block Ack echoes the block index.
+- Abort is acknowledged `success`: there is nothing to discard.
+- Query Progress is answered with state Idle and zero blocks, and
+  acknowledged `success`.
+
 ## 5. Message Types — Responses (Server → Client)
 
 Response message type IDs follow the `0x80 + command_id` convention.
 All responses are sent at `CanPriority::response`.
+
+The client discards a response whose Status is not an error code from
+Section 3, or whose State is not an upgrade state from Section 2, as an
+invalid payload. Its application is not notified.
 
 ### 5.1 Begin Upgrade Response (0x80)
 
@@ -218,22 +250,21 @@ sequenceDiagram
 
     C->>S: beginUpgrade (size=12288)
     S->>C: beginUpgradeResponse (ok, pageSize=4096)
+    S->>C: commandAck (0x1, 0x00, success)
 
-    loop For each block
-        C->>S: dataBlock (idx=0, 6 bytes)
-        S->>C: dataBlockAck (ok, idx=0)
-        C->>S: dataBlock (idx=1, 6 bytes)
-        S->>C: dataBlockAck (ok, idx=1)
-        Note over C,S: ... 2046 more blocks ...
-        C->>S: dataBlock (idx=2047, 6 bytes)
-        S->>C: dataBlockAck (ok, idx=2047)
+    loop For each block, idx = 0 to 2047
+        C->>S: dataBlock (idx, 6 bytes)
+        S->>C: dataBlockAck (ok, idx)
+        S->>C: commandAck (0x1, 0x01, success)
     end
 
     C->>S: verify (crc32=0xABCD1234)
     S->>C: verifyResponse (match)
+    S->>C: commandAck (0x1, 0x02, success)
 
     C->>S: activate
     S->>C: activateResponse (activating)
+    S->>C: commandAck (0x1, 0x03, success)
     Note over S: Reboots into new firmware
 ```
 
@@ -246,9 +277,11 @@ sequenceDiagram
 
     C->>S: beginUpgrade (size=8192)
     S->>C: beginUpgradeResponse (ok)
+    S->>C: commandAck (0x1, 0x00, success)
 
     C->>S: dataBlock (idx=0, 6 bytes)
     S->>C: dataBlockAck (ok, idx=0)
+    S->>C: commandAck (0x1, 0x01, success)
 
     Note over C: User cancels
     C->>S: abort
@@ -265,9 +298,11 @@ sequenceDiagram
 
     C->>S: dataBlock (idx=5, 6 bytes)
     S->>C: dataBlockAck (writeError, idx=5)
+    S->>C: commandAck (0x1, 0x01, categoryError)
     Note over C: Retransmits block 5
     C->>S: dataBlock (idx=5, 6 bytes)
     S->>C: dataBlockAck (ok, idx=5)
+    S->>C: commandAck (0x1, 0x01, success)
 ```
 
 ## 7. Implementation Considerations
@@ -331,8 +366,11 @@ two extension strategies are available:
   retransmit the expected block.
 - If a block ack indicates `WriteError`, the client may retry the same
   block a limited number of times before aborting.
-- If the server stops responding, the client should send a Query
-  Progress to determine the current state and resume from the last
+- The server sends each response once. A response lost on the bus, or
+  refused because the server's send queue was full when its application
+  completed, is not repeated, and no protocol-level timeout covers it
+  (Section 4). The client should time out on each response, then send a
+  Query Progress to determine the current state and resume from the last
   acknowledged block.
 
 ### 7.6 State Machine

@@ -124,8 +124,13 @@ check the application is expected to add.
 
 ### Why polling does not extend the session
 
-The session timer is extended by the commands that make progress and stopped by
-the ones that end the transfer. Asking for progress does **neither**.
+The session timer is started by a begin the application accepts, extended by
+each block it accepts, and stopped by the commands that end the transfer as they
+arrive. Asking for progress does **neither**.
+
+The timer follows the application's answer, not the command's arrival. A begin
+that is refused opens no session, so it cannot expire half a minute later, and a
+block that fails to write does not buy the client more time.
 
 That is the design decision worth remembering: a client that has crashed
 mid-transfer, but whose supervisor still polls for progress, must not be able to
@@ -161,13 +166,30 @@ sequenceDiagram
     Cat-->>Cat: response and acknowledgement composed and sent
 ```
 
-Two obligations fall on the application, and neither can be checked:
+Three obligations fall on the application, and none can be checked:
 
 - **Call the completion exactly once.** Never calling it leaves the client
-  waiting for its timeout; calling it twice sends two answers to one command.
+  waiting for its own response timeout — the commands carry no sequence number,
+  so the protocol layer runs no acknowledgement timeout for them. Calling it
+  twice sends two answers to one command.
+- **Copy a block before returning.** Its bytes are lent for the notification
+  only; they belong to the received frame, which is gone once it returns.
 - **The category does not serialise.** A second command arriving before the
   first completion has run will be dispatched. An application that cannot cope
   must refuse the overlapping command itself.
+
+A completion may still run after the category has been unregistered — a flash
+write cannot be recalled. Its response is sent; its acknowledgement is dropped,
+because the category no longer has a server to speak through.
+
+### Why it answers when no application is attached
+
+A category notification with no observer is normally discarded (Chapter 10,
+5.12). Here that would leave the client with nothing: its commands carry no
+sequence number, so no acknowledgement timeout would fire either. The category
+therefore answers every command itself while no application is attached — not
+ready, or an idle progress report — as the
+[Firmware Upgrade Specification](../spec/firmware-upgrade.md) sets out in §4.8.
 
 ### Why every command produces two frames back
 

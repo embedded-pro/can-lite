@@ -3,6 +3,7 @@
 #include "can-lite/core/CanMessageType.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
 #include "can-lite/core/test/CanCategoryStubs.hpp"
+#include "can-lite/core/test/CanCommandAcknowledgerMock.hpp"
 #include "can-lite/core/test/CanMock.hpp"
 #include "can-lite/core/test/CanSequenceSourceMock.hpp"
 #include "gmock/gmock.h"
@@ -143,6 +144,30 @@ namespace
         EXPECT_EQ(ExtractCanNodeId(sentId.Get29BitId()), 0x042);
         ASSERT_EQ(sentData.size(), 1u);
         EXPECT_EQ(sentData[0], 0x07);
+    }
+
+    TEST(CanCategoryTest, CommandAckGoesToTheAcknowledger)
+    {
+        testing::StrictMock<hal::CanMock> can;
+        CanFrameTransport transport{ can, 0x042 };
+        FaultReportingCategoryServer category{ transport };
+        testing::StrictMock<CanCommandAcknowledgerMock> acknowledger;
+        category.SetAcknowledger(acknowledger);
+
+        EXPECT_CALL(acknowledger, SendCommandAck(0x03, 0x01, CanAckStatus::categoryError));
+        category.SendCommandAck(0x01, CanAckStatus::categoryError);
+    }
+
+    TEST(CanCategoryTest, CommandAckAfterTheAcknowledgerIsClearedIsDropped)
+    {
+        testing::StrictMock<hal::CanMock> can;
+        CanFrameTransport transport{ can, 0x042 };
+        FaultReportingCategoryServer category{ transport };
+        testing::StrictMock<CanCommandAcknowledgerMock> acknowledger;
+        category.SetAcknowledger(acknowledger);
+        category.ClearAcknowledger();
+
+        category.SendCommandAck(0x01, CanAckStatus::success);
     }
 
     TEST(CanCategoryTest, ServerDefaultRequiresSequenceValidation)

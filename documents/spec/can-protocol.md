@@ -578,10 +578,11 @@ a registered category but an unknown message type receive an
 - **Trusted controller:** The protocol has no source identity. Liveness and
   sequence state assume a single trusted controller on the bus (§8.1.1).
 - **Input validation:** All payloads are length-checked before parsing.
-  Enum-valued fields are decoded via unchecked `static_cast` from the wire
-  byte; an out-of-range value produces a scoped-enum value with no matching
-  enumerator (well-defined per the C++ standard, since these enums have a
-  fixed underlying type) rather than a rejected frame — it is not currently
-  validated against the enum's defined range.
+  The firmware upgrade client also rejects a status or state outside the
+  range its specification defines ([firmware-upgrade.md](firmware-upgrade.md)
+  §5). Elsewhere an enum-valued field is decoded from the wire byte
+  unchecked: an out-of-range value produces a scoped-enum value with no
+  matching enumerator (well-defined per the C++ standard, since these enums
+  have a fixed underlying type) rather than a rejected frame.
 - **No heap allocation:** Fixed-size buffers prevent memory exhaustion.
 - **Node isolation:** Strict node ID filtering prevents cross-node interference.

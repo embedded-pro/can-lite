@@ -247,6 +247,64 @@ namespace
         EXPECT_EQ(client.HandleMessage(fwuProgressResponseId, data), CanDispatchResult::rejected);
     }
 
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, BeginResponse_LastDefinedStatusAccepted)
+    {
+        EXPECT_CALL(observer, OnBeginResponse(FwuError::sessionTimeout, 0));
+
+        hal::Can::Message data;
+        data.resize(3, 0);
+        data[0] = static_cast<uint8_t>(FwuError::sessionTimeout);
+        EXPECT_EQ(client.HandleMessage(fwuBeginResponseId, data), CanDispatchResult::handled);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, BeginResponse_UndefinedStatusRejected)
+    {
+        hal::Can::Message data;
+        data.resize(3, 0);
+        data[0] = static_cast<uint8_t>(FwuError::sessionTimeout) + 1;
+        EXPECT_EQ(client.HandleMessage(fwuBeginResponseId, data), CanDispatchResult::rejected);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, DataBlockAck_UndefinedStatusRejected)
+    {
+        hal::Can::Message data;
+        data.resize(3, 0);
+        data[0] = 0xFF;
+        EXPECT_EQ(client.HandleMessage(fwuDataBlockAckId, data), CanDispatchResult::rejected);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, VerifyResponse_UndefinedStatusRejected)
+    {
+        hal::Can::Message data;
+        data.push_back(static_cast<uint8_t>(FwuError::sessionTimeout) + 1);
+        EXPECT_EQ(client.HandleMessage(fwuVerifyResponseId, data), CanDispatchResult::rejected);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ActivateResponse_UndefinedStatusRejected)
+    {
+        hal::Can::Message data;
+        data.push_back(static_cast<uint8_t>(FwuError::sessionTimeout) + 1);
+        EXPECT_EQ(client.HandleMessage(fwuActivateResponseId, data), CanDispatchResult::rejected);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ProgressResponse_LastDefinedStateAccepted)
+    {
+        EXPECT_CALL(observer, OnProgressResponse(FwuState::error, 0, 0));
+
+        hal::Can::Message data;
+        data.resize(5, 0);
+        data[0] = static_cast<uint8_t>(FwuState::error);
+        EXPECT_EQ(client.HandleMessage(fwuProgressResponseId, data), CanDispatchResult::handled);
+    }
+
+    TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, ProgressResponse_UndefinedStateRejected)
+    {
+        hal::Can::Message data;
+        data.resize(5, 0);
+        data[0] = static_cast<uint8_t>(FwuState::error) + 1;
+        EXPECT_EQ(client.HandleMessage(fwuProgressResponseId, data), CanDispatchResult::rejected);
+    }
+
     // --- Boundary values (high-bit fields) ---
 
     TEST_F(TestFirmwareUpgradeCategoryClient, SendBeginUpgrade_EncodesSize_HighBit)
