@@ -154,16 +154,13 @@ Five properties define the behaviour, and each is a deliberate simplification:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unknown
-    Unknown --> Alive : accepted command —<br/>liveness timer restarted
-    Alive --> Alive : accepted command —<br/>timer restarted
-    Alive --> Offline : timer expires —<br/>observer notified once
-    Offline --> Alive : accepted command
-    Unknown --> Online : heartbeat received —<br/>observer notified
-    Alive --> Online : heartbeat received —<br/>observer notified
+    [*] --> Offline
+    Offline --> Online : accepted command —<br/>timer started, observer notified online
+    Online --> Online : accepted command —<br/>timer restarted, nothing notified
+    Online --> Offline : timer expires —<br/>observer notified offline
 ```
 
-Two distinct signals are in play, and conflating them is the usual confusion:
+Two rules govern it:
 
 - **Any accepted command** proves the client is present and restarts the
   timer. This matters because the client's heartbeat is itself deferred by its
@@ -173,11 +170,13 @@ Two distinct signals are in play, and conflating them is the usual confusion:
   names only the destination, so "the client" is whichever controller produced
   the accepted command. The protocol specification (§8.1.1) states this
   single-trusted-controller assumption.
-- **Only a heartbeat** raises the "online" notification, because that is the
-  specific, meaningful announcement.
+- **Each transition is reported once.** The first accepted command after
+  start-up or after an outage raises the online notification, whether it is a
+  heartbeat or not; the timer's expiry raises the offline one. A heartbeat is
+  simply the accepted command a quiet client sends.
 
-The offline notification is raised at most once per outage rather than once per
-timer expiry.
+The application therefore sees online and offline strictly alternate, and never
+an offline without the online before it.
 
 ## 6. The heartbeat is a silence guard
 

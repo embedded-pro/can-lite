@@ -304,12 +304,14 @@ its client timeout timer (default 3 s, `Config::clientTimeout`). A command
 is accepted when it is addressed to the server, belongs to a registered
 category, is a known command type, passes sequence validation where the
 category requires it (§11), and has a payload its handler accepts. A client
-heartbeat is an accepted command, and it also notifies the application via
-`CanProtocolServerObserver::Online()`. A frame the server rate-limits,
-discards or answers with an error does not restart the timer, so invalid
-traffic cannot keep a departed client online. If the timer expires without
-a further accepted command, the server notifies
-`CanProtocolServerObserver::Offline()`.
+heartbeat is an accepted command like any other. A frame the server
+rate-limits, discards or answers with an error does not restart the timer,
+so invalid traffic cannot keep a departed client online. The first accepted
+command after start-up, or after the client went offline, notifies
+`CanProtocolServerObserver::Online()`; later ones do not. If the timer
+expires without a further accepted command, the server notifies
+`CanProtocolServerObserver::Offline()`. The two notifications therefore
+alternate, one per transition.
 
 A server tracks only one client, per REQ-CAN-006.1. The identifier carries
 the destination node but not the source, so the server cannot tell
@@ -359,6 +361,12 @@ Sent by the client at CanPriority::command. No sequence validation. Empty payloa
 
 When received, the server responds with a Category List Response message
 containing the IDs of all registered category handlers.
+
+The client keeps one discovery pending at a time, addressed to one server;
+a request to the broadcast address, or while another is pending, is
+refused. Only a Category List Response from the server asked completes it.
+If none arrives within a configurable timeout (default 1 s,
+`Config::discoveryTimeout`), the discovery completes without an answer.
 
 #### 8.1.5 Category List Response (Type 0x05)
 

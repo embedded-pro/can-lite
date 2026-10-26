@@ -215,21 +215,24 @@ slots, the observer sees churn — which is the honest signal that the client is
 under-provisioned. The slot count is a compile-time property of the library, so
 raising it is a library change rather than a configuration choice.
 
-## 7. Discovery, and its two limits
+## 7. Discovery
 
 Asking a server what it implements is the one client operation whose answer the
 application must interpret, which is why it has a first-class entry point with a
 completion, while the rest of the system conversation is bookkeeping the client
 does on the application's behalf.
 
-Two limits follow from there being a single pending completion, and both are
-simplicity rather than oversight:
+The client keeps a single pending discovery, and makes that safe rather than
+merely simple:
 
-- **One discovery at a time.** A second request before the first answer
-  overwrites the pending completion, and the first caller is never called.
-- **The completion does not name the responding server.** An answer from a
-  different server than the one asked will satisfy it.
+- **One discovery at a time.** A second request while one is pending is
+  refused, so no caller's completion is ever overwritten.
+- **One server per discovery.** The request names the server, and only that
+  server's answer completes it. The answer is matched by the protocol object,
+  before dispatch, for the same reason acknowledgements are: only it knows
+  which node sent the frame. A request to the broadcast address is refused,
+  because every server would answer it.
+- **A deadline.** If the server never answers, the discovery completes without
+  an answer once its timeout expires, and the next one may start.
 
-Discovery also has **no timeout**: if the server never answers, the completion
-stays pending. An application that needs a deadline arms its own timer. All
-three are catalogued in Chapter 10, §5.
+The cases are catalogued in Chapter 10, §5.

@@ -18,11 +18,21 @@ WHEN(R"(the client sends a category discovery request to node {int})", (std::int
     auto& fixture = context.Get<ApplicationFixture>();
     auto result = context.Emplace<CategoryDiscoveryResult>();
 
-    fixture.client.DiscoverCategories(static_cast<uint16_t>(nodeId), [result](const hal::Can::Message& msg)
+    EXPECT_TRUE(fixture.client.DiscoverCategories(static_cast<uint16_t>(nodeId), [result](std::optional<infra::ConstByteRange> categoryIds)
         {
-            result->categories = msg;
-            result->received = true;
-        });
+            result->completed = true;
+            result->received = categoryIds.has_value();
+            if (categoryIds)
+                for (auto id : *categoryIds)
+                    result->categories.push_back(id);
+        }));
+}
+
+THEN(R"(the category discovery shall have completed without an answer)")
+{
+    auto& result = context.Get<CategoryDiscoveryResult>();
+    EXPECT_TRUE(result.completed);
+    EXPECT_FALSE(result.received);
 }
 
 THEN(R"(the category list response shall contain {int} category)", (std::int32_t count))
@@ -62,7 +72,7 @@ WHEN(R"(the server sends a category list response without a pending request)")
     auto& fixture = context.Get<ApplicationFixture>();
 
     uint32_t rawId = MakeCanId(CanPriority::response, canSystemCategoryId,
-        canCategoryListResponseMessageTypeId, 0);
+        canCategoryListResponseMessageTypeId, fixture.config.nodeId);
     auto id = hal::Can::Id::Create29BitId(rawId);
     hal::Can::Message msg;
     msg.push_back(0x00);

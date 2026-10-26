@@ -3,30 +3,19 @@
 #include "can-lite/core/CanCategory.hpp"
 #include "can-lite/core/CanMessageHandler.hpp"
 #include "can-lite/core/CanProtocolDefinitions.hpp"
-#include "infra/util/Observer.hpp"
 #include <cstdint>
 
 namespace services
 {
-    class CanSystemCategoryClient;
-
-    class CanSystemCategoryClientObserver
-        : public infra::SingleObserver<CanSystemCategoryClientObserver, CanSystemCategoryClient>
-    {
-    public:
-        using infra::SingleObserver<CanSystemCategoryClientObserver, CanSystemCategoryClient>::SingleObserver;
-
-        virtual void OnCategoryListResponse(const hal::Can::Message& categoryIds) = 0;
-    };
-
     class CanSystemCategoryClient
         : public CanCategoryClient
-        , public infra::Subject<CanSystemCategoryClientObserver>
     {
     public:
         CanSystemCategoryClient(CanFrameTransport& transport, CanSequenceSource& sequenceSource);
 
         uint8_t Id() const override;
+
+        bool RequestCategoryList(uint16_t nodeId);
 
     private:
         bool HandleCommandAck(const hal::Can::Message& data);

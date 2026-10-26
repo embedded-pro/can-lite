@@ -40,6 +40,7 @@ namespace services
             infra::Duration serverTimeout = std::chrono::seconds(3);
             infra::Duration heartbeatInterval = std::chrono::seconds(1);
             infra::Duration commandAckTimeout = std::chrono::seconds(1);
+            infra::Duration discoveryTimeout = std::chrono::seconds(1);
         };
 
         explicit CanProtocolClient(hal::Can& can);
@@ -57,7 +58,7 @@ namespace services
 
         CanSystemCategoryClient& SystemCategory();
 
-        void DiscoverCategories(uint16_t nodeId, const infra::Function<void(const hal::Can::Message&)>& onDone);
+        bool DiscoverCategories(uint16_t nodeId, const infra::Function<void(std::optional<infra::ConstByteRange> categoryIds)>& onDone);
 
         void AttachIsoTpTransport(IsoTpTransport& isoTp);
         void DetachIsoTpTransport();
@@ -70,18 +71,6 @@ namespace services
         void ReturnSequence(uint16_t nodeId, uint8_t sequence) override;
 
     private:
-        class SystemObserver
-            : public CanSystemCategoryClientObserver
-        {
-        public:
-            SystemObserver(CanSystemCategoryClient& subject, CanProtocolClient& client);
-
-            void OnCategoryListResponse(const hal::Can::Message& categoryIds) override;
-
-        private:
-            CanProtocolClient& client;
-        };
-
         struct PerServerState;
 
         void ProcessReceivedMessage(hal::Can::Id id, const hal::Can::Message& data);
@@ -92,6 +81,8 @@ namespace services
         void ResyncSequence(uint16_t nodeId, uint8_t expectedSequence);
         void ClearAwaitingAck(uint16_t nodeId, uint8_t category, uint8_t messageType);
         void HandleCommandAckTimeout(uint16_t nodeId);
+        void HandleCategoryListFrame(uint16_t sourceNodeId, uint8_t categoryId, uint8_t messageType, infra::ConstByteRange payload);
+        void CompleteDiscovery(std::optional<infra::ConstByteRange> categoryIds);
         PerServerState& ClaimSequenceSlot(uint16_t nodeId);
         void AwaitAck(PerServerState& state, infra::TimePoint deadline);
         void SendHeartbeat();
@@ -123,6 +114,12 @@ namespace services
             uint8_t previousEvictIndex = 0;
         };
 
+        struct Discovery
+        {
+            uint16_t nodeId = 0;
+            infra::Function<void(std::optional<infra::ConstByteRange> categoryIds)> onDone;
+        };
+
         struct ServerLiveness
         {
             uint16_t nodeId = 0;
@@ -137,9 +134,9 @@ namespace services
         CanFrameTransport transport;
         infra::TimerSingleShot heartbeatTimer;
         CanSystemCategoryClient systemCategory;
-        SystemObserver systemObserver;
         infra::IntrusiveList<CanCategoryClient> categories;
-        infra::Function<void(const hal::Can::Message&)> pendingDiscoveryCallback;
+        std::optional<Discovery> discovery;
+        infra::TimerSingleShot discoveryTimer;
         std::array<PerServerState, maxServers> serverStates;
         std::array<ServerLiveness, maxServers> serverLiveness;
         uint8_t nextSequenceEvictIndex = 0;

@@ -17,7 +17,7 @@ namespace integration
     {
         EXPECT_CALL(serverObserver, Online()).WillRepeatedly([this]()
             {
-                ++processedCount;
+                ++clientOnlineReports;
                 clientOnlineAsSeenByServer = true;
             });
         EXPECT_CALL(serverObserver, Offline()).WillRepeatedly([this]()

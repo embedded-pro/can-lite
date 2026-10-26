@@ -14,5 +14,6 @@ namespace integration
     {
         hal::Can::Message categories;
         bool received = false;
+        bool completed = false;
     };
 }

@@ -157,7 +157,7 @@ namespace
         auto id = MakeSystemId(canHeartbeatMessageTypeId);
         ExpectHeartbeat();
 
-        EXPECT_CALL(observerMock, Online()).Times(2);
+        EXPECT_CALL(observerMock, Online());
         SimulateRx(id, MakeMessage({ canProtocolVersion }));
         ForwardTime(std::chrono::seconds(2));
         SimulateRx(id, MakeMessage({ canProtocolVersion }));
@@ -188,6 +188,37 @@ namespace
         SimulateRx(id, MakeMessage({ canProtocolVersion }));
     }
 
+    TEST_F(CanProtocolServerTest, Online_NotifiedOnceWhileTheClientStaysOnline)
+    {
+        auto id = MakeSystemId(canHeartbeatMessageTypeId);
+        ExpectHeartbeat();
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+        ForwardTime(std::chrono::seconds(1));
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+        ForwardTime(std::chrono::seconds(1));
+        SimulateRx(id, MakeMessage({ canProtocolVersion }));
+    }
+
+    TEST_F(CanProtocolServerTest, Online_NotifiedWhenACommandRevivesTheClientAfterOffline)
+    {
+        SequenceValidatedPduCategory category;
+        server.RegisterCategory(category);
+        ExpectHeartbeat();
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(MakeSystemId(canHeartbeatMessageTypeId), MakeMessage({ canProtocolVersion }));
+
+        EXPECT_CALL(observerMock, Offline());
+        ForwardTime(std::chrono::seconds(3));
+
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(MakeCommandId(0x06, 0x50), MakeMessage({ 0x00 }));
+
+        server.UnregisterCategory(category);
+    }
+
     TEST_F(CanProtocolServerTest, CommandTraffic_RefreshesClientLivenessWithoutHeartbeat)
     {
         SequenceValidatedPduCategory category;
@@ -195,6 +226,7 @@ namespace
         auto id = MakeCommandId(0x06, 0x50);
         ExpectHeartbeat();
 
+        EXPECT_CALL(observerMock, Online());
         SimulateRx(id, MakeMessage({ 0x00 }));
         ForwardTime(std::chrono::seconds(2));
         SimulateRx(id, MakeMessage({ 0x01 }));
@@ -219,6 +251,7 @@ namespace
         uint32_t rawId = MakeCanId(CanPriority::command, 0x06, 0x50, 1);
         uint8_t firstPayload[] = { 0x00 };
         uint8_t secondPayload[] = { 0x01 };
+        EXPECT_CALL(observerMock, Online());
         capturedPduCallback(rawId, infra::MakeRange(firstPayload));
 
         ForwardTime(std::chrono::seconds(2));
@@ -233,6 +266,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, StatusRequestReceived_SendsHeartbeat)
     {
+        EXPECT_CALL(observerMock, Online());
         auto id = MakeSystemId(canStatusRequestMessageTypeId);
 
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
@@ -376,12 +410,14 @@ namespace
 
         auto id = MakeSystemId(canHeartbeatMessageTypeId);
 
-        EXPECT_CALL(limitedObserver, Online()).Times(3);
+        EXPECT_CALL(limitedObserver, Online());
 
         for (int i = 0; i < 3; ++i)
             limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
+        EXPECT_EQ(limitedServer.Statistics().rateLimited, 0u);
 
         limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
+        EXPECT_EQ(limitedServer.Statistics().rateLimited, 1u);
     }
 
     TEST_F(CanProtocolServerTest, RateLimiting_ResetsCounterAutomatically)
@@ -406,21 +442,24 @@ namespace
 
         auto id = MakeSystemId(canHeartbeatMessageTypeId);
 
-        EXPECT_CALL(limitedObserver, Online()).Times(2);
-        limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
-        limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
-
-        limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
-
         EXPECT_CALL(limitedObserver, Online());
+        limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
+        limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
+
+        limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
+        EXPECT_EQ(limitedServer.Statistics().rateLimited, 1u);
+
         ForwardTime(std::chrono::seconds(1));
         limitedReceiveCallback(id, MakeMessage({ canProtocolVersion }));
+        EXPECT_EQ(limitedServer.Statistics().rateLimited, 1u);
     }
 
     // REQ-CAN-006.1: one server serves exactly one client, so a second client's
     // interleaved stream breaks the shared sequence counter by design.
     TEST_F(CanProtocolServerTest, SequenceValidation_RejectsInterleavedSecondClient)
     {
+        EXPECT_CALL(observerMock, Online());
+
         class TestMessageType : public CanMessageType
         {
         public:
@@ -472,6 +511,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, SequenceValidation_RejectsDuplicateOnRegisteredCategory)
     {
+        EXPECT_CALL(observerMock, Online());
+
         class TestMessageType : public CanMessageType
         {
         public:
@@ -527,6 +568,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, SequenceValidation_AcceptsSequentialMessages)
     {
+        EXPECT_CALL(observerMock, Online());
+
         class TestMessageType : public CanMessageType
         {
         public:
@@ -580,6 +623,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, SequenceWrapsAround)
     {
+        EXPECT_CALL(observerMock, Online());
+
         class TestMessageType : public CanMessageType
         {
         public:
@@ -686,6 +731,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, SystemCategoryDoesNotRequireSequenceValidation)
     {
+        EXPECT_CALL(observerMock, Online());
         auto id = MakeSystemId(canStatusRequestMessageTypeId);
 
         EXPECT_CALL(canMock, SendData(_, _, _)).WillOnce([](hal::Can::Id, const hal::Can::Message& data, const auto& cb)
@@ -698,6 +744,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, RegisterCategory_DispatchesMessages)
     {
+        EXPECT_CALL(observerMock, Online());
+
         class TestMessageType : public CanMessageType
         {
         public:
@@ -930,6 +978,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, CategoryListRequest_RespondsWithRegisteredCategories)
     {
+        EXPECT_CALL(observerMock, Online());
+
         class TestCategory : public CanCategoryServerStub
         {
         public:
@@ -982,6 +1032,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, HeartbeatTimer_DeferredWhileCommunicating)
     {
+        EXPECT_CALL(observerMock, Online());
         auto statusRequestId = MakeSystemId(canStatusRequestMessageTypeId);
 
         int heartbeatCount = 0;
@@ -1112,6 +1163,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_DispatchesPduToCategory)
     {
+        EXPECT_CALL(observerMock, Online());
+
         class PduMessageType : public CanMessageType
         {
         public:
@@ -1173,6 +1226,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_RegisteredChannelSurvivesAMalformedFrame)
     {
+        EXPECT_CALL(observerMock, Online());
         SequenceValidatedPduCategory category;
         server.RegisterCategory(category);
         IsoTpTransportImpl::WithStorage<64> isoTp{ server.Transport() };
@@ -1344,6 +1398,7 @@ namespace
 
     TEST_F(CanProtocolServerTest, DispatchPdu_SequenceValidatedCategory_SequenceError_SendsAck)
     {
+        EXPECT_CALL(observerMock, Online());
         SequenceValidatedPduCategory category;
         server.RegisterCategory(category);
 
@@ -1442,6 +1497,8 @@ namespace
 
     TEST_F(CanProtocolServerTest, DispatchPdu_BroadcastNodeId_Accepted)
     {
+        EXPECT_CALL(observerMock, Online());
+
         class PduMessageType : public CanMessageType
         {
         public:
@@ -1724,6 +1781,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, EmergencyStopIsAcceptedAfterTheOrdinaryQuotaIsExhausted)
     {
+        EXPECT_CALL(observer, Online());
         Register();
         for (uint8_t sequence = 0; sequence != ordinaryLimit + 1; ++sequence)
             ReceiveSetValue(sequence);
@@ -1738,6 +1796,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, EmergencyTrafficHasItsOwnBoundedBudget)
     {
+        EXPECT_CALL(observer, Online());
         ExpectSends(1);
         Register();
         ReceiveEmergencyStop(0);
@@ -1771,6 +1830,7 @@ namespace
             }));
         CanProtocolServer generousServer{ generousCan, generous };
         StrictMock<CanProtocolServerObserverMock> generousObserver{ generousServer };
+        EXPECT_CALL(generousObserver, Online());
         SafetyCategory category;
         ASSERT_TRUE(generousServer.RegisterCategory(category));
 
@@ -1799,6 +1859,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, OrdinarySequenceContinuesFromTheAcceptedEmergencyStop)
     {
+        EXPECT_CALL(observer, Online());
         Register();
         ReceiveSetValue(5);
         ReceiveEmergencyStop(6);
@@ -1811,6 +1872,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, MalformedPayloadDoesNotAdvanceTheSequence)
     {
+        EXPECT_CALL(observer, Online());
         ExpectSends(1);
         Register();
         ReceiveSetValue(1);
@@ -1826,6 +1888,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, UnknownCommandDoesNotAdvanceTheSequence)
     {
+        EXPECT_CALL(observer, Online());
         ExpectSends(1);
         Register();
         ReceiveSetValue(1);
@@ -1840,6 +1903,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, SequenceErrorReportsTheSequenceStillExpected)
     {
+        EXPECT_CALL(observer, Online());
         ExpectSends(2);
         Register();
         ReceiveSetValue(1);
@@ -1868,6 +1932,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, InvalidTrafficDoesNotKeepTheClientOnline)
     {
+        EXPECT_CALL(observer, Online());
         ExpectSends(80);
         Register();
         ReceiveSetValue(1);
@@ -1910,6 +1975,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, IsoTpEmergencyStopIgnoresOrdinarySequenceState)
     {
+        EXPECT_CALL(observer, Online());
         ExpectSends(2);
         Register();
         AttachIsoTp();
@@ -1926,6 +1992,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, IsoTpMalformedPduDoesNotAdvanceTheSequence)
     {
+        EXPECT_CALL(observer, Online());
         ExpectSends(1);
         Register();
         AttachIsoTp();
@@ -1941,6 +2008,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, IsoTpInvalidTrafficDoesNotKeepTheClientOnline)
     {
+        EXPECT_CALL(observer, Online());
         ExpectSends(120);
         Register();
         AttachIsoTp();
@@ -1959,6 +2027,7 @@ namespace
 
     TEST_F(CanProtocolServerSafetyTest, EmergencyStopGetsThroughAMalformedFloodOnBothPaths)
     {
+        EXPECT_CALL(observer, Online());
         ExpectOnlyAcknowledgements();
         Register();
         AttachIsoTp();
