@@ -4,13 +4,16 @@
 #include "can-lite/drivers/implementation/SocketCanNetlink.hpp"
 #include "infra/event/EventDispatcher.hpp"
 #include <algorithm>
+#include <array>
 #include <cerrno>
-#include <cstdio>
+#include <charconv>
 #include <cstring>
 #include <dirent.h>
+#include <fcntl.h>
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <net/if.h>
+#include <optional>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -28,11 +31,38 @@ namespace services
 
             return "The CAN interface did not accept the bitrate";
         }
+
+        std::optional<int> ReadType(int typeFile)
+        {
+            std::array<char, 16> text{};
+            const auto length{ read(typeFile, text.data(), text.size()) };
+            close(typeFile);
+
+            int type{};
+            if (length <= 0 || std::from_chars(text.data(), text.data() + length, type).ec != std::errc{})
+                return std::nullopt;
+
+            return type;
+        }
+
+        std::optional<int> InterfaceType(int netDirectory, const char* name)
+        {
+            int interfaceDirectory{ openat(netDirectory, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC) };
+            if (interfaceDirectory < 0)
+                return std::nullopt;
+
+            int typeFile{ openat(interfaceDirectory, "type", O_RDONLY | O_CLOEXEC) };
+            close(interfaceDirectory);
+            if (typeFile < 0)
+                return std::nullopt;
+
+            return ReadType(typeFile);
+        }
     }
 
     SocketCanAdapter::~SocketCanAdapter()
     {
-        Disconnect();
+        SocketCanAdapter::Disconnect();
     }
 
     bool SocketCanAdapter::Connect(infra::BoundedConstString interfaceName, uint32_t bitrate)
@@ -207,7 +237,7 @@ namespace services
         return (canId & CAN_EFF_FLAG) != 0 && (canId & (CAN_RTR_FLAG | CAN_ERR_FLAG)) == 0;
     }
 
-    void SocketCanAdapter::Deliver(const struct can_frame& frame)
+    void SocketCanAdapter::Deliver(const struct can_frame& frame) const
     {
         uint32_t rawId{ frame.can_id & CAN_EFF_MASK };
         CanFrame data;
@@ -242,24 +272,9 @@ namespace services
         if (dir == nullptr)
             return;
 
-        while (struct dirent* entry = readdir(dir))
-        {
-            if (entry->d_name[0] == '.')
-                continue;
-
-            char typePath[280];
-            std::snprintf(typePath, sizeof(typePath), "/sys/class/net/%s/type", entry->d_name);
-
-            FILE* typeFile{ std::fopen(typePath, "r") };
-            if (typeFile != nullptr)
-            {
-                int type{};
-                bool validRead{ std::fscanf(typeFile, "%d", &type) == 1 };
-                std::fclose(typeFile);
-                if (validRead && type == arphrdCan)
-                    callback(entry->d_name);
-            }
-        }
+        while (const struct dirent* entry = readdir(dir))
+            if (entry->d_name[0] != '.' && InterfaceType(dirfd(dir), entry->d_name) == arphrdCan)
+                callback(entry->d_name);
 
         closedir(dir);
     }

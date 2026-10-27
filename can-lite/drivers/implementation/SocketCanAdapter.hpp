@@ -31,7 +31,7 @@ namespace services
     private:
         bool ReadFrame();
         static bool IsExtendedDataFrame(uint32_t canId);
-        void Deliver(const struct can_frame& frame);
+        void Deliver(const struct can_frame& frame) const;
         void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
         int socketDescriptor{ -1 };

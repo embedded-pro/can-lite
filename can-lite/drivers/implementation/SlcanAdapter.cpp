@@ -15,13 +15,15 @@ namespace services
 
         infra::BoundedConstString OpenFailure(SerialPortOpenResult result)
         {
+            using enum SerialPortOpenResult;
+
             switch (result)
             {
-                case SerialPortOpenResult::notFound:
+                case notFound:
                     return "Serial port not found";
-                case SerialPortOpenResult::accessDenied:
+                case accessDenied:
                     return "Access to the serial port was denied; on Linux, add the user to the dialout group";
-                case SerialPortOpenResult::inUse:
+                case inUse:
                     return "The serial port is in use by another program";
                 default:
                     return "The serial port could not be opened";
@@ -35,7 +37,7 @@ namespace services
 
     SlcanAdapter::~SlcanAdapter()
     {
-        Disconnect();
+        SlcanAdapter::Disconnect();
     }
 
     bool SlcanAdapter::Connect(infra::BoundedConstString interfaceName, uint32_t bitrate)
@@ -44,7 +46,7 @@ namespace services
             Disconnect();
 
         const auto code = SlcanBitrateCode(bitrate);
-        if (!code)
+        if (!code.has_value())
         {
             ReportError("slcan supports 10, 20, 50, 100, 125, 250, 500 and 800 kbit/s and 1 Mbit/s");
             return false;
@@ -138,7 +140,7 @@ namespace services
     {
         std::array<uint8_t, readChunkSize> buffer{};
         const auto received = port.Read(infra::MakeRange(buffer));
-        if (!received)
+        if (!received.has_value())
         {
             Lost();
             return false;
@@ -163,7 +165,11 @@ namespace services
 
     void SlcanAdapter::Handshake(const SlcanDecoder::Item& item)
     {
-        if (item.event == SlcanDecoder::Event::frame || ++repliesReceived == closeReply)
+        if (item.event == SlcanDecoder::Event::frame)
+            return;
+
+        ++repliesReceived;
+        if (repliesReceived == closeReply)
             return;
 
         if (item.event == SlcanDecoder::Event::error)
@@ -202,7 +208,7 @@ namespace services
             });
     }
 
-    void SlcanAdapter::Deliver(const SlcanFrame& frame)
+    void SlcanAdapter::Deliver(const SlcanFrame& frame) const
     {
         NotifyObservers([&frame](auto& observer)
             {
@@ -218,7 +224,7 @@ namespace services
         Close("The slcan adapter was disconnected");
     }
 
-    void SlcanAdapter::ReportError(infra::BoundedConstString message)
+    void SlcanAdapter::ReportError(infra::BoundedConstString message) const
     {
         NotifyObservers([message](auto& observer)
             {

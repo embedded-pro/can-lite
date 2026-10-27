@@ -45,7 +45,7 @@ namespace services
             for (std::size_t index = 0; index < digits; ++index)
             {
                 const auto digit = HexDigit(text[offset + index]);
-                if (!digit)
+                if (!digit.has_value())
                     return std::nullopt;
                 value = (value << 4) | *digit;
             }
@@ -69,7 +69,7 @@ namespace services
             for (std::size_t index = 0; index < length; ++index)
             {
                 const auto byte = ParseHex(line, offset + 2 * index, 2);
-                if (!byte)
+                if (!byte.has_value())
                     return false;
                 data.push_back(static_cast<uint8_t>(*byte));
             }

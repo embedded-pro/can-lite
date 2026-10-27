@@ -43,9 +43,9 @@ namespace services
         void CompleteHandshake();
         void FailHandshake(infra::BoundedConstString message);
         void Close(std::optional<infra::BoundedConstString> error);
-        void Deliver(const SlcanFrame& frame);
+        void Deliver(const SlcanFrame& frame) const;
         void Lost();
-        void ReportError(infra::BoundedConstString message);
+        void ReportError(infra::BoundedConstString message) const;
         void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
         SerialPort& port;

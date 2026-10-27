@@ -23,12 +23,14 @@ namespace services
             void OnError(infra::BoundedConstString message) override;
             void OnConnectionChanged(bool connected) override;
 
-            infra::BoundedConstString prefix;
-            infra::BoundedConstString alias;
+            infra::BoundedConstString Prefix() const;
+            infra::BoundedConstString Alias() const;
 
         private:
             bool IsActive() const;
 
+            infra::BoundedConstString prefix;
+            infra::BoundedConstString alias;
             MultiCanAdapter& owner;
         };
 
