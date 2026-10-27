@@ -1,6 +1,7 @@
 #include "can-lite/drivers/implementation/PosixSerialPort.hpp"
 #include "gtest/gtest.h"
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -48,6 +49,16 @@ namespace
         {
             pollfd ready{ descriptor, POLLIN, 0 };
             return ::poll(&ready, 1, timeoutMs) > 0;
+        }
+
+        static bool WaitWritable(intptr_t descriptor)
+        {
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+            pollfd ready{ static_cast<int>(descriptor), POLLOUT, 0 };
+            while (std::chrono::steady_clock::now() < deadline)
+                if (::poll(&ready, 1, 1) > 0 && (ready.revents & POLLOUT) != 0)
+                    return true;
+            return false;
         }
 
         int master;
@@ -159,13 +170,15 @@ TEST_F(TestPosixSerialPort, finishes_a_write_the_port_could_only_partly_take)
     std::array<char, 1024> drained{};
     ASSERT_TRUE(WaitReadable(master));
     ASSERT_GT(::read(master, drained.data(), drained.size()), 0);
+    ASSERT_TRUE(WaitWritable(port.Handle()));
 
-    std::thread drainer([this]
+    std::atomic<bool> finished{};
+    std::thread drainer([this, &finished]
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             std::array<char, 1024> sink{};
-            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
-            while (std::chrono::steady_clock::now() < deadline)
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+            while (!finished && std::chrono::steady_clock::now() < deadline)
             {
                 pollfd ready{ master, POLLIN, 0 };
                 if (::poll(&ready, 1, 10) > 0 && ::read(master, sink.data(), sink.size()) < 0)
@@ -173,9 +186,10 @@ TEST_F(TestPosixSerialPort, finishes_a_write_the_port_could_only_partly_take)
             }
         });
 
-    std::array<char, 2048> command{};
+    std::array<char, 16384> command{};
     command.fill('y');
     const bool written{ port.Write(infra::BoundedConstString(command.data(), command.size())) };
+    finished = true;
     drainer.join();
 
     EXPECT_TRUE(written);
