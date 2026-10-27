@@ -26,7 +26,10 @@ namespace services
     CanProtocolServer::CanProtocolServer(hal::Can& can, const Config& config)
         : can(can)
         , config(config)
-        , transport(can, config.nodeId)
+        , transport(can, config.nodeId, [this]()
+              {
+                  ResetHeartbeatTimer();
+              })
         , rateResetTimer(std::chrono::seconds(1), [this]()
               {
                   ResetRateCounter();
@@ -44,18 +47,12 @@ namespace services
                 ProcessReceivedMessage(id, data);
             });
 
-        transport.SetOnSendNotification([this]()
-            {
-                ResetHeartbeatTimer();
-            });
-
         ResetHeartbeatTimer();
     }
 
     CanProtocolServer::~CanProtocolServer()
     {
         can.ReceiveData(nullptr);
-        transport.ClearOnSendNotification();
     }
 
     CanProtocolServer::SystemObserver::SystemObserver(CanSystemCategoryServer& subject, CanProtocolServer& server)
@@ -242,21 +239,18 @@ namespace services
 
     void CanProtocolServer::SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status, uint8_t expectedSequence)
     {
-        hal::Can::Message msg;
-        msg.push_back(category);
-        msg.push_back(commandType);
-        msg.push_back(static_cast<uint8_t>(status));
-        msg.push_back(expectedSequence);
+        CanPayloadWriter payload;
+        payload.WriteUInt8(category).WriteUInt8(commandType).WriteUInt8(static_cast<uint8_t>(status)).WriteUInt8(expectedSequence);
 
-        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCommandAckMessageTypeId, msg, [](bool) {});
+        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCommandAckMessageTypeId, payload.Message(), [](bool) {});
     }
 
     void CanProtocolServer::SendHeartbeat()
     {
-        hal::Can::Message msg;
-        msg.push_back(canProtocolVersion);
+        CanPayloadWriter payload;
+        payload.WriteUInt8(canProtocolVersion);
 
-        transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [](bool) {});
+        transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, payload.Message(), [](bool) {});
 
         ResetHeartbeatTimer();
     }
@@ -271,13 +265,11 @@ namespace services
 
     void CanProtocolServer::SendCategoryList()
     {
-        hal::Can::Message msg;
+        CanPayloadWriter payload;
+        for (const auto& category : categories)
+            payload.WriteUInt8(category.Id());
 
-        for (auto& category : categories)
-            if (!msg.full())
-                msg.push_back(category.Id());
-
-        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCategoryListResponseMessageTypeId, msg, [](bool) {});
+        transport.SendFrame(CanPriority::response, canSystemCategoryId, canCategoryListResponseMessageTypeId, payload.Message(), [](bool) {});
     }
 
     void CanProtocolServer::ResetRateCounter()
@@ -353,6 +345,11 @@ namespace services
     }
 
     CanFrameTransport& CanProtocolServer::Transport()
+    {
+        return transport;
+    }
+
+    const CanFrameTransport& CanProtocolServer::Transport() const
     {
         return transport;
     }

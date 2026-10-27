@@ -170,6 +170,30 @@ namespace
         category.SendCommandAck(0x01, CanAckStatus::success);
     }
 
+    TEST(CanCategoryTest, AddingASecondMessageTypeWithTheSameIdAsserts)
+    {
+        StubCategoryServer category(0x01);
+        StubMessageType first(0x10);
+        StubMessageType second(0x10);
+        category.AddMessageType(first);
+
+        EXPECT_DEATH(category.AddMessageType(second), "");
+    }
+
+    TEST(CanCategoryTest, MessageTypesWithDistinctIdsAreAllDispatched)
+    {
+        StubCategoryServer category(0x01);
+        StubMessageType first(0x10);
+        StubMessageType second(0x11);
+        category.AddMessageTypes(first, second);
+
+        category.HandleMessage(0x10, hal::Can::Message{});
+        category.HandleMessage(0x11, hal::Can::Message{});
+
+        EXPECT_EQ(first.handleCallCount, 1);
+        EXPECT_EQ(second.handleCallCount, 1);
+    }
+
     TEST(CanCategoryTest, ServerDefaultRequiresSequenceValidation)
     {
         StubCategoryServer category(0x01);

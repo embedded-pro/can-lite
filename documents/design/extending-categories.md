@@ -90,7 +90,9 @@ private:
 };
 ```
 
-Register them once in the constructor:
+Register them once in the constructor. Each message type ID may be registered
+once per category; adding a second handler for an ID already registered
+asserts, rather than leaving one handler silently shadowing the other.
 
 ```cpp
 MyCategoryServer::MyCategoryServer(CanFrameTransport& transport)
@@ -115,7 +117,9 @@ The PDU handler follows the same `true`/`false` contract.
 
 `CanPayloadReader` and `CanPayloadWriter` are cursor-based and big-endian, so no
 byte offsets are computed by hand. Both track validity as a **sticky flag**: one
-check covers the whole payload.
+check covers the whole payload. The reader's `Available()` and the writer's
+`Remaining()` report the bytes left in the frame, for a payload whose tail
+varies in length.
 
 ```cpp
 bool MyCategoryServer::HandleSetParameters(const hal::Can::Message& data)

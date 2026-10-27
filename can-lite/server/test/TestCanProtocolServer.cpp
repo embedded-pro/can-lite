@@ -131,6 +131,48 @@ namespace
         PduMessageType msg;
     };
 
+    TEST_F(CanProtocolServerTest, TransportIsReadableThroughAConstServer)
+    {
+        const CanProtocolServer& constServer = server;
+
+        EXPECT_EQ(constServer.Transport().NodeId(), 1);
+        EXPECT_EQ(constServer.Transport().Statistics().sendFailures, 0u);
+    }
+
+    TEST_F(CanProtocolServerTest, CategoryListResponseListsEveryRegisteredCategory)
+    {
+        class FillerCategory : public CanCategoryServerStub
+        {
+        public:
+            uint8_t Id() const override
+            {
+                return id;
+            }
+
+            uint8_t id = 0;
+        };
+
+        std::array<FillerCategory, canMaxRegisteredCategories - 1> fillers;
+        uint8_t id = 0x01;
+        for (auto& filler : fillers)
+        {
+            filler.id = id++;
+            ASSERT_TRUE(server.RegisterCategory(filler));
+        }
+
+        EXPECT_CALL(canMock, SendData(hal::Can::Id::Create29BitId(MakeCanId(CanPriority::response, canSystemCategoryId, canCategoryListResponseMessageTypeId, 1)),
+                                 ElementsAre(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07), _))
+            .WillOnce(Invoke([](hal::Can::Id, const hal::Can::Message&, const infra::Function<void(bool)>& cb)
+                {
+                    cb(true);
+                }));
+        EXPECT_CALL(observerMock, Online());
+        SimulateRx(MakeSystemId(canCategoryListRequestMessageTypeId), MakeMessage({}));
+
+        for (auto& filler : fillers)
+            server.UnregisterCategory(filler);
+    }
+
     TEST_F(CanProtocolServerTest, HeartbeatReceived_NotifiesOnline)
     {
         auto id = MakeSystemId(canHeartbeatMessageTypeId);

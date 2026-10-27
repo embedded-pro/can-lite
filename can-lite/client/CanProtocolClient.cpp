@@ -10,7 +10,10 @@ namespace services
     CanProtocolClient::CanProtocolClient(hal::Can& can, const Config& config)
         : can(can)
         , config(config)
-        , transport(can, 0)
+        , transport(can, canBroadcastNodeId, [this]()
+              {
+                  ResetHeartbeatTimer();
+              })
         , systemCategory(transport, *this)
     {
         categories.push_back(systemCategory);
@@ -20,18 +23,12 @@ namespace services
                 ProcessReceivedMessage(id, data);
             });
 
-        transport.SetOnSendNotification([this]()
-            {
-                ResetHeartbeatTimer();
-            });
-
         ResetHeartbeatTimer();
     }
 
     CanProtocolClient::~CanProtocolClient()
     {
         can.ReceiveData(nullptr);
-        transport.ClearOnSendNotification();
     }
 
     bool CanProtocolClient::RegisterCategory(CanCategoryClient& category)
@@ -58,6 +55,11 @@ namespace services
     }
 
     CanFrameTransport& CanProtocolClient::Transport()
+    {
+        return transport;
+    }
+
+    const CanFrameTransport& CanProtocolClient::Transport() const
     {
         return transport;
     }
@@ -305,10 +307,10 @@ namespace services
 
     void CanProtocolClient::SendHeartbeat()
     {
-        hal::Can::Message msg;
-        msg.push_back(canProtocolVersion);
+        CanPayloadWriter payload;
+        payload.WriteUInt8(canProtocolVersion);
 
-        transport.SendFrame(canBroadcastNodeId, CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, msg, [](bool) {});
+        transport.SendFrame(canBroadcastNodeId, CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, payload.Message(), [](bool) {});
 
         ResetHeartbeatTimer();
     }

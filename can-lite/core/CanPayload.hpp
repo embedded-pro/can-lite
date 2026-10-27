@@ -22,6 +22,7 @@ namespace services
         CanPayloadWriter& WriteBytes(infra::ConstByteRange bytes);
 
         bool Valid() const;
+        std::size_t Remaining() const;
         const hal::Can::Message& Message() const;
 
     private:

@@ -62,6 +62,11 @@ namespace services
         return valid;
     }
 
+    std::size_t CanPayloadWriter::Remaining() const
+    {
+        return valid ? message.max_size() - message.size() : 0;
+    }
+
     const hal::Can::Message& CanPayloadWriter::Message() const
     {
         return message;

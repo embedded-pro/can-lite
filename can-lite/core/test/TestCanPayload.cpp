@@ -22,6 +22,30 @@ namespace
         EXPECT_TRUE(writer.Message().empty());
     }
 
+    TEST(CanPayloadWriterTest, RemainingTracksTheRoomLeftInTheFrame)
+    {
+        CanPayloadWriter writer;
+        EXPECT_EQ(writer.Remaining(), 8u);
+
+        writer.WriteUInt8(0x01).WriteUInt16(0x0203);
+        EXPECT_EQ(writer.Remaining(), 5u);
+
+        writer.WriteUInt32(0x04050607).WriteUInt8(0x08);
+        EXPECT_EQ(writer.Remaining(), 0u);
+    }
+
+    TEST(CanPayloadWriterTest, RemainingIsZeroOnceInvalid)
+    {
+        CanPayloadWriter writer;
+        writer.WriteUInt32(0).WriteUInt16(0).WriteUInt16(0);
+        ASSERT_TRUE(writer.Valid());
+
+        writer.WriteUInt8(0);
+
+        ASSERT_FALSE(writer.Valid());
+        EXPECT_EQ(writer.Remaining(), 0u);
+    }
+
     TEST(CanPayloadWriterTest, WriteUInt8AppendsSingleByte)
     {
         CanPayloadWriter writer;
