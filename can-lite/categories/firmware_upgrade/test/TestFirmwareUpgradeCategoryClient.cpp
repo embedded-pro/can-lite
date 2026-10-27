@@ -52,8 +52,6 @@ namespace
         StrictMock<FirmwareUpgradeCategoryClientObserverMock> observer{ client };
     };
 
-    // --- Basic properties ---
-
     TEST_F(TestFirmwareUpgradeCategoryClient, Id)
     {
         EXPECT_EQ(client.Id(), firmwareUpgradeCategoryId);
@@ -63,8 +61,6 @@ namespace
     {
         EXPECT_FALSE(client.RequiresSequenceValidation());
     }
-
-    // --- Send commands ---
 
     TEST_F(TestFirmwareUpgradeCategoryClient, SendBeginUpgrade_EncodesSize)
     {
@@ -159,8 +155,6 @@ namespace
 
         EXPECT_FALSE(result);
     }
-
-    // --- Response handling ---
 
     TEST_F(TestFirmwareUpgradeCategoryClientWithObserver, BeginResponse_ParsesStatusAndPageSize)
     {
@@ -304,8 +298,6 @@ namespace
         data[0] = static_cast<uint8_t>(FwuState::error) + 1;
         EXPECT_EQ(client.HandleMessage(fwuProgressResponseId, data), CanDispatchResult::rejected);
     }
-
-    // --- Boundary values (high-bit fields) ---
 
     TEST_F(TestFirmwareUpgradeCategoryClient, SendBeginUpgrade_EncodesSize_HighBit)
     {

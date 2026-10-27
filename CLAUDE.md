@@ -24,7 +24,7 @@ cmake --build --preset coverage
 ctest --preset coverage
 
 # Run a single test binary directly (after build)
-./build/host/Debug/<test-binary>
+./build/host/can-lite/<module>/test/Debug/<test-binary>
 ```
 
 Warnings are treated as errors (`CMAKE_COMPILE_WARNING_AS_ERROR=On`). `compile_commands.json` is generated in each build directory.

@@ -8,11 +8,13 @@ on:
       - "documents/**"
       - "scripts/build-booklet.py"
       - ".github/workflows/build-booklet.yml"
+      - ".github/actions/install-apt-packages/**"
   pull_request:
     paths:
       - "documents/**"
       - "scripts/build-booklet.py"
       - ".github/workflows/build-booklet.yml"
+      - ".github/actions/install-apt-packages/**"
   release:
     types: [published]
   workflow_dispatch:
@@ -28,6 +30,7 @@ jobs:
   build:
     name: Build Booklet (PDF + Site)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -45,16 +48,11 @@ jobs:
           node-version: "22"
 
       - name: Install Pandoc and the TeX toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pandoc \
-            texlive-xetex \
-            texlive-latex-extra \
-            texlive-fonts-recommended \
-            lmodern \
-            fonts-dejavu-core \
-            librsvg2-bin
+        timeout-minutes: 20
+        uses: ./.github/actions/install-apt-packages
+        with:
+          cache-name: booklet
+          packages: pandoc texlive-xetex texlive-latex-extra texlive-fonts-recommended lmodern fonts-dejavu-core librsvg2-bin
 
       - name: Install diagram and YAML tooling
         run: |

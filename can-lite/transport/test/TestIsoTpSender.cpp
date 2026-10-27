@@ -199,14 +199,10 @@ TEST_F(IsoTpSenderTest, ProcessFlowControl_FCWait_RestartsNBsAndKeepsWaiting)
     hal::Can::Message fc;
     IsoTpFrameCodec::EncodeFlowControl(FlowStatus::wait, 0u, 0u, fc);
 
-    // A single Wait frame must not abort: ISO 15765-2 requires the sender to
-    // restart N_Bs and keep waiting, up to N_WFTmax consecutive Wait frames.
     sender.ProcessFlowControl(fc);
 
     EXPECT_FALSE(sender.IsIdle());
 
-    // Still waiting after almost a full nBs timeout, since the wait frame
-    // restarted the timer.
     ForwardTime(std::chrono::milliseconds(999));
     EXPECT_FALSE(sender.IsIdle());
 }
@@ -304,13 +300,11 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_nBsTimeout_Aborts)
 
 TEST_F(IsoTpSenderTest, Send_MultiFrame_WithBlockSize_WaitsForFC)
 {
-    // 14-byte PDU requires 2 CFs: with BS=1 sender goes back to waitingForFc after CF1
     uint8_t pdu[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
     bool doneCalled = false;
 
     testing::InSequence seq;
 
-    // FF
     EXPECT_CALL(mocks, SendFrame(_, _))
         .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
@@ -327,7 +321,6 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_WithBlockSize_WaitsForFC)
     hal::Can::Message fc;
     IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 1u, 0u, fc);
 
-    // CF1 — invoke callback to trigger nBsTimer start (then sender waits for another FC)
     EXPECT_CALL(mocks, SendFrame(_, _))
         .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
@@ -521,7 +514,6 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_StMinDelay_DelaysNextCF)
 
     testing::InSequence seq;
 
-    // FF
     EXPECT_CALL(mocks, SendFrame(_, _))
         .WillOnce(Invoke([](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {
@@ -537,11 +529,9 @@ TEST_F(IsoTpSenderTest, Send_MultiFrame_StMinDelay_DelaysNextCF)
     hal::Can::Message fc;
     IsoTpFrameCodec::EncodeFlowControl(FlowStatus::continueToSend, 0u, 0x01u, fc);
 
-    // CF should NOT be sent before timer fires
     sender.ProcessFlowControl(fc);
     EXPECT_FALSE(doneCalled);
 
-    // Advance 1ms — stMinTimer fires, CF sent
     EXPECT_CALL(mocks, SendFrame(_, _))
         .WillOnce(Invoke([&doneCalled](const hal::Can::Message& f, const infra::Function<void(bool)>& d)
             {

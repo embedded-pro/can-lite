@@ -117,8 +117,8 @@ Two reasons, both practical:
    most bytes.** One byte out of seven, on the longest transfer the protocol
    ever performs, is a sixth of the throughput.
 
-The trade-off is real: this category has no protocol-level replay protection. It
-is bounded instead by the checksum at the end — a replayed or lost block
+The trade-off is real: this category has no protocol-level duplicate detection.
+It is bounded instead by the checksum at the end — a repeated or lost block
 produces a mismatch and the image is not activated — and by the authenticity
 check the application is expected to add.
 

@@ -64,7 +64,6 @@ namespace services
         const CanFrameTransport& Transport() const;
         const Counters& Statistics() const;
 
-        // CanCommandAcknowledger
         void SendCommandAck(uint8_t category, uint8_t commandType, CanAckStatus status) override;
 
     private:

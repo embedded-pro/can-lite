@@ -205,9 +205,6 @@ TEST(CanMessageHandlerTest, PduDispatchForUnregisteredTypeIsNotHandled)
     EXPECT_EQ(category.secondPduCount, 0);
 }
 
-// Transport() is the escape hatch for categories needing a priority or addressing
-// combination the Send* helpers do not offer.
-
 class TransportExposingServer
     : public CanCategoryServerStub
 {

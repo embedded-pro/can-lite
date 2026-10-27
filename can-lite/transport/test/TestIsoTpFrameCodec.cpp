@@ -202,7 +202,6 @@ TEST(IsoTpFrameCodec, StMinToDuration_Microseconds)
 
 TEST(IsoTpFrameCodec, StMinToDuration_Reserved)
 {
-    // ISO 15765-2: reserved values shall be treated as 0x7F (127 ms).
     EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0x80), std::chrono::milliseconds(0x7F));
     EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xF0), std::chrono::milliseconds(0x7F));
     EXPECT_EQ(IsoTpFrameCodec::StMinToDuration(0xFA), std::chrono::milliseconds(0x7F));

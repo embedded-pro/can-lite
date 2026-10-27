@@ -27,10 +27,12 @@
   title: Motor start command
   shall: >
     The client shall be able to send a Start command to energize the
-    motor and begin closed-loop control. The server shall transition
-    from Idle to Running state and respond with a command
-    acknowledgement. If the motor is already running or in a fault
-    state, the server shall respond with an invalidState error.
+    motor and begin closed-loop control. The server category shall pass
+    the command to its observer and acknowledge it with the status the
+    observer reports. The category holds no motor state: the application
+    behind the observer decides whether the motor can start, moves it
+    from Idle to Running, and reports invalidState when the motor is
+    already running or in a fault state.
   tests:
     - TestFocMotorCategoryServerWithObserver.Start_CallbackSendsAck
     - TestFocMotorCategoryServerWithObserver.Start_CallbackCanReturnInvalidState
@@ -40,8 +42,9 @@
   title: Motor stop command
   shall: >
     The client shall be able to send a Stop command to de-energize the
-    motor. The server shall transition from Running to Idle state and
-    respond with a command acknowledgement.
+    motor. The server category shall pass the command to its observer
+    and acknowledge it once the observer completes; the application
+    behind the observer moves the motor from Running to Idle.
   tests:
     - TestFocMotorCategoryServerWithObserver.Stop_CallbackSendsAck
     - TestFocMotorCategoryClient.SendStop_SendsCorrectFrame
@@ -196,9 +199,13 @@
   title: Response message type IDs
   shall: >
     Solicited response message types within the FOC category shall
-    generally use IDs formed by adding 0x80 to the corresponding
-    command message type ID, reserving 0x00–0x7F for commands and
-    0x80–0xFD for paired responses. When a command is rejected for a
+    use IDs formed by adding 0x80 to the corresponding command message
+    type ID, reserving 0x00–0x7F for commands and 0x80–0xFD for paired
+    responses. The one exception is Request Telemetry (0x08), which is
+    answered by two frames: Telemetry Electrical (0x88), which follows
+    the rule, and Telemetry Status (0x89), which takes the next free ID
+    and therefore pairs with no command, Set Encoder Resolution (0x09)
+    having no response of its own. When a command is rejected for a
     category-specific reason the FOC category reuses the base
     protocol's shared Category Error frame (message type 0xFE,
     canCategoryErrorResponseMessageTypeId) via
