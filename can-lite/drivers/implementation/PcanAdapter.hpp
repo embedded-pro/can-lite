@@ -19,7 +19,7 @@ namespace services
     {
     public:
         PcanAdapter() = default;
-        ~PcanAdapter() override;
+        ~PcanAdapter();
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;

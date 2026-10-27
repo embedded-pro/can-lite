@@ -71,7 +71,7 @@ namespace services
 - `{}` brace initialization: `uint8_t count{}`, `MyClass obj{arg1, arg2}`.
 - `const` on all non-mutating methods; `constexpr` for compile-time values.
 - Fixed-size types: `uint8_t`, `int32_t`, etc.
-- No pure virtual destructors unless deleted polymorphically through base pointer.
+- No virtual destructors, pure or not, in production code: interfaces and base classes declare a protected, non-virtual `~X() = default;`, as `hal::Can` does. A virtual destructor costs vtable entries and a deleting destructor that pulls in `operator delete`.
 - Error handling via `std::optional<T>` or status enums — no exceptions.
 - `really_assert()` for debug precondition checks.
 

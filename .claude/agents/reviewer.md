@@ -62,7 +62,7 @@ End with summary: total criticals, warnings, suggestions, and overall verdict (A
 - [ ] `constexpr` where applicable
 - [ ] Fixed-size integer types (`uint8_t`, `int32_t`, etc.)
 - [ ] `{}` brace initialization for all variables and member data (not `()`)
-- [ ] No pure virtual destructors unless class is deleted through base pointer (flag as WARNING)
+- [ ] No virtual destructors, pure or not, in production code; interfaces and base classes use a protected, non-virtual `~X() = default;` (flag as WARNING)
 
 ### 4. CAN Protocol Correctness (CRITICAL)
 - [ ] CAN ID correctly encoded: `(priority << 24) | (category << 20) | (message_type << 12) | node_id`

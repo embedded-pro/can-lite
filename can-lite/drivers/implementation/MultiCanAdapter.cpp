@@ -61,6 +61,16 @@ namespace services
             });
     }
 
+    infra::BoundedConstString MultiCanAdapter::Backend::Prefix() const
+    {
+        return prefix;
+    }
+
+    infra::BoundedConstString MultiCanAdapter::Backend::Alias() const
+    {
+        return alias;
+    }
+
     bool MultiCanAdapter::Backend::IsActive() const
     {
         return owner.active == &Subject();
@@ -72,7 +82,7 @@ namespace services
 
     MultiCanAdapter::~MultiCanAdapter()
     {
-        for (auto& backend : backends)
+        for (const auto& backend : backends)
             backend.Subject().ReceiveData(nullptr);
         backends.clear();
     }
@@ -94,7 +104,7 @@ namespace services
             Disconnect();
 
         const auto route = Resolve(interfaceName);
-        if (!route)
+        if (!route.has_value())
         {
             ReportUnknownInterface(interfaceName);
             return false;
@@ -151,13 +161,13 @@ namespace services
         for (const auto& backend : backends)
             backend.Subject().EnumerateInterfaces([&backend, &callback](infra::BoundedConstString channel)
                 {
-                    if (backend.prefix.empty())
+                    if (backend.Prefix().empty())
                     {
                         callback(channel);
                         return;
                     }
 
-                    infra::BoundedString::WithStorage<maxInterfaceNameLength> name{ backend.prefix };
+                    infra::BoundedString::WithStorage<maxInterfaceNameLength> name{ backend.Prefix() };
                     name.push_back(separator);
                     name.append(channel.substr(0, name.max_size() - name.size()));
                     callback(name);
@@ -166,7 +176,7 @@ namespace services
 
     void MultiCanAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
     {
-        if (std::any_of(backends.begin(), backends.end(), [](const Backend& backend)
+        if (std::ranges::any_of(backends, [](const Backend& backend)
                 {
                     return IsUsable(backend.Subject());
                 }))
@@ -181,11 +191,11 @@ namespace services
         Backend* fallback{};
         for (auto& backend : backends)
         {
-            for (const auto& label : { backend.prefix, backend.alias })
+            for (const auto& label : { backend.Prefix(), backend.Alias() })
                 if (const auto channel = ChannelAfter(interfaceName, label))
                     return Route{ backend, *channel };
 
-            if (backend.prefix.empty())
+            if (backend.Prefix().empty())
                 fallback = &backend;
         }
 
@@ -220,10 +230,10 @@ namespace services
         {
             if (!std::exchange(first, false))
                 errorText.append(", ");
-            if (backend.prefix.empty())
+            if (backend.Prefix().empty())
                 errorText.append("<interface>");
             else
-                errorText.append(backend.prefix.substr(0, maxQuotedNameLength)).append(":<channel>");
+                errorText.append(backend.Prefix().substr(0, maxQuotedNameLength)).append(":<channel>");
         }
 
         NotifyObservers([this](auto& observer)

@@ -19,7 +19,7 @@ namespace services
     {
     public:
         KvaserAdapter() = default;
-        ~KvaserAdapter() override;
+        ~KvaserAdapter();
 
         bool Connect(infra::BoundedConstString interfaceName, uint32_t bitrate) override;
         void Disconnect() override;

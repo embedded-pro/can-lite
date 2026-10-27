@@ -23,12 +23,14 @@ namespace services
             void OnError(infra::BoundedConstString message) override;
             void OnConnectionChanged(bool connected) override;
 
-            infra::BoundedConstString prefix;
-            infra::BoundedConstString alias;
+            infra::BoundedConstString Prefix() const;
+            infra::BoundedConstString Alias() const;
 
         private:
             bool IsActive() const;
 
+            infra::BoundedConstString prefix;
+            infra::BoundedConstString alias;
             MultiCanAdapter& owner;
         };
 
@@ -38,7 +40,7 @@ namespace services
         static constexpr std::size_t maxInterfaceNameLength{ 64 };
 
         explicit MultiCanAdapter(infra::BoundedVector<Backend>& backends);
-        ~MultiCanAdapter() override;
+        ~MultiCanAdapter();
 
         void Add(infra::BoundedConstString prefix, CanBusAdapter& adapter, infra::BoundedConstString alias = {});
 

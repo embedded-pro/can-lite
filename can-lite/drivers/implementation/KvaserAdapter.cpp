@@ -63,7 +63,7 @@ namespace services
 
     HMODULE KvaserAdapter::LoadCanlib()
     {
-        HMODULE canlib = LoadLibraryA("canlib32.dll");
+        HMODULE canlib{ LoadLibraryA("canlib32.dll") };
         if (canlib == nullptr)
             return nullptr;
 
@@ -157,7 +157,7 @@ namespace services
         const auto length = static_cast<unsigned int>(std::min<std::size_t>(data.size(), buffer.size()));
         std::memcpy(buffer.data(), data.data(), length);
 
-        const bool success = write(handle, static_cast<long>(rawId), buffer.data(), length, messageExtended) == statusOk;
+        const bool success{ write(handle, static_cast<long>(rawId), buffer.data(), length, messageExtended) == statusOk };
         if (success)
             NotifyObservers([rawId, &data](auto& observer)
                 {
@@ -203,7 +203,7 @@ namespace services
 
     void KvaserAdapter::EnumerateInterfaces(const infra::Function<void(infra::BoundedConstString)>& callback) const
     {
-        HMODULE probe = LoadCanlib();
+        HMODULE probe{ LoadCanlib() };
         if (probe == nullptr)
             return;
 
@@ -217,7 +217,7 @@ namespace services
 
     void KvaserAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
     {
-        HMODULE probe = LoadLibraryA("canlib32.dll");
+        HMODULE probe{ LoadLibraryA("canlib32.dll") };
         if (probe == nullptr)
             callback("Kvaser: canlib32.dll was not found; install the Kvaser CANlib driver");
         else
