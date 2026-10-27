@@ -20,13 +20,15 @@ runs:
       with:
         python-version: "3.12"
 
-    - name: Install dependencies
+    - name: Install Python dependencies
       shell: bash
-      run: |
-        pip install pyyaml
-        apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o DPkg::Lock::Timeout=120)
-        sudo apt-get "${apt_options[@]}" update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" install -y --no-install-recommends pandoc lmodern texlive-latex-base texlive-latex-recommended texlive-fonts-recommended texlive-xetex
+      run: pip install pyyaml
+
+    - name: Install Pandoc and the TeX toolchain
+      uses: ./.github/actions/install-apt-packages
+      with:
+        cache-name: requirements-pdf
+        packages: pandoc lmodern texlive-latex-base texlive-latex-recommended texlive-fonts-recommended texlive-xetex
 
     - name: Generate PDF
       shell: bash
