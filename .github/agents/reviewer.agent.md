@@ -74,7 +74,7 @@ End with a summary: total criticals, warnings, suggestions, and overall verdict 
 - [ ] `constexpr` where applicable
 - [ ] Fixed-size integer types (`uint8_t`, `int32_t`, etc.)
 - [ ] Brace `{}` initialization used for all variables and member data (not parenthesis `()`)
-- [ ] No pure virtual destructors unless strictly necessary — they add vtable overhead; flag as WARNING if present without clear justification
+- [ ] No virtual destructors, pure or not, in production code — they add vtable entries and a deleting destructor that pulls in `operator delete`; interfaces and base classes use a protected, non-virtual `~X() = default;`. Flag as WARNING
 
 ### 4. CAN Protocol Correctness (CRITICAL)
 

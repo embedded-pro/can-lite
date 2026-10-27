@@ -96,5 +96,5 @@ applyTo: "**/*.{hpp,cpp,h}"
 - Dependency Injection: all dependencies via constructor
 - DRY: never duplicate logic
 - Self-documenting code through clear naming — no comments restating code
-- No pure virtual destructors unless strictly necessary — they add vtable entries and increase binary/RAM size; prefer a non-pure virtual destructor or omit the destructor entirely when the class is not deleted polymorphically through a base pointer
+- No virtual destructors, pure or not, in production code — they add vtable entries in every class of the hierarchy and a deleting destructor that references `operator delete`, which can pull allocator code into a heap-free image. Interfaces and base classes declare a protected, non-virtual `~X() = default;`, as `hal::Can` does; nothing is deleted through a base pointer
 - Observer callbacks must not allocate or block

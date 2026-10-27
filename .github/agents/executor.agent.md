@@ -79,7 +79,7 @@ namespace services
 - **`constexpr`**: Use for compile-time calculations
 - **Fixed-size types**: Prefer `uint8_t`, `int32_t`, etc., over `int`
 - **`{}` initialization**: Prefer brace initialization for all variables and member data: `uint8_t count{}`, `MyClass obj{arg1, arg2}`
-- **No pure virtual destructors unless strictly necessary**: they add vtable entries and increase binary/RAM size; prefer a non-pure virtual destructor or omit the destructor when the class is not deleted polymorphically through a base pointer
+- **No virtual destructors, pure or not, in production code**: interfaces and base classes declare a protected, non-virtual `~X() = default;`, as `hal::Can` does. A virtual destructor adds vtable entries in every class of the hierarchy and a deleting destructor that references `operator delete`, which can pull allocator code into a heap-free image; nothing is deleted through a base pointer
 
 ### CAN Protocol — Wire Format Rules
 

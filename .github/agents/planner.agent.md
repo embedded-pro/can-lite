@@ -255,7 +255,7 @@ categories. Option (a) is preferred for UDS integration.
 - [ ] Small functions: ~30 lines max (hard limit ~50)
 - [ ] No comments restating code — self-documenting names
 - [ ] Prefer `{}` brace initialization for all variables and member data
-- [ ] No pure virtual destructors unless strictly necessary (adds vtable overhead)
+- [ ] No virtual destructors, pure or not, in production code; interfaces and base classes use a protected, non-virtual `~X() = default;`
 - [ ] `const` correctness on all non-mutating methods
 - [ ] `constexpr` for compile-time calculations
 - [ ] Fixed-size integer types (`uint8_t`, `int32_t`, etc.)

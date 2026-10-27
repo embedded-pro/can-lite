@@ -166,7 +166,12 @@ Observer callbacks must not allocate or block.
 - Fixed-size integer types: `uint8_t`, `int32_t`, etc.
 - `const` on all non-mutating methods; `constexpr` for compile-time values.
 - Functions ≤ 30 lines (hard limit 50).
-- No pure virtual destructors unless the class is deleted polymorphically through a base pointer (adds vtable overhead).
+- No virtual destructors, pure or not, in production code. Interfaces and base
+  classes declare a protected, non-virtual `~X() = default;`, as `hal::Can` does.
+  A virtual destructor adds two entries to every vtable in the hierarchy and a
+  deleting destructor that references `operator delete`, which can pull
+  allocator code into a heap-free image; nothing here is deleted through a base
+  pointer. Test fixtures deriving from `testing::Test` are the only exception.
 - Error handling: `std::optional<T>` or status enums — no exceptions.
 - **No comments.** Do not add explanatory, rationale, or section-marker comments to code, headers, or tests. Code must read clearly from names and structure alone. This applies even when the reasoning behind a line is non-obvious — put that in the commit message or PR description, not in the file.
 
