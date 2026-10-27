@@ -29,8 +29,9 @@ flowchart TB
 Coverage is organised so that each level answers what the others cannot: unit
 tests own the bounds and the failure paths (every abort reason, every refusal,
 every wrap-around); scenarios own the conversations (sequence validation,
-discovery, rate limiting, error handling, firmware upgrade, and the reference
-application category end to end); requirements own intent.
+discovery, rate limiting, error handling, firmware upgrade, segmented transfers
+through a real ISO-TP transport on both nodes, and the reference application
+category end to end); requirements own intent.
 
 ## 2. Three rules that shape every test
 
@@ -57,6 +58,8 @@ mock, which lets a scenario do two different things:
 - **Inject a frame** that no correct peer would send — a malformed
   acknowledgement, a wrong sequence number, an unknown category, a
   standard-identifier frame — and disconnect to model bus loss.
+- **Fault one identifier**: lose every frame on it, or fail its transmission,
+  to break a segmented transfer midway and watch both nodes report it.
 
 It also keeps the promise the hardware interface makes: delivery and the send
 completion happen after the send call has returned, never inside it. A
@@ -97,7 +100,7 @@ is misleading:
 |----------------------------------------------------------|---------------------------------------------------------------------|-------------------------------------------------------------------------|
 | Arbitration and priority                                 | The virtual bus delivers in send order                              | The bus-load arithmetic of Chapter 11                                   |
 | A driver that completes inside the send call             | The virtual bus completes asynchronously, as the interface promises | Unit tests that deliver the answer inside the send call (Chapter 7, §3) |
-| Bus errors, error frames, bus-off                        | Not modelled                                                        | Failure paths driven through mocked send outcomes                       |
+| Bus errors, error frames, bus-off                        | Not modelled                                                        | Mocked send outcomes, and send failures injected on the virtual bus     |
 | Timing on target hardware                                | Host tests use a virtual clock                                      | Budgets computed in Chapter 11, validated per product                   |
 | More than two nodes end to end                           | The fixture couples one server and one client                       | Multi-server behaviour covered at the unit level                        |
 | Interoperability with third-party segmentation stacks    | No external stack in the loop                                       | The deliberate omissions of Chapter 8, §6                               |

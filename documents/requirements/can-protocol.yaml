@@ -372,7 +372,10 @@
     layer that segments PDUs exceeding 8 bytes into multiple CAN frames
     and reassembles them at the receiver. The transport layer shall be
     attachable to CanProtocolServer and CanProtocolClient via
-    AttachIsoTpTransport().
+    AttachIsoTpTransport(). A PDU reassembled on a data identifier that
+    names a registered category shall be dispatched to that category's
+    segmented handler through the same admission, sequence validation and
+    acknowledgement as a single frame.
 
 - id: REQ-CAN-030
   title: ISO-TP frame types

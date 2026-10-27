@@ -217,6 +217,24 @@ validated category still finds its sequence number in the first byte and still
 skips it. The only difference a category sees is that the payload may be longer
 than eight bytes.
 
+Sending is the application's half, and it mirrors the receiving one:
+
+1. **Attach a transport to the sender's protocol object too.** Flow control
+   from the receiver arrives as frames, and only an attached transport routes
+   them back to the waiting sender.
+2. **Address the payload the way a command is addressed** — the category, the
+   message type and the server — on the identifier the server's channel
+   receives on, and take flow control from the identifier it transmits on.
+3. **Supply the sequence number yourself** when the category validates it,
+   reserving it from the client and giving it back if the transfer is refused or
+   aborts. A segmented send bypasses the category's own send path, which is what
+   normally does this.
+4. **Subscribe to the abort path.** The completion runs on success only (§2).
+
+The integration scenarios run exactly this wiring on both nodes, including a
+transfer that loses its flow control and one whose frames the driver fails to
+send (Chapter 12).
+
 ## 6. Deliberate omissions
 
 Beyond the parameters in the specification, four things are simply not

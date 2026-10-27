@@ -94,6 +94,74 @@ namespace
         EXPECT_EQ(a.sendCount, 2);
     }
 
+    TEST_F(VirtualCanTest, FramesOnALostIdentifierReportSuccessButNeverArrive)
+    {
+        a.ConnectTo(b);
+
+        hal::Can::Message received;
+        b.ReceiveData([&received](hal::Can::Id, const hal::Can::Message& data)
+            {
+                received.push_back(data[0]);
+            });
+
+        a.LoseFramesOn(hal::Can::Id::Create29BitId(1));
+
+        bool lostFrameSent = false;
+        a.SendData(hal::Can::Id::Create29BitId(1), MakeMessage({ 1 }), [&lostFrameSent](bool success)
+            {
+                lostFrameSent = success;
+            });
+        a.SendData(hal::Can::Id::Create29BitId(2), MakeMessage({ 2 }), [](bool) {});
+        ExecuteAllActions();
+
+        EXPECT_TRUE(lostFrameSent);
+        EXPECT_EQ(received, MakeMessage({ 2 }));
+    }
+
+    TEST_F(VirtualCanTest, FramesOnAFailedIdentifierReportFailureAndNeverArrive)
+    {
+        a.ConnectTo(b);
+
+        bool bReceived = false;
+        b.ReceiveData([&bReceived](hal::Can::Id, const hal::Can::Message&)
+            {
+                bReceived = true;
+            });
+
+        a.FailFramesOn(hal::Can::Id::Create29BitId(1));
+
+        bool success = true;
+        a.SendData(hal::Can::Id::Create29BitId(1), MakeMessage({ 1 }), [&success](bool sent)
+            {
+                success = sent;
+            });
+        ExecuteAllActions();
+
+        EXPECT_FALSE(success);
+        EXPECT_FALSE(bReceived);
+    }
+
+    TEST_F(VirtualCanTest, DeliverEveryFrameClearsInjectedFaults)
+    {
+        a.ConnectTo(b);
+
+        int bReceived = 0;
+        b.ReceiveData([&bReceived](hal::Can::Id, const hal::Can::Message&)
+            {
+                ++bReceived;
+            });
+
+        a.LoseFramesOn(hal::Can::Id::Create29BitId(1));
+        a.FailFramesOn(hal::Can::Id::Create29BitId(2));
+        a.DeliverEveryFrame();
+
+        a.SendData(hal::Can::Id::Create29BitId(1), MakeMessage({ 1 }), [](bool) {});
+        a.SendData(hal::Can::Id::Create29BitId(2), MakeMessage({ 2 }), [](bool) {});
+        ExecuteAllActions();
+
+        EXPECT_EQ(bReceived, 2);
+    }
+
     TEST_F(VirtualCanTest, DisconnectSeversBothDirections)
     {
         a.ConnectTo(b);
