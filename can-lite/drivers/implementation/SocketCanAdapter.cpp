@@ -1,6 +1,7 @@
 #ifdef __linux__
 
 #include "can-lite/drivers/implementation/SocketCanAdapter.hpp"
+#include "can-lite/drivers/implementation/SocketCanNetlink.hpp"
 #include "infra/event/EventDispatcher.hpp"
 #include <algorithm>
 #include <cerrno>
@@ -12,42 +13,20 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 namespace services
 {
     namespace
     {
-        void ExecCommand(const char* prog, const char* const* args)
+        constexpr int maxFramesPerRead{ 256 };
+
+        infra::BoundedConstString BitrateFailure(int error)
         {
-            pid_t pid = fork();
-            if (pid < 0)
-                return;
-            if (pid == 0)
-            {
-                execvp(prog, const_cast<char**>(args));
-                _exit(1);
-            }
-            waitpid(pid, nullptr, 0);
-        }
+            if (error == EPERM || error == EACCES)
+                return "Setting the CAN bitrate needs root or CAP_NET_ADMIN; or configure the interface beforehand with ip link";
 
-        void ApplyBitrate(const char* iface, uint32_t bitrate)
-        {
-            // Note: ExecCommand blocks (waitpid) for the ip-link subprocess.
-            // This is acceptable as it only runs once during Connect(), not on the hot send/receive path.
-            char bitrateStr[12]{};
-            std::snprintf(bitrateStr, sizeof(bitrateStr), "%u", bitrate);
-
-            const char* downArgs[] = { "ip", "link", "set", iface, "down", nullptr };
-            ExecCommand("ip", downArgs);
-
-            const char* configArgs[] = { "ip", "link", "set", iface, "type", "can",
-                "bitrate", bitrateStr, nullptr };
-            ExecCommand("ip", configArgs);
-
-            const char* upArgs[] = { "ip", "link", "set", iface, "up", nullptr };
-            ExecCommand("ip", upArgs);
+            return "The CAN interface did not accept the bitrate";
         }
     }
 
@@ -61,7 +40,7 @@ namespace services
         if (IsConnected())
             Disconnect();
 
-        socketDescriptor = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK, CAN_RAW);
+        socketDescriptor = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK | SOCK_CLOEXEC, CAN_RAW);
         if (socketDescriptor < 0)
         {
             NotifyObservers([](auto& observer)
@@ -78,8 +57,6 @@ namespace services
         std::memcpy(ifr.ifr_name, interfaceName.data(), nameLength);
         ifr.ifr_name[nameLength] = '\0';
 
-        ApplyBitrate(ifr.ifr_name, bitrate);
-
         if (ioctl(socketDescriptor, SIOCGIFINDEX, &ifr) < 0)
         {
             close(socketDescriptor);
@@ -87,6 +64,17 @@ namespace services
             NotifyObservers([](auto& observer)
                 {
                     observer.OnError("CAN interface not found");
+                });
+            return false;
+        }
+
+        if (const auto error = socketcan::ConfigureBitrate(ifr.ifr_ifindex, bitrate); error != 0)
+        {
+            close(socketDescriptor);
+            socketDescriptor = -1;
+            NotifyObservers([error](auto& observer)
+                {
+                    observer.OnError(BitrateFailure(error));
                 });
             return false;
         }
@@ -188,9 +176,13 @@ namespace services
 
     void SocketCanAdapter::ProcessReadEvent()
     {
-        if (!IsConnected())
-            return;
+        for (int count = 0; count < maxFramesPerRead && IsConnected(); ++count)
+            if (!ReadFrame())
+                return;
+    }
 
+    bool SocketCanAdapter::ReadFrame()
+    {
         struct can_frame frame;
         auto bytesRead = read(socketDescriptor, &frame, sizeof(frame));
 
@@ -201,15 +193,22 @@ namespace services
                     {
                         observer.OnError("CAN read error");
                     });
-            return;
+            return false;
         }
 
-        if (bytesRead != static_cast<ssize_t>(sizeof(frame)))
-            return;
+        if (bytesRead == static_cast<ssize_t>(sizeof(frame)) && IsExtendedDataFrame(frame.can_id))
+            Deliver(frame);
 
-        if (!(frame.can_id & CAN_EFF_FLAG))
-            return;
+        return true;
+    }
 
+    bool SocketCanAdapter::IsExtendedDataFrame(uint32_t canId)
+    {
+        return (canId & CAN_EFF_FLAG) != 0 && (canId & (CAN_RTR_FLAG | CAN_ERR_FLAG)) == 0;
+    }
+
+    void SocketCanAdapter::Deliver(const struct can_frame& frame)
+    {
         uint32_t rawId = frame.can_id & CAN_EFF_MASK;
         CanFrame data;
         for (uint8_t i = 0; i < frame.can_dlc && i < 8; ++i)

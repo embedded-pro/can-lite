@@ -7,6 +7,7 @@ target_link_libraries(can_lite.drivers_test PRIVATE
     can_lite.drivers.multi
     can_lite.drivers.slcan
     infra.event_test_helper
+    infra.timer_test_helper
     gmock_main
 )
 
@@ -20,6 +21,6 @@ target_sources(can_lite.drivers_test PRIVATE
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(can_lite.drivers_test PRIVATE can_lite.drivers.serial)
-    target_sources(can_lite.drivers_test PRIVATE TestPosixSerialPort.cpp)
+    target_link_libraries(can_lite.drivers_test PRIVATE can_lite.drivers.serial can_lite.drivers.socketcan)
+    target_sources(can_lite.drivers_test PRIVATE TestPosixSerialPort.cpp TestSocketCanNetlink.cpp)
 endif()

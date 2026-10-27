@@ -4,6 +4,8 @@
 
 #ifdef __linux__
 
+struct can_frame;
+
 namespace services
 {
     class SocketCanAdapter
@@ -27,6 +29,9 @@ namespace services
         void EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const override;
 
     private:
+        bool ReadFrame();
+        static bool IsExtendedDataFrame(uint32_t canId);
+        void Deliver(const struct can_frame& frame);
         void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);
 
         int socketDescriptor{ -1 };

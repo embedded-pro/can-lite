@@ -42,6 +42,7 @@ namespace services
         }
 
         static HMODULE LoadCanlib();
+        static void UnloadCanlib(HMODULE canlib);
         bool Open(int channelNumber, long bitrateCode);
         void Deliver(uint32_t id, const CanFrame& data);
         void Release();

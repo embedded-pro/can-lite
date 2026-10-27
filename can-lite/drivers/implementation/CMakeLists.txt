@@ -18,7 +18,7 @@ can_lite_add_driver(can_lite.drivers.slcan
     SlcanAdapter.cpp
     SlcanAdapter.hpp
 )
-target_link_libraries(can_lite.drivers.slcan PUBLIC can_lite.drivers.codec)
+target_link_libraries(can_lite.drivers.slcan PUBLIC can_lite.drivers.codec infra.timer)
 
 can_lite_add_driver(can_lite.drivers.multi
     MultiCanAdapter.cpp
@@ -29,6 +29,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     can_lite_add_driver(can_lite.drivers.socketcan
         SocketCanAdapter.cpp
         SocketCanAdapter.hpp
+        SocketCanNetlink.cpp
+        SocketCanNetlink.hpp
     )
 
     can_lite_add_driver(can_lite.drivers.serial

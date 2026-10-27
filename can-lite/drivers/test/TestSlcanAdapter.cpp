@@ -1,7 +1,7 @@
 #include "can-lite/drivers/implementation/SlcanAdapter.hpp"
 #include "can-lite/drivers/test/CanBusAdapterMock.hpp"
 #include "can-lite/drivers/test/SerialPortMock.hpp"
-#include "infra/event/test_helper/EventDispatcherFixture.hpp"
+#include "infra/timer/test_helper/ClockFixture.hpp"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <algorithm>
@@ -33,7 +33,7 @@ namespace
 
     class TestSlcanAdapter
         : public testing::Test
-        , public infra::EventDispatcherFixture
+        , public infra::ClockFixture
     {
     public:
         TestSlcanAdapter()
@@ -57,7 +57,7 @@ namespace
                 });
         }
 
-        void Connect()
+        void StartConnecting()
         {
             EXPECT_CALL(port, Open(IsText("/dev/ttyACM0"))).WillOnce([this](infra::BoundedConstString)
                 {
@@ -65,8 +65,26 @@ namespace
                     return SerialPortOpenResult::opened;
                 });
             EXPECT_CALL(port, Write(IsText("C\rS8\rO\r"))).WillOnce(Return(true));
-            EXPECT_CALL(observer, OnConnectionChanged(true));
             ASSERT_TRUE(adapter.Connect("/dev/ttyACM0", 1000000));
+        }
+
+        void Connect()
+        {
+            StartConnecting();
+
+            EXPECT_CALL(observer, OnConnectionChanged(true));
+            Receive("\r\r\r");
+        }
+
+        void ExpectHandshakeFailure(const char* message)
+        {
+            InSequence sequence;
+            EXPECT_CALL(port, Close()).WillOnce([this]()
+                {
+                    open = false;
+                });
+            EXPECT_CALL(observer, OnError(IsText(message)));
+            EXPECT_CALL(observer, OnConnectionChanged(false));
         }
 
         void ExpectRead(infra::BoundedConstString bytes)
@@ -105,6 +123,87 @@ TEST_F(TestSlcanAdapter, connecting_closes_selects_the_bitrate_and_opens_the_cha
     Connect();
 
     EXPECT_TRUE(adapter.IsConnected());
+}
+
+TEST_F(TestSlcanAdapter, is_not_connected_until_the_adapter_accepts_the_bitrate_and_the_open_command)
+{
+    StartConnecting();
+    EXPECT_FALSE(adapter.IsConnected());
+
+    Receive("\r\r");
+    EXPECT_FALSE(adapter.IsConnected());
+
+    EXPECT_CALL(observer, OnConnectionChanged(true));
+    Receive("\r");
+    EXPECT_TRUE(adapter.IsConnected());
+}
+
+TEST_F(TestSlcanAdapter, an_adapter_already_closed_may_reject_the_initial_close)
+{
+    StartConnecting();
+
+    EXPECT_CALL(observer, OnConnectionChanged(true));
+    Receive("\a\r\r");
+
+    EXPECT_TRUE(adapter.IsConnected());
+}
+
+TEST_F(TestSlcanAdapter, a_rejected_bitrate_or_open_command_fails_the_connection)
+{
+    StartConnecting();
+
+    ExpectHandshakeFailure("The slcan adapter rejected the bitrate or the open command");
+    Receive("\r\a");
+
+    EXPECT_FALSE(adapter.IsConnected());
+}
+
+TEST_F(TestSlcanAdapter, a_port_that_never_answers_fails_the_connection)
+{
+    StartConnecting();
+    ForwardTime(std::chrono::milliseconds(999));
+
+    ExpectHandshakeFailure("The slcan adapter did not answer; check that the port belongs to an slcan device");
+    ForwardTime(std::chrono::milliseconds(1));
+
+    EXPECT_FALSE(adapter.IsConnected());
+}
+
+TEST_F(TestSlcanAdapter, an_answered_handshake_does_not_time_out)
+{
+    Connect();
+
+    ForwardTime(std::chrono::seconds(5));
+
+    EXPECT_TRUE(adapter.IsConnected());
+}
+
+TEST_F(TestSlcanAdapter, refuses_to_send_before_the_handshake_completes)
+{
+    StartConnecting();
+
+    adapter.SendData(hal::Can::Id::Create29BitId(0x42), hal::Can::Message{}, [this](bool success)
+        {
+            completed.Call(success);
+        });
+
+    EXPECT_CALL(completed, Call(false));
+    ExecuteAllActions();
+}
+
+TEST_F(TestSlcanAdapter, disconnecting_during_the_handshake_closes_the_port_and_stops_waiting)
+{
+    StartConnecting();
+
+    EXPECT_CALL(port, Write(IsText("C\r"))).WillOnce(Return(true));
+    EXPECT_CALL(port, Close()).WillOnce([this]()
+        {
+            open = false;
+        });
+    EXPECT_CALL(observer, OnConnectionChanged(false));
+    adapter.Disconnect();
+
+    ForwardTime(std::chrono::seconds(5));
 }
 
 TEST_F(TestSlcanAdapter, rejects_a_bitrate_slcan_cannot_select)
@@ -155,11 +254,9 @@ TEST_F(TestSlcanAdapter, ignores_standard_and_remote_frames)
     Receive("\rt1230\rR000001230\r");
 }
 
-TEST_F(TestSlcanAdapter, ignores_the_answer_to_the_initial_close_but_reports_later_rejections)
+TEST_F(TestSlcanAdapter, reports_a_rejection_once_connected)
 {
     Connect();
-
-    Receive("\a\r\r");
 
     EXPECT_CALL(observer, OnError(IsText("The slcan adapter rejected a command")));
     Receive("\a");
