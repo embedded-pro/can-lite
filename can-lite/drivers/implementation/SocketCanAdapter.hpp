@@ -29,7 +29,7 @@ namespace services
         void EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const override;
 
     private:
-        bool ReadFrame();
+        bool ReadFrame() const;
         static bool IsExtendedDataFrame(uint32_t canId);
         void Deliver(const struct can_frame& frame) const;
         void ScheduleCompletion(const infra::Function<void(bool)>& action, bool result);

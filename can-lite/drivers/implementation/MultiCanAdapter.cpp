@@ -82,7 +82,7 @@ namespace services
 
     MultiCanAdapter::~MultiCanAdapter()
     {
-        for (auto& backend : backends)
+        for (const auto& backend : backends)
             backend.Subject().ReceiveData(nullptr);
         backends.clear();
     }
@@ -176,7 +176,7 @@ namespace services
 
     void MultiCanAdapter::EnumerateMissingDrivers(const infra::Function<void(infra::BoundedConstString reason)>& callback) const
     {
-        if (std::any_of(backends.begin(), backends.end(), [](const Backend& backend)
+        if (std::ranges::any_of(backends, [](const Backend& backend)
                 {
                     return IsUsable(backend.Subject());
                 }))

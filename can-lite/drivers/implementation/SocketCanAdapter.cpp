@@ -211,7 +211,7 @@ namespace services
                 return;
     }
 
-    bool SocketCanAdapter::ReadFrame()
+    bool SocketCanAdapter::ReadFrame() const
     {
         struct can_frame frame;
         auto bytesRead = read(socketDescriptor, &frame, sizeof(frame));
@@ -272,9 +272,13 @@ namespace services
         if (dir == nullptr)
             return;
 
-        while (const struct dirent* entry = readdir(dir))
-            if (entry->d_name[0] != '.' && InterfaceType(dirfd(dir), entry->d_name) == arphrdCan)
-                callback(entry->d_name);
+        const int netDirectory{ dirfd(dir) };
+        if (netDirectory >= 0)
+        {
+            while (const struct dirent* entry = readdir(dir))
+                if (entry->d_name[0] != '.' && InterfaceType(netDirectory, entry->d_name) == arphrdCan)
+                    callback(entry->d_name);
+        }
 
         closedir(dir);
     }
