@@ -1,4 +1,4 @@
-add_library(can_lite.examples.foc_motor ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.examples.foc_motor STATIC)
 
 target_include_directories(can_lite.examples.foc_motor PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>"

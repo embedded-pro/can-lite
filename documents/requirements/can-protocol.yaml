@@ -6,16 +6,13 @@
 #   - Default category: System (heartbeat, acknowledgement, status request)
 #   - Additional categories are defined by the application layer
 #
-# Known gap: CLAUDE.md states "Each test traces to a requirement in
-# documents/requirements/", but requirement.schema.json's
-# additionalProperties: false currently forbids a tests: field on entries
-# here, and no CI check cross-references test names against requirement
-# IDs (.github/workflows/requirements-validation.yml only validates the
-# YAML schema and renders a PDF). Traceability is therefore aspirational,
-# not enforced, for this file. Fixing this needs a schema change plus a
-# CI step that fails when a requirement has no covering test — tracked
-# as follow-up work, not attempted here to avoid a partial/inaccurate
-# mapping across 35 requirements.
+# Traceability: a requirement may list the unit tests that cover it under
+# tests:, and CI fails when a listed test does not exist
+# (.github/workflows/requirements-validation.yml). No requirement in this
+# file lists its tests yet, and none is required to, so coverage is not
+# enforced here. Listing them, then making the list mandatory, is
+# follow-up work, deliberately not approximated with an inaccurate
+# mapping.
 
 # --- Transport & Framing ---
 

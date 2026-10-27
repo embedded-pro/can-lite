@@ -1,4 +1,4 @@
-add_library(can_lite.iso_tp ${EMIL_EXCLUDE_FROM_ALL})
+add_library(can_lite.iso_tp STATIC)
 
 target_include_directories(can_lite.iso_tp PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../../..>"

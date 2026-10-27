@@ -88,6 +88,11 @@ target_link_libraries(your_target PRIVATE can_lite.core can_lite.server can_lite
 The reference categories under `examples/` are not built or installed by default.
 Enable them with `-DCAN_LITE_BUILD_EXAMPLES=On` to compile them alongside the library.
 
+Each CI build also publishes a prebuilt archive: a Release build of the static
+libraries, the host adapters included, with their headers. It carries neither
+embedded-infra-lib nor a CMake package configuration, so a project linking it
+supplies both itself; FetchContent remains the simpler route.
+
 ## Project Structure
 
 ```text

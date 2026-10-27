@@ -8,6 +8,10 @@ inputs:
   requirements-dir:
     description: Directory containing YAML requirement files
     required: true
+  sources-dir:
+    description: Directory whose tests the requirements' tests lists must name
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -26,4 +30,5 @@ runs:
       run: |
         python ${{ github.action_path }}/validate.py \
           --schema "${{ inputs.schema-path }}" \
-          --requirements-dir "${{ inputs.requirements-dir }}"
+          --requirements-dir "${{ inputs.requirements-dir }}" \
+          ${{ inputs.sources-dir != '' && format('--sources-dir "{0}"', inputs.sources-dir) || '' }}
