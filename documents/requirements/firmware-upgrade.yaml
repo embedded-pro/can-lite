@@ -59,6 +59,10 @@
     send a Verify command containing the expected CRC32 of the
     complete firmware image. The server shall compute the CRC32
     over the received data and respond with match or mismatch status.
+    The CRC32 shall be CRC-32/ISO-HDLC (polynomial 0x04C11DB7,
+    initial value and final XOR 0xFFFFFFFF, input and output
+    reflected), computed over the image bytes in block-index order
+    and over exactly the size given in Begin Upgrade.
 
 # --- Activation ---
 

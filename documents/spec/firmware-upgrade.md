@@ -122,6 +122,23 @@ Total: 4 bytes.
 The server transitions to Verifying state, computes the CRC32 over the
 received data, and responds with a Verify Response (0x82).
 
+The checksum is CRC-32/ISO-HDLC, the CRC-32 of Ethernet and zlib:
+
+| Parameter      | Value                              |
+|----------------|------------------------------------|
+| Width          | 32 bits                            |
+| Polynomial     | `0x04C11DB7`                       |
+| Initial value  | `0xFFFFFFFF`                       |
+| Reflect input  | yes                                |
+| Reflect output | yes                                |
+| Final XOR      | `0xFFFFFFFF`                       |
+| Check value    | `0xCBF43926` for ASCII `123456789` |
+
+It covers the image bytes exactly as transferred: the data bytes of
+every Data Block in block-index order, the Begin Upgrade size in total,
+with no padding. An image whose size is not a multiple of the flash page
+is checked over its own size, not over the page-padded copy in flash.
+
 ### 4.4 Activate (0x03)
 
 Instruct the server to switch to the newly uploaded firmware. This
