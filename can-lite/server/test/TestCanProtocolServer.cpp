@@ -412,6 +412,9 @@ namespace
         CanProtocolServer heartbeatServer(heartbeatCan, heartbeatConfig);
         StrictMock<CanProtocolServerObserverMock> heartbeatObserver(heartbeatServer);
 
+        for (std::size_t i = 0; i != CanFrameTransport::queueDepth - CanFrameTransport::emergencyReserve + 1; ++i)
+            ASSERT_TRUE(heartbeatServer.Transport().SendFrame(CanPriority::response, 0x2, 0x80, MakeMessage({}), [](bool) {}));
+
         for (int i = 0; i < 10; ++i)
             ForwardTime(std::chrono::seconds(1));
 
@@ -1090,6 +1093,33 @@ namespace
 
         ForwardTime(std::chrono::milliseconds(800));
         EXPECT_EQ(heartbeatCount, 2);
+    }
+
+    TEST_F(CanProtocolServerTest, StatusRequestsWhileAHeartbeatIsStillQueuedAreAnsweredByThatHeartbeat)
+    {
+        EXPECT_CALL(observerMock, Online());
+        auto id = MakeSystemId(canStatusRequestMessageTypeId);
+
+        infra::Function<void(bool)> pendingCompletion;
+        int heartbeats = 0;
+        EXPECT_CALL(canMock, SendData(_, _, _)).Times(2).WillRepeatedly([&heartbeats, &pendingCompletion](hal::Can::Id id, const hal::Can::Message&, const auto& cb)
+            {
+                EXPECT_EQ(ExtractCanMessageType(id.Get29BitId()), canHeartbeatMessageTypeId);
+                ++heartbeats;
+                pendingCompletion = cb;
+            });
+
+        SimulateRx(id, MakeMessage({}));
+        SimulateRx(id, MakeMessage({}));
+        SimulateRx(id, MakeMessage({}));
+        EXPECT_EQ(heartbeats, 1);
+
+        auto completion = pendingCompletion;
+        completion(true);
+        EXPECT_EQ(heartbeats, 1);
+
+        SimulateRx(id, MakeMessage({}));
+        EXPECT_EQ(heartbeats, 2);
     }
 
     TEST_F(CanProtocolServerTest, AttachIsoTpTransport_ProcessFrameInterceptsMessage)

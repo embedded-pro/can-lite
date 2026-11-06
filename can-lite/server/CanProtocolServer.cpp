@@ -247,12 +247,19 @@ namespace services
 
     void CanProtocolServer::SendHeartbeat()
     {
+        ResetHeartbeatTimer();
+        if (heartbeatPending)
+            return;
+
         CanPayloadWriter payload;
         payload.WriteUInt8(canProtocolVersion);
 
-        transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, payload.Message(), [](bool) {});
-
-        ResetHeartbeatTimer();
+        heartbeatPending = true;
+        if (!transport.SendFrame(CanPriority::heartbeat, canSystemCategoryId, canHeartbeatMessageTypeId, payload.Message(), [this](bool)
+                {
+                    heartbeatPending = false;
+                }))
+            heartbeatPending = false;
     }
 
     void CanProtocolServer::ResetHeartbeatTimer()
