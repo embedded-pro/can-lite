@@ -61,6 +61,7 @@ namespace services
         bool Enqueue(const PendingFrame& frame);
         bool EnqueueOrdinary(const PendingFrame& frame);
         bool EnqueueEmergency(const PendingFrame& frame);
+        void DisplaceNewestLeastUrgent(const PendingFrame& frame);
         void Insert(const PendingFrame& frame);
         std::size_t OrdinaryCount() const;
         void Transmit();

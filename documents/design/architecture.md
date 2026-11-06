@@ -164,11 +164,11 @@ The System category (ID `0x00`) is a **built-in** category that handles protocol
 
 The system category on the server is **fully automatic** — no public API is exposed to the application developer. `CanProtocolServer` creates an internal observer that reacts to system messages:
 
-| Message               | Internal behavior                      |
-|-----------------------|----------------------------------------|
-| Heartbeat received    | Counts as an accepted command (§9.2.1) |
-| Status request        | Sends heartbeat response               |
-| Category list request | Sends list of registered category IDs  |
+| Message               | Internal behavior                                                            |
+|-----------------------|------------------------------------------------------------------------------|
+| Heartbeat received    | Counts as an accepted command (§9.2.1)                                       |
+| Status request        | Sends a heartbeat; requests arriving while one is pending are answered by it |
+| Category list request | Sends list of registered category IDs                                        |
 
 `RegisterCategory()` returns `false`, without registering, if the category's ID is already registered on that server or if `canMaxRegisteredCategories` (8) categories are already registered. The application interacts with `CanProtocolServer` only through `RegisterCategory()` and the `CanProtocolServerObserver` (Online/Offline). All system plumbing is hidden.
 

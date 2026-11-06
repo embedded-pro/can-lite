@@ -91,13 +91,19 @@ namespace services
 
     bool CanFrameTransport::EnqueueOrdinary(const PendingFrame& frame)
     {
-        if (sendQueue.full() || OrdinaryCount() >= queueDepth - emergencyReserve)
+        if (!sendQueue.full() && OrdinaryCount() < queueDepth - emergencyReserve)
+        {
+            Insert(frame);
+            return true;
+        }
+
+        if (sendQueue.back().IsEmergency() || sendQueue.back().priority <= frame.priority)
         {
             ++counters.ordinaryDrops;
             return false;
         }
 
-        Insert(frame);
+        DisplaceNewestLeastUrgent(frame);
         return true;
     }
 
@@ -115,12 +121,17 @@ namespace services
             return false;
         }
 
+        DisplaceNewestLeastUrgent(frame);
+        return true;
+    }
+
+    void CanFrameTransport::DisplaceNewestLeastUrgent(const PendingFrame& frame)
+    {
         auto evicted = sendQueue.back().onDone;
         sendQueue.pop_back();
         ++counters.evictions;
         Insert(frame);
         evicted(false);
-        return true;
     }
 
     void CanFrameTransport::Insert(const PendingFrame& frame)

@@ -235,7 +235,12 @@ Lower numerical values have higher CAN bus arbitration priority.
 Emergency priority means more than arbitration. A server admits an
 emergency command outside the ordinary sequence and rate-limit rules (§11,
 §12), and every node sends queued emergency frames first, from queue
-capacity kept for them (REQ-CAN-039, REQ-CAN-040).
+capacity kept for them (REQ-CAN-039, REQ-CAN-040). Priority also decides
+admission to a full send queue: a frame that finds its share taken
+displaces the newest queued frame of the lowest priority when that frame
+is less urgent than itself, and is refused otherwise, so a response or an
+acknowledgement is never lost to queued heartbeats or telemetry
+(REQ-CAN-040).
 
 ## 7. Message Categories
 
@@ -291,8 +296,11 @@ least 1 second after the last transmitted message** of any kind, by
 whichever side is sending it. This ensures liveness detection without
 adding traffic when that side is already actively communicating. The
 heartbeat acts as a keep-alive: it fires only during periods of silence.
-The client's heartbeat is broadcast (node ID 0x000), since the client has
-no node ID of its own on the bus.
+The server keeps at most one heartbeat queued or in transmission at a
+time: while one is pending, neither the timer nor a status request adds
+another, and the pending one answers them (REQ-CAN-048). The client's
+heartbeat is broadcast (node ID 0x000), since the client has no node ID of
+its own on the bus.
 
 The client uses received heartbeats to track server liveness. When a
 heartbeat (or any message) is received from a server, the client
@@ -358,7 +366,12 @@ Sent by the client at CanPriority::command. No sequence validation. Empty payloa
 
 When received, the server responds by transmitting a heartbeat message.
 This allows the client to quickly confirm the server is online without
-waiting for the next scheduled heartbeat.
+waiting for the next scheduled heartbeat. One heartbeat answers every
+status request received while it is still waiting to be sent, so a burst
+of requests, such as the backlog a bus adapter delivers when a server
+comes back after a restart, produces one heartbeat rather than one per
+request and cannot fill the server's send queue ahead of a command's
+response and acknowledgement (REQ-CAN-048).
 
 #### 8.1.4 Category List Request (Type 0x04)
 

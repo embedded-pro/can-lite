@@ -341,9 +341,11 @@
     carry a priority other than emergency, so that 2 slots are always
     available to emergency-priority frames. A non-emergency frame that
     would exceed its share, or that arrives when all 8 slots are
-    occupied, shall be refused. An emergency-priority frame
+    occupied, shall displace the lowest-priority, most recently accepted
+    non-emergency queued frame when that frame is less urgent than
+    itself, and shall otherwise be refused. An emergency-priority frame
     arriving at a full queue shall displace the lowest-priority,
-    most recently accepted non-emergency frame; the displaced frame's
+    most recently accepted non-emergency frame. A displaced frame's
     onDone callback shall be invoked exactly once with false. An
     emergency-priority frame arriving at a queue that holds only
     emergency-priority frames shall be refused.
@@ -564,3 +566,13 @@
     frames refused by the emergency rate limit, addressed frames it
     discarded or answered with an error, and accepted emergency-priority
     commands, and shall expose these counts to the application.
+
+- id: REQ-CAN-048
+  title: Single pending heartbeat
+  shall: >
+    The server shall keep at most one heartbeat frame queued or in
+    transmission at a time. A status request received, or the heartbeat
+    interval elapsing, while a heartbeat is pending shall not enqueue
+    another; the pending heartbeat answers them. A heartbeat the send
+    queue refuses shall not count as pending, so the next interval or
+    status request sends one again.

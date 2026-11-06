@@ -518,4 +518,63 @@ namespace
         EXPECT_EQ(telemetryCompletions, telemetryAccepted);
         EXPECT_EQ(transport.Statistics().emergencyDrops, 0u);
     }
+
+    TEST_F(CanFrameTransportTest, AMoreUrgentOrdinaryFrameDisplacesTheNewestLeastUrgentQueuedFrameWhenItsShareIsFull)
+    {
+        int failures = 0;
+        FillOrdinaryQueue(CanPriority::heartbeat, failures);
+
+        EXPECT_TRUE(transport.SendFrame(CanPriority::response, 0x2, 0x20, MakeMessage({}), [](bool) {}));
+        EXPECT_EQ(failures, 1);
+        EXPECT_EQ(transport.Statistics().evictions, 1u);
+        EXPECT_EQ(transport.Statistics().ordinaryDrops, 0u);
+
+        EXPECT_EQ(DrainOne(), 0x20);
+        for (uint8_t i = 0; i != ordinaryCapacity - 1; ++i)
+            EXPECT_EQ(DrainOne(), static_cast<uint8_t>(0x10 + i));
+        CompleteSend();
+        EXPECT_EQ(failures, 1);
+    }
+
+    TEST_F(CanFrameTransportTest, AnOrdinaryFrameNoMoreUrgentThanTheQueuedOnesIsRefusedWhenItsShareIsFull)
+    {
+        int failures = 0;
+        FillOrdinaryQueue(CanPriority::response, failures);
+
+        EXPECT_FALSE(transport.SendFrame(CanPriority::response, 0x2, 0x20, MakeMessage({}), [](bool) {}));
+        EXPECT_FALSE(transport.SendFrame(CanPriority::telemetry, 0x2, 0x21, MakeMessage({}), [](bool) {}));
+        EXPECT_EQ(transport.Statistics().ordinaryDrops, 2u);
+        EXPECT_EQ(transport.Statistics().evictions, 0u);
+        EXPECT_EQ(failures, 0);
+    }
+
+    TEST_F(CanFrameTransportTest, AMoreUrgentOrdinaryFrameDisplacesAQueuedLessUrgentFrameWhenEmergencyFramesFillTheRest)
+    {
+        int emergencyCompletions = 0;
+        int displacedCompletions = 0;
+        bool displacedSuccess = true;
+
+        ExpectOneSend();
+        transport.SendFrame(CanPriority::emergency, 0x2, 0x00, MakeMessage({}), [](bool) {});
+        ASSERT_TRUE(transport.SendFrame(CanPriority::telemetry, 0x2, 0x40, MakeMessage({}), [](bool) {}));
+        ASSERT_TRUE(transport.SendFrame(CanPriority::telemetry, 0x2, 0x41, MakeMessage({}), [&displacedCompletions, &displacedSuccess](bool success)
+            {
+                ++displacedCompletions;
+                displacedSuccess = success;
+            }));
+        for (uint8_t i = 0; i != CanFrameTransport::queueDepth - 2; ++i)
+            SendEmergency(static_cast<uint8_t>(0x10 + i), emergencyCompletions);
+
+        EXPECT_TRUE(transport.SendFrame(CanPriority::response, 0x2, 0x20, MakeMessage({}), [](bool) {}));
+        EXPECT_EQ(displacedCompletions, 1);
+        EXPECT_FALSE(displacedSuccess);
+        EXPECT_EQ(transport.Statistics().evictions, 1u);
+
+        for (uint8_t i = 0; i != CanFrameTransport::queueDepth - 2; ++i)
+            EXPECT_EQ(DrainOne(), static_cast<uint8_t>(0x10 + i));
+        EXPECT_EQ(DrainOne(), 0x20);
+        EXPECT_EQ(DrainOne(), 0x40);
+        CompleteSend();
+        EXPECT_EQ(displacedCompletions, 1);
+    }
 }

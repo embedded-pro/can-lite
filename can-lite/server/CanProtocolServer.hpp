@@ -120,6 +120,7 @@ namespace services
         uint8_t lastSequenceNumber = 0;
         bool sequenceInitialized = false;
         bool clientOnline = false;
+        bool heartbeatPending = false;
 
         CanSystemCategoryServer systemCategory;
         SystemObserver systemObserver;
