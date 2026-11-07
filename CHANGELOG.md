@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/embedded-pro/can-lite/compare/v1.0.0...v1.0.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **server,core:** One pending heartbeat, and a more urgent frame displaces a queued one ([#82](https://github.com/embedded-pro/can-lite/issues/82)) ([eb2fd9d](https://github.com/embedded-pro/can-lite/commit/eb2fd9d4f5e91552b6b3d605fbfbe228852e6322))
+
 ## [1.0.0](https://github.com/embedded-pro/can-lite/compare/v0.0.1...v1.0.0) (2026-10-27)
 
 
