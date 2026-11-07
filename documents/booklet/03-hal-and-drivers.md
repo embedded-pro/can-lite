@@ -212,14 +212,17 @@ the bus opening at a rate nobody asked for. Each read call drains up to 256
 frames; remote and error frames are dropped.
 
 slcan opens a channel with three commands: close, select the bitrate, open.
-Connecting writes them and returns; the adapter reports itself connected only
-once the device has acknowledged the bitrate and the open command. A device
-that is already closed rejects the first command, so the answer to that close is
-ignored. A rejection of either of the others, or a second of silence, closes the
-port, says why and reports the connection lost — so a serial port that is not
-an slcan device does not appear to connect. The handshake is timed, which is why
-the slcan adapter needs the timer service, as the protocol objects do.
-Rejections after the channel is open are reported as errors. When the serial
+Connecting writes them and returns; the adapter reports itself connected once
+the device has acknowledged the bitrate and the open command, or once 250 ms
+have passed without a rejection. The second path is the usual one: the CANable
+and CANtact firmware, and the firmware derived from them, never acknowledge a
+command, so silence cannot be read as failure and a device that answers nothing
+is still an slcan device. A device that is already closed rejects the first
+command, so the answer to that close is ignored. A rejection of either of the
+others closes the port, says why and reports the connection lost. The window is
+timed, which is why the slcan adapter needs the timer service, as the protocol
+objects do. Acknowledgements that arrive after the window are ignored, and
+rejections after the channel is open are reported as errors. When the serial
 port cannot be opened the reason is named — not found, in use, or access denied
 (on Linux the user must be in the `dialout` group). A write the port cannot take
 in one piece is finished within 100 ms or fails, so a command is never left

@@ -11,7 +11,7 @@ namespace services
         constexpr std::size_t maxReadChunks{ 16 };
         constexpr uint8_t closeReply{ 1 };
         constexpr uint8_t openCommandReplies{ 3 };
-        constexpr infra::Duration handshakeTimeout{ std::chrono::seconds(1) };
+        constexpr infra::Duration acknowledgementWindow{ std::chrono::milliseconds(250) };
 
         infra::BoundedConstString OpenFailure(SerialPortOpenResult result)
         {
@@ -69,9 +69,9 @@ namespace services
         decoder.Reset();
         state = LinkState::opening;
         repliesReceived = 0;
-        handshakeTimer.Start(handshakeTimeout, [this]()
+        handshakeTimer.Start(acknowledgementWindow, [this]()
             {
-                FailHandshake("The slcan adapter did not answer; check that the port belongs to an slcan device");
+                CompleteHandshake();
             });
         return true;
     }
