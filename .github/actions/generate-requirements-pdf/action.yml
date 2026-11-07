@@ -1,5 +1,8 @@
 name: Generate Requirements PDF
-description: Generates a PDF document from YAML requirement files
+description: >-
+  Generates a PDF document from YAML requirement files. Requires Python 3 with
+  PyYAML, Pandoc and XeLaTeX, e.g. by running the job in the
+  embedded-devcontainer-documentation container image.
 
 inputs:
   requirements-dir:
@@ -15,25 +18,10 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup Python
-      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-      with:
-        python-version: "3.12"
-
-    - name: Install Python dependencies
-      shell: bash
-      run: pip install pyyaml
-
-    - name: Install Pandoc and the TeX toolchain
-      uses: ./.github/actions/install-apt-packages
-      with:
-        cache-name: requirements-pdf
-        packages: pandoc lmodern texlive-latex-base texlive-latex-recommended texlive-fonts-recommended texlive-xetex
-
     - name: Generate PDF
       shell: bash
       run: |
-        python ${{ github.action_path }}/generate.py \
+        python3 ${{ github.action_path }}/generate.py \
           --requirements-dir "${{ inputs.requirements-dir }}" \
           --template "${{ inputs.template-path }}" \
           --output "${{ inputs.output-path }}"

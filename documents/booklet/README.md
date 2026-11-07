@@ -59,7 +59,7 @@ Appendix A, the requirements catalogue, is generated at build time from
 
 ## Building the booklet
 
-Install the dependencies used by CI (PyYAML, mermaid-cli, Pandoc, and a XeLaTeX toolchain), then build both outputs with `python scripts/build-booklet.py --format all`.
+CI builds the booklet in the [`embedded-devcontainer-documentation`](https://hub.docker.com/r/gabrielfrasantos/embedded-devcontainer-documentation) container image, which contains all dependencies (PyYAML, mermaid-cli, Pandoc, and a XeLaTeX toolchain). Use that image, or install the same tools, then build both outputs with `python3 scripts/build-booklet.py --format all`.
 
 Outputs land in `build/booklet/`:
 
