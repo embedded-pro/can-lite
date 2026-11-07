@@ -20,8 +20,10 @@ runs:
   steps:
     - name: Generate PDF
       shell: bash
+      # ${{ github.action_path }} expands to the host path, which does not exist
+      # inside a container job; GITHUB_ACTION_PATH holds the path as mounted.
       run: |
-        python3 ${{ github.action_path }}/generate.py \
+        python3 "${GITHUB_ACTION_PATH}/generate.py" \
           --requirements-dir "${{ inputs.requirements-dir }}" \
           --template "${{ inputs.template-path }}" \
           --output "${{ inputs.output-path }}"
