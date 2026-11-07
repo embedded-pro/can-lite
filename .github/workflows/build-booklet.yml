@@ -8,13 +8,11 @@ on:
       - "documents/**"
       - "scripts/build-booklet.py"
       - ".github/workflows/build-booklet.yml"
-      - ".github/actions/install-apt-packages/**"
   pull_request:
     paths:
       - "documents/**"
       - "scripts/build-booklet.py"
       - ".github/workflows/build-booklet.yml"
-      - ".github/actions/install-apt-packages/**"
   release:
     types: [published]
   workflow_dispatch:
@@ -30,6 +28,8 @@ jobs:
   build:
     name: Build Booklet (PDF + Site)
     runs-on: ubuntu-latest
+    # Pandoc, the XeLaTeX tool chain, mermaid-cli and PyYAML come with the container image.
+    container: gabrielfrasantos/embedded-devcontainer-documentation:v7.4.0@sha256:0537b16931e116f98fd62e0bad454af5bcd102ec6501ccdef2b270aa83fd281e
     timeout-minutes: 30
     permissions:
       contents: read
@@ -39,28 +39,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "22"
-
-      - name: Install Pandoc and the TeX toolchain
-        timeout-minutes: 20
-        uses: ./.github/actions/install-apt-packages
-        with:
-          cache-name: booklet
-          packages: pandoc texlive-xetex texlive-latex-extra texlive-fonts-recommended lmodern fonts-dejavu-core librsvg2-bin
-
-      - name: Install diagram and YAML tooling
-        run: |
-          pip install pyyaml
-          npm install -g @mermaid-js/mermaid-cli
+      # The checkout belongs to the runner user, while the container runs as root.
+      - name: Mark the workspace as a safe Git directory
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
       - name: Build booklet (PDF + site)
-        run: python scripts/build-booklet.py --format all
+        run: python3 scripts/build-booklet.py --format all
 
       - name: Upload PDF artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
