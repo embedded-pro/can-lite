@@ -158,18 +158,42 @@ TEST_F(TestSlcanAdapter, a_rejected_bitrate_or_open_command_fails_the_connection
     EXPECT_FALSE(adapter.IsConnected());
 }
 
-TEST_F(TestSlcanAdapter, a_port_that_never_answers_fails_the_connection)
+TEST_F(TestSlcanAdapter, a_device_that_acknowledges_nothing_is_connected_once_the_window_passes)
 {
     StartConnecting();
-    ForwardTime(std::chrono::milliseconds(999));
+    ForwardTime(std::chrono::milliseconds(249));
+    EXPECT_FALSE(adapter.IsConnected());
 
-    ExpectHandshakeFailure("The slcan adapter did not answer; check that the port belongs to an slcan device");
+    EXPECT_CALL(observer, OnConnectionChanged(true));
     ForwardTime(std::chrono::milliseconds(1));
 
-    EXPECT_FALSE(adapter.IsConnected());
+    EXPECT_TRUE(adapter.IsConnected());
 }
 
-TEST_F(TestSlcanAdapter, an_answered_handshake_does_not_time_out)
+TEST_F(TestSlcanAdapter, a_device_that_acknowledges_only_some_commands_is_connected_once_the_window_passes)
+{
+    StartConnecting();
+    Receive("\r\r");
+    EXPECT_FALSE(adapter.IsConnected());
+
+    EXPECT_CALL(observer, OnConnectionChanged(true));
+    ForwardTime(std::chrono::milliseconds(250));
+
+    EXPECT_TRUE(adapter.IsConnected());
+}
+
+TEST_F(TestSlcanAdapter, acknowledgements_arriving_after_the_window_are_ignored)
+{
+    StartConnecting();
+    EXPECT_CALL(observer, OnConnectionChanged(true));
+    ForwardTime(std::chrono::milliseconds(250));
+
+    Receive("\r\r\r");
+
+    EXPECT_TRUE(adapter.IsConnected());
+}
+
+TEST_F(TestSlcanAdapter, an_acknowledged_handshake_reports_the_connection_once)
 {
     Connect();
 
