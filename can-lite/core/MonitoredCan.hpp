@@ -40,9 +40,10 @@ namespace services
         uint32_t Count(CanBusError error) const;
         uint32_t Total() const;
 
+        static uint32_t SaturatingIncrement(uint32_t counter);
+
     private:
         static std::size_t IndexOf(CanBusError error);
-        static uint32_t Increment(uint32_t counter);
 
         std::array<uint32_t, errorClasses> counters{};
         uint32_t total{ 0 };
