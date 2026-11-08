@@ -176,6 +176,8 @@ The system category on the server is **fully automatic** — no public API is ex
 
 The system category on the client sends the category list request (`RequestCategoryList(nodeId)`) and has no observer. Both answers a server sends it — command acknowledgements (§9.4) and category list responses — are handled in `CanProtocolClient` itself, because they need the source node ID, which the category dispatch layer does not pass down to individual message handlers.
 
+An application client category that needs the sender of the response it is handling reads it from `CanFrameOriginTracker`, a `hal::Can` decorator in core that records the source node of each frame while it is being delivered (0 for an 11-bit identifier). The client's protocol object is constructed over the tracker, and the category holds it as a `CanFrameOrigin`. This keeps the source node out of every handler's signature.
+
 The application reaches discovery through `CanProtocolClient::DiscoverCategories(nodeId, onDone)`, because it may want to enumerate a server's capabilities.
 One discovery is pending at a time; only the asked server's answer completes it, with the category IDs, and `Config::discoveryTimeout` (default 1 s) completes it without an answer.
 A request while one is pending, or to the broadcast address, returns `false`.
@@ -568,6 +570,8 @@ protocol observers cover what the frame log structurally cannot show:
 `OnCommandAckTimeout` and both `Offline` transitions are timer-driven and put
 nothing on the bus, so without them a quiet bus and a bus whose
 acknowledgements are being missed look identical.
+
+`TracingBypassCan` is not a decorator but a router for the same seam: it sends the frames a consumer-supplied predicate selects on an untraced `hal::Can` and every other frame, and all reception, through the traced one. It is for a stream whose trace lines would outrun the trace port, such as high-rate telemetry; those frames still reach the bus, they only leave no line. It lives in `can_lite.tracing` and needs no tracer itself.
 
 The category layer has no decorator. `CanCategory::HandleMessage` and `HandlePduMessage` are non-virtual, so decorating a category would mean making dispatch virtual in core — for information already derivable from the frame trace and the decoded `commandAck` line.
 

@@ -12,6 +12,7 @@ target_link_libraries(can_lite.tracing_test PRIVATE
 )
 
 target_sources(can_lite.tracing_test PRIVATE
+    TestTracingBypassCan.cpp
     TestTracingCan.cpp
     TestTracingCanProtocolObservers.cpp
     TestTracingIsoTpTransport.cpp

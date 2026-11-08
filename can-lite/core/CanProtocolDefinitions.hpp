@@ -13,6 +13,7 @@ namespace services
     static constexpr uint32_t canIdCategoryMask = 0xF;
     static constexpr uint32_t canIdNodeIdMask = 0xFFF;
     static constexpr uint32_t canBroadcastNodeId = 0x000;
+    static constexpr uint32_t canDefaultNodeIdBase = canBroadcastNodeId + 1;
 
     static constexpr uint8_t canSystemCategoryId = 0x00;
     static constexpr uint8_t canHeartbeatMessageTypeId = 0x01;
@@ -115,6 +116,12 @@ namespace services
     static constexpr uint16_t ExtractCanNodeId(uint32_t canId)
     {
         return static_cast<uint16_t>(canId & canIdNodeIdMask);
+    }
+
+    static constexpr uint16_t MakeCanNodeId(uint32_t base, uint8_t offset)
+    {
+        const bool fits{ base > canBroadcastNodeId && base <= canIdNodeIdMask - offset };
+        return static_cast<uint16_t>((fits ? base : canDefaultNodeIdBase) + offset);
     }
 
     static constexpr bool IsCommandMessageType(uint8_t messageType)

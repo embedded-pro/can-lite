@@ -106,6 +106,8 @@ supplies both itself; FetchContent remains the simpler route.
 │   │   ├── CanMessageType.hpp          # Message handler interface
 │   │   ├── CanMessageHandler.hpp       # Binds a message type ID to a member function
 │   │   ├── CanSequenceSource.hpp       # Per-server sequence supply for client categories
+│   │   ├── CanFrameOrigin.hpp          # hal::Can decorator: source node of the frame being delivered
+│   │   ├── MonitoredCan.hpp            # hal::Can with controller-error handler and per-class counters
 │   │   └── test/                       # Core unit tests and shared test doubles
 │   ├── categories/             # Built-in categories (server/client pairs)
 │   │   ├── system/             # System category 0x0 (heartbeat, ack, discovery)
@@ -123,6 +125,7 @@ supplies both itself; FetchContent remains the simpler route.
 │   │   └── test/                       # Transport unit tests
 │   ├── tracing/                # Opt-in tracing decorators, one per layer
 │   │   ├── TracingCan.hpp              # hal::Can decorator: decoded bus frames
+│   │   ├── TracingBypassCan.hpp        # hal::Can router: selected frames skip the tracing bus
 │   │   ├── TracingIsoTpTransport.hpp   # IsoTpTransport decorator: PDUs and aborts
 │   │   ├── TracingCanProtocolServerObserver.hpp  # liveness events
 │   │   ├── TracingCanProtocolClientObserver.hpp  # liveness and ack timeouts
