@@ -58,6 +58,14 @@
     process only frames addressed to its own node address or to the
     broadcast address (0x000).
 
+- id: REQ-CAN-005.1
+  title: Node address from a base and an offset
+  shall: >
+    A server node address derived from a configured base and an
+    offset, such as a board identifier, shall be the base plus the
+    offset. When the base is the broadcast address, or the sum would
+    exceed 4095, the base 0x001 shall be used instead.
+
 - id: REQ-CAN-006
   title: Multi-server client support
   shall: >

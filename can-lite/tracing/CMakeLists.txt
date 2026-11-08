@@ -11,6 +11,8 @@ target_link_libraries(can_lite.tracing PUBLIC
 )
 
 target_sources(can_lite.tracing PRIVATE
+    TracingBypassCan.cpp
+    TracingBypassCan.hpp
     TracingCan.cpp
     TracingCan.hpp
 )

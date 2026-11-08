@@ -53,4 +53,36 @@ namespace
             EXPECT_EQ(ExtractCanMessageType(id), mt);
         }
     }
+
+    TEST(CanNodeIdTest, DefaultBaseIsTheFirstIndividualNode)
+    {
+        EXPECT_EQ(canBroadcastNodeId + 1u, canDefaultNodeIdBase);
+        EXPECT_EQ(MakeCanNodeId(canDefaultNodeIdBase, 0), 1);
+    }
+
+    TEST(CanNodeIdTest, OffsetIsAddedToTheBase)
+    {
+        EXPECT_EQ(MakeCanNodeId(1, 7), 8);
+        EXPECT_EQ(MakeCanNodeId(10, 3), 13);
+    }
+
+    TEST(CanNodeIdTest, BroadcastBaseFallsBackToTheDefaultBase)
+    {
+        EXPECT_EQ(MakeCanNodeId(canBroadcastNodeId, 3), 4);
+    }
+
+    TEST(CanNodeIdTest, HighestNodeIsAccepted)
+    {
+        EXPECT_EQ(MakeCanNodeId(canIdNodeIdMask, 0), canIdNodeIdMask);
+        EXPECT_EQ(MakeCanNodeId(canIdNodeIdMask - 7, 7), canIdNodeIdMask);
+    }
+
+    TEST(CanNodeIdTest, BaseThatOverflowsTheNodeFieldFallsBackToTheDefaultBase)
+    {
+        EXPECT_EQ(MakeCanNodeId(canIdNodeIdMask, 1), 2);
+        EXPECT_EQ(MakeCanNodeId(canIdNodeIdMask + 1, 5), 6);
+        EXPECT_EQ(MakeCanNodeId(UINT32_MAX, 0), 1);
+    }
+
+    static_assert(MakeCanNodeId(canDefaultNodeIdBase, 2) == 3);
 }

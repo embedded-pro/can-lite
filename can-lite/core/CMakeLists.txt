@@ -13,6 +13,8 @@ target_link_libraries(can_lite.core PUBLIC
 target_sources(can_lite.core PRIVATE
     CanCategory.cpp
     CanCategory.hpp
+    CanFrameOrigin.cpp
+    CanFrameOrigin.hpp
     CanMessageHandler.hpp
     CanMessageType.hpp
     CanPayload.cpp
