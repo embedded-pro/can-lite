@@ -30,6 +30,36 @@ namespace
         services::MonitoredCanImpl<testing::StrictMock<hal::CanMock>> can;
         std::optional<CanBusError> reported;
     };
+
+    class DriverForwardingTo
+        : public hal::Can
+    {
+    public:
+        explicit DriverForwardingTo(hal::Can& bus)
+            : bus(bus)
+        {}
+
+        void SendData(Id id, const Message& data, const infra::Function<void(bool success)>& actionOnCompletion) override
+        {
+            bus.SendData(id, data, actionOnCompletion);
+        }
+
+        void ReceiveData(const infra::Function<void(Id id, const Message& data)>& receivedAction) override
+        {
+            bus.ReceiveData(receivedAction);
+        }
+
+    private:
+        hal::Can& bus;
+    };
+
+    class MonitoredCanImplForwardingTest
+        : public testing::Test
+    {
+    public:
+        testing::StrictMock<hal::CanMock> bus;
+        services::MonitoredCanImpl<DriverForwardingTo> can{ bus };
+    };
 }
 
 TEST_F(CanBusErrorCountersTest, fresh_counters_are_empty)
@@ -71,13 +101,19 @@ TEST_F(CanBusErrorCountersTest, reset_clears_every_class)
     EXPECT_EQ(0u, counters.Count(CanBusError::ackError));
 }
 
-TEST_F(CanBusErrorCountersTest, errors_print_by_name)
+TEST_F(CanBusErrorCountersTest, every_error_prints_by_name)
 {
-    infra::StringOutputStream::WithStorage<64> stream;
+    infra::StringOutputStream::WithStorage<256> stream;
 
-    stream << CanBusError::busOff << ", " << CanBusError::rxBufferOverflow << ", " << static_cast<CanBusError>(99);
+    stream << CanBusError::busOff << "," << CanBusError::errorPassive << "," << CanBusError::errorWarning << ","
+           << CanBusError::messageLost << "," << CanBusError::rxBufferOverflow << "," << CanBusError::ackError << ","
+           << CanBusError::stuffError << "," << CanBusError::formError << "," << CanBusError::crcError << ","
+           << CanBusError::bit0Error << "," << CanBusError::bit1Error << "," << CanBusError::other << ","
+           << static_cast<CanBusError>(99);
 
-    EXPECT_EQ("bus off, rx buffer overflow, unknown", stream.Storage());
+    EXPECT_EQ("bus off,error passive,error warning,message lost,rx buffer overflow,ack error,stuff error,"
+              "form error,crc error,bit0 error,bit1 error,other,unknown",
+        stream.Storage());
 }
 
 TEST_F(MonitoredCanImplTest, an_error_is_counted_and_forwarded)
@@ -104,4 +140,19 @@ TEST_F(MonitoredCanImplTest, statistics_reset_through_the_bus)
     can.ResetErrorStatistics();
 
     EXPECT_EQ(0u, can.ErrorStatistics().Total());
+}
+
+TEST_F(MonitoredCanImplForwardingTest, transmissions_reach_the_driver)
+{
+    const auto id = hal::Can::Id::Create29BitId(0x123);
+    EXPECT_CALL(bus, SendData(id, testing::_, testing::_));
+
+    can.SendData(id, hal::Can::Message{}, [](bool) {});
+}
+
+TEST_F(MonitoredCanImplForwardingTest, reception_is_installed_on_the_driver)
+{
+    EXPECT_CALL(bus, ReceiveData(testing::_));
+
+    can.ReceiveData([](hal::Can::Id, const hal::Can::Message&) {});
 }
