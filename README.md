@@ -107,6 +107,7 @@ supplies both itself; FetchContent remains the simpler route.
 │   │   ├── CanMessageHandler.hpp       # Binds a message type ID to a member function
 │   │   ├── CanSequenceSource.hpp       # Per-server sequence supply for client categories
 │   │   ├── CanFrameOrigin.hpp          # hal::Can decorator: source node of the frame being delivered
+│   │   ├── MonitoredCan.hpp            # hal::Can with controller-error handler and per-class counters
 │   │   └── test/                       # Core unit tests and shared test doubles
 │   ├── categories/             # Built-in categories (server/client pairs)
 │   │   ├── system/             # System category 0x0 (heartbeat, ack, discovery)

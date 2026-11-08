@@ -46,6 +46,18 @@ The library neither provides nor requires a particular implementation. On a
 microcontroller the platform HAL supplies one; the library takes a reference to
 it when the protocol object is constructed.
 
+### 1.1 Controller errors on a target
+
+`hal::Can` has no error path, but a CAN controller reports bus off, error
+passive, error warning, lost and overflowed frames, and the five frame-level
+error classes. `MonitoredCan` is a `hal::Can` that adds one: the application
+installs a handler for these errors, and every error is also counted per class
+in `CanBusErrorCounters`, whose counters saturate rather than wrap and file an
+unrecognised class under *other*. `MonitoredCanImpl` wraps a platform driver
+and is what the platform's error interrupt reports into; the protocol object
+is constructed over it like over any other `hal::Can`. Nothing in the protocol
+layers reads these errors: what to do on bus off is the application's decision.
+
 ## 2. The host adapter
 
 Host-side tooling needs more than the bus interface offers: opening an

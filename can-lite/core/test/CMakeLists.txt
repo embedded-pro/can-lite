@@ -5,6 +5,7 @@ target_sources(can_lite.test_util INTERFACE
     CanCommandAcknowledgerMock.hpp
     CanMock.hpp
     CanSequenceSourceMock.hpp
+    MonitoredCanMock.hpp
     ../../client/test/CanProtocolClientObserverMock.hpp
     ../../server/test/CanProtocolServerObserverMock.hpp
     ../../transport/test/IsoTpTransportMock.hpp
@@ -37,6 +38,7 @@ target_sources(can_lite.core_test PRIVATE
     TestCanFrameTransport.cpp
     TestCanMessageHandler.cpp
     TestCanMessageType.cpp
+    TestMonitoredCan.cpp
     TestCanPayload.cpp
     TestCanProtocolDefinitions.cpp
 )

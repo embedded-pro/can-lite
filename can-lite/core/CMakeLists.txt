@@ -7,6 +7,7 @@ target_include_directories(can_lite.core PUBLIC
 
 target_link_libraries(can_lite.core PUBLIC
     infra.util
+    infra.stream
     hal.interfaces
 )
 
@@ -21,6 +22,8 @@ target_sources(can_lite.core PRIVATE
     CanPayload.hpp
     CanProtocolDefinitions.hpp
     CanSequenceSource.hpp
+    MonitoredCan.cpp
+    MonitoredCan.hpp
     CanFrameCodec.cpp
     CanFrameCodec.hpp
     CanFrameTransport.cpp
