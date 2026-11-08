@@ -47,8 +47,8 @@ namespace services
     void CanBusErrorCounters::Record(CanBusError error)
     {
         auto& counter = counters[IndexOf(error)];
-        counter = Increment(counter);
-        total = Increment(total);
+        counter = SaturatingIncrement(counter);
+        total = SaturatingIncrement(total);
     }
 
     void CanBusErrorCounters::Reset()
@@ -67,16 +67,16 @@ namespace services
         return total;
     }
 
+    uint32_t CanBusErrorCounters::SaturatingIncrement(uint32_t counter)
+    {
+        return counter + static_cast<uint32_t>(counter != UINT32_MAX);
+    }
+
     std::size_t CanBusErrorCounters::IndexOf(CanBusError error)
     {
         const auto index = static_cast<std::size_t>(error);
 
         return index < errorClasses ? index : errorClasses - 1;
-    }
-
-    uint32_t CanBusErrorCounters::Increment(uint32_t counter)
-    {
-        return counter == UINT32_MAX ? counter : counter + 1;
     }
 
     const CanBusErrorCounters& MonitoredCan::ErrorStatistics() const

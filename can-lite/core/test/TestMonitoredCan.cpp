@@ -82,6 +82,13 @@ TEST_F(CanBusErrorCountersTest, every_class_is_counted)
     EXPECT_EQ(4u, counters.Total());
 }
 
+TEST_F(CanBusErrorCountersTest, a_counter_saturates_instead_of_wrapping)
+{
+    EXPECT_EQ(1u, services::CanBusErrorCounters::SaturatingIncrement(0));
+    EXPECT_EQ(UINT32_MAX, services::CanBusErrorCounters::SaturatingIncrement(UINT32_MAX - 1));
+    EXPECT_EQ(UINT32_MAX, services::CanBusErrorCounters::SaturatingIncrement(UINT32_MAX));
+}
+
 TEST_F(CanBusErrorCountersTest, an_unknown_class_is_counted_as_other)
 {
     counters.Record(static_cast<CanBusError>(99));
