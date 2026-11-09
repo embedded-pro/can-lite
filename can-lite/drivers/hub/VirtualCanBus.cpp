@@ -20,7 +20,7 @@ namespace services
             const auto dataBits = static_cast<uint32_t>(8 * frame.data.size());
             const auto stuffable = (frame.extended ? extendedStuffableBits : standardStuffableBits) + dataBits;
             const auto bits = (frame.extended ? extendedFrameBits : standardFrameBits) + dataBits + (stuffable - 1) / bitsPerStuffBit;
-            return std::chrono::nanoseconds(uint64_t{ bits } * nanosecondsPerSecond / bitrate);
+            return std::chrono::duration_cast<infra::Duration>(std::chrono::nanoseconds(uint64_t{ bits } * nanosecondsPerSecond / bitrate));
         }
     }
 
