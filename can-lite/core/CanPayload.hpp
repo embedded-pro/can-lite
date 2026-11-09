@@ -18,6 +18,7 @@ namespace services
         CanPayloadWriter& WriteUInt16(uint16_t value);
         CanPayloadWriter& WriteInt32(int32_t value);
         CanPayloadWriter& WriteUInt32(uint32_t value);
+        CanPayloadWriter& WriteFloat32(float value);
         CanPayloadWriter& WriteFixed16(float value, int32_t scale);
         CanPayloadWriter& WriteBytes(infra::ConstByteRange bytes);
 
@@ -43,6 +44,7 @@ namespace services
         uint16_t ReadUInt16();
         int32_t ReadInt32();
         uint32_t ReadUInt32();
+        float ReadFloat32();
         float ReadFixed16(int32_t scale);
 
         void Skip(std::size_t bytes);

@@ -82,7 +82,7 @@ dropped and clear `Valid()`. `SendResponse()` and `SendCommand()` refuse to send
 an invalid payload, so overflow can never reach the bus.
 
 Available: `ReadUInt8`, `ReadInt16`, `ReadUInt16`, `ReadInt32`, `ReadUInt32`,
-`ReadFixed16(scale)`, `Skip`, `ReadRemaining`, `Available` — and the matching
+`ReadFloat32`, `ReadFixed16(scale)`, `Skip`, `ReadRemaining`, `Available` — and the matching
 `Write*` methods plus `WriteBytes`.
 
 ## 5. Send frames

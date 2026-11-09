@@ -1,5 +1,8 @@
 #include "can-lite/core/CanPayload.hpp"
 #include "gtest/gtest.h"
+#include <array>
+#include <bit>
+#include <cstdint>
 #include <limits>
 
 namespace
@@ -101,6 +104,37 @@ namespace
         writer.WriteFixed16(1000.0f, 1000);
 
         EXPECT_EQ(writer.Message(), MakeMessage({ 0x7F, 0xFF }));
+    }
+
+    TEST(CanPayloadWriterTest, WriteFloat32IsBigEndianBitPattern)
+    {
+        CanPayloadWriter writer;
+        writer.WriteFloat32(1.5f);
+
+        EXPECT_EQ(writer.Message(), MakeMessage({ 0x3F, 0xC0, 0x00, 0x00 }));
+    }
+
+    TEST(CanPayloadWriterTest, WriteFloat32MatchesWriteUInt32OfBitPattern)
+    {
+        for (auto value : { -123.456f, 0.0f, -0.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::denorm_min() })
+        {
+            CanPayloadWriter floatWriter;
+            floatWriter.WriteFloat32(value);
+
+            CanPayloadWriter integerWriter;
+            integerWriter.WriteUInt32(std::bit_cast<uint32_t>(value));
+
+            EXPECT_EQ(floatWriter.Message(), integerWriter.Message());
+        }
+    }
+
+    TEST(CanPayloadWriterTest, WriteFloat32BeyondFrameIsDiscardedWhole)
+    {
+        CanPayloadWriter writer;
+        writer.WriteUInt32(0x01020304).WriteUInt16(0x0506).WriteFloat32(1.0f);
+
+        EXPECT_FALSE(writer.Valid());
+        EXPECT_EQ(writer.Message(), MakeMessage({ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 }));
     }
 
     TEST(CanPayloadWriterTest, WriteBytesAppendsWholeRange)
@@ -220,6 +254,25 @@ namespace
         CanPayloadReader reader{ message };
 
         EXPECT_FLOAT_EQ(reader.ReadFixed16(100), 1.5f);
+    }
+
+    TEST(CanPayloadReaderTest, ReadFloat32IsBigEndianBitPattern)
+    {
+        auto message = MakeMessage({ 0xC0, 0x20, 0x00, 0x00 });
+        CanPayloadReader reader{ message };
+
+        EXPECT_EQ(std::bit_cast<uint32_t>(reader.ReadFloat32()), std::bit_cast<uint32_t>(-2.5f));
+        EXPECT_TRUE(reader.Valid());
+    }
+
+    TEST(CanPayloadReaderTest, ReadFloat32BeyondEndReturnsZeroAndInvalidates)
+    {
+        auto message = MakeMessage({ 0x01, 0x02, 0x03 });
+        CanPayloadReader reader{ message };
+
+        EXPECT_EQ(std::bit_cast<uint32_t>(reader.ReadFloat32()), 0u);
+        EXPECT_FALSE(reader.Valid());
+        EXPECT_EQ(reader.Available(), 0u);
     }
 
     TEST(CanPayloadReaderTest, SkipAdvancesCursor)
@@ -382,4 +435,38 @@ TEST(CanPayloadTest, WriterOutputIsReadableByReader)
     EXPECT_EQ(reader.ReadUInt32(), 0xDEADBEEFu);
     EXPECT_TRUE(reader.Valid());
     EXPECT_EQ(reader.Available(), 0u);
+}
+
+TEST(CanPayloadTest, Float32RoundTripPreservesBits)
+{
+    const std::array values{
+        1.0f,
+        3.14159265f,
+        1.0e-30f,
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::denorm_min(),
+        -1.0f,
+        -273.15f,
+        std::numeric_limits<float>::lowest(),
+        0.0f,
+        -0.0f,
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::quiet_NaN(),
+        -std::numeric_limits<float>::quiet_NaN(),
+        std::bit_cast<float>(uint32_t{ 0x7FA00001 }),
+    };
+
+    for (auto value : values)
+    {
+        CanPayloadWriter writer;
+        writer.WriteFloat32(value).WriteFloat32(value);
+
+        CanPayloadReader reader{ writer.Message() };
+
+        EXPECT_EQ(std::bit_cast<uint32_t>(reader.ReadFloat32()), std::bit_cast<uint32_t>(value));
+        EXPECT_EQ(std::bit_cast<uint32_t>(reader.ReadFloat32()), std::bit_cast<uint32_t>(value));
+        EXPECT_TRUE(reader.Valid());
+        EXPECT_EQ(reader.Available(), 0u);
+    }
 }

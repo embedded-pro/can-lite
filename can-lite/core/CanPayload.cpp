@@ -1,5 +1,6 @@
 #include "can-lite/core/CanPayload.hpp"
 #include "can-lite/core/CanFrameCodec.hpp"
+#include <bit>
 
 namespace services
 {
@@ -41,6 +42,11 @@ namespace services
             CanFrameCodec::WriteUInt32(message, message.size(), value);
 
         return *this;
+    }
+
+    CanPayloadWriter& CanPayloadWriter::WriteFloat32(float value)
+    {
+        return WriteUInt32(std::bit_cast<uint32_t>(value));
     }
 
     CanPayloadWriter& CanPayloadWriter::WriteFixed16(float value, int32_t scale)
@@ -133,6 +139,11 @@ namespace services
             return 0;
 
         return CanFrameCodec::ReadUInt32(message, *start);
+    }
+
+    float CanPayloadReader::ReadFloat32()
+    {
+        return std::bit_cast<float>(ReadUInt32());
     }
 
     float CanPayloadReader::ReadFixed16(int32_t scale)

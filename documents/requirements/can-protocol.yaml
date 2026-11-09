@@ -184,9 +184,19 @@
 - id: REQ-CAN-015
   title: Fixed-point data encoding
   shall: >
-    All floating-point values transmitted over CAN shall be encoded
-    as big-endian signed fixed-point integers with defined per-quantity
-    scale factors, with saturation clamping to prevent integer overflow.
+    A floating-point value transmitted over CAN with a scale factor
+    shall be encoded as a big-endian signed fixed-point integer with a
+    defined per-quantity scale factor, with saturation clamping to
+    prevent integer overflow.
+
+- id: REQ-CAN-049
+  title: Single-precision floating-point encoding
+  shall: >
+    A floating-point value transmitted over CAN without a scale factor
+    shall be encoded as its 4-byte IEEE 754 single-precision bit pattern,
+    in the same big-endian byte order as an unsigned 32-bit integer, so
+    that every value, including signed zero, infinities and NaN, is
+    received bit for bit as it was sent.
 
 - id: REQ-CAN-016
   title: Short payload rejection
