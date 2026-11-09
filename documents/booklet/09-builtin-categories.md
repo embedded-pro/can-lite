@@ -234,3 +234,97 @@ The last row is the one to read twice. can-lite authenticates nothing: any node
 that can put frames on the bus can start an upgrade. Where that matters, the
 image must carry its own signature and the application must check it before
 reporting success.
+
+## 5. The upgrade session: one application, ready made
+
+The category keeps no state so that any storage can sit behind it. Most products
+built on the infrastructure library stage the same thing, though: a signed
+upgrade pack, written to a flash slot, checked, and handed to the bootloader
+through its status journal. `FirmwareUpgradeSession` is that application,
+shipped in its own library, `can_lite.categories.firmware_upgrade.session`, so
+that a product need not write it again. A product with other storage ignores it
+and observes the category itself, exactly as §2 describes.
+
+### What it owns, and what it asks for
+
+| Port                     | Provided by | What the session does with it                                                                              |
+|--------------------------|-------------|------------------------------------------------------------------------------------------------------------|
+| Firmware staging         | the product | The pack slot, the journal, the product name and application capacity a pack must match, the page size     |
+| Firmware upgrade hold    | the product | Asks whether the application is stopped and idle, holds it while the session works, releases it afterwards |
+| Reset                    | the product | Restarts the node into the bootloader once a pack is activated                                             |
+| Firmware upgrade control | the session | Lets the product ask whether the session is running, which version is staged, and cancel a download        |
+
+Staging is optional. A node constructed without it refuses every begin as too
+large and every activation as not ready, so one image can run on boards with and
+without a staging slot.
+
+The session meets the obligations of §4 as follows: the slot is erased whole
+before the begin is answered, blocks are buffered into pages and each page is
+read back after it is programmed, the client's checksum is compared over the
+size given in the begin, and the pack's own header — product, target, version
+and size — is checked against the staging limits before the pack counts as
+staged. Authenticity is left to the bootloader, which verifies the pack's
+signature before it installs it.
+
+### The session's states
+
+The states reported to the client (the
+[Firmware Upgrade Specification](../spec/firmware-upgrade.md) §2) are a coarser
+view of these.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    [*] --> Staged : journal reads downloaded at start-up
+    Idle --> Erasing : begin accepted
+    Staged --> Erasing : begin accepted
+    Error --> Erasing : begin accepted
+    Erasing --> Receiving : slot erased
+    Erasing --> Error : erase failed
+    Receiving --> Verifying : verify with every byte received
+    Receiving --> Error : page write failed
+    Verifying --> Staged : checksum and header pass
+    Verifying --> Error : checksum or header fails
+    Erasing --> Idle : abort or cancel
+    Receiving --> Idle : abort, cancel or timeout
+    Verifying --> Idle : abort or cancel
+    Staged --> Idle : abort discards the pack
+    Error --> Idle : abort
+    Staged --> Restarting : activate
+    Restarting --> [*] : reset after the restart delay
+```
+
+| Session state         | Reported to the client | Application held |
+|-----------------------|------------------------|------------------|
+| Idle                  | idle                   | no               |
+| Erasing and Receiving | receiving              | yes              |
+| Verifying             | verifying              | yes              |
+| Staged and Restarting | complete               | Restarting only  |
+| Error                 | error                  | no               |
+
+### The decisions worth knowing
+
+- **Nothing starts while the application runs.** A begin or an activation is
+  refused busy unless the hold reports the application stopped and idle, and
+  from the first erase until the pack is staged, fails or is abandoned the
+  application stays held. Activation keeps it held until the reset.
+- **The journal is the only memory.** A staged pack is recorded as downloaded in
+  the bootloader's status journal, so it survives a restart: the session reads
+  the staged header back at start-up and reports the pack complete. Activation
+  records it ready to deploy, answers, and resets after a short delay so the
+  answer leaves the node first.
+- **A flash step is never cut short.** An abort, a cancel or an expiry that
+  arrives while a sector is erased or a page programmed waits for that step to
+  finish. The command it interrupted is answered invalid state first, the abort
+  after it.
+- **The journal is written only while the application is stopped or held.** The
+  journal is written synchronously. Aborting a staged pack therefore forgets it
+  at once, but clears the journal only once the application is stopped and idle,
+  retrying until it is.
+- **Two deadlines, one outcome.** The session keeps its own inactivity deadline
+  beside the category's session timer (§2); whichever fires first ends a download
+  that is receiving blocks. Neither ends an erase or a verification.
+- **Cancel is for the product.** Firmware upgrade control's cancel ends a
+  download the way an abort does, without an abort answer, and leaves a staged
+  pack and an accepted activation alone — what a product needs when its own
+  emergency handling must stop the transfer.

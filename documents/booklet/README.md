@@ -29,7 +29,7 @@ no chapter contains source code.
 | 6 | [The Server: Receive Pipeline](06-server-pipeline.md)                 | Every gate a received frame passes, why some rejections are silent, sequence validation, liveness, heartbeat |
 | 7 | [The Client: Per-Server State](07-client-state.md)                    | The two state tables, sequence supply, resynchronisation, outstanding commands, server tracking, discovery   |
 | 8 | [Segmentation: The ISO-TP State Machines](08-isotp-state-machines.md) | Channels, the sender and receiver machines, aborts, and the deliberate omissions                             |
-| 9 | [The Built-in Categories: Design Rationale](09-builtin-categories.md) | Why the system category is a category, and why the firmware upgrade category keeps no state                  |
+| 9 | [The Built-in Categories: Design Rationale](09-builtin-categories.md) | Why the system category is a category, why the firmware upgrade category keeps no state, the upgrade session |
 
 ## Part III — Behaviour Under Stress
 

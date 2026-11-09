@@ -95,12 +95,14 @@ flowchart BT
     transport["can_lite.transport"]
     system["can_lite.categories.system"]
     fwu["can_lite.categories.firmware_upgrade"]
+    session["can_lite.categories.firmware_upgrade.session"]
     server["can_lite.server"]
     client["can_lite.client"]
     drvif["can_lite.drivers.interface"]
     codec["can_lite.drivers.codec"]
     drv["can_lite.drivers.socketcan · pcan · kvaser · gsusb · serial · slcan · multi · platform"]
     emil["embedded-infra-lib<br/>infra.util · infra.timer · hal.interfaces"]
+    upgrade["embedded-infra-lib<br/>upgrade.staging · bootloader"]
 
     core --> emil
     isotp --> emil
@@ -108,6 +110,8 @@ flowchart BT
     transport --> isotp
     system --> core
     fwu --> core
+    session --> fwu
+    session --> upgrade
     server --> system
     server --> core
     client --> system
@@ -123,6 +127,10 @@ Three rules govern it:
 1. **A category links the core library and nothing else.** A category that links
    the server or the client library has quietly made itself unusable by the
    peer. This is the one build-level mistake worth watching for in review.
+   The upgrade session is not a category but an application of one: it links
+   the firmware upgrade category and the infrastructure library's upgrade
+   staging and bootloader libraries, and is linked only by a product that uses
+   it (Chapter 9, §5).
 2. **The server and client libraries never depend on each other.** A node that
    is only a server does not carry the client's per-server state and timers.
 3. **Dependencies are fetched only in a standalone build.** Consumed as a
