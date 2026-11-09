@@ -428,11 +428,11 @@ clamping or substitution is applied: signed zero, subnormals, infinities and NaN
 payloads arrive bit for bit as they were sent, and a receiver that requires a
 finite value checks for it itself.
 
-| Value  | Bit pattern  | Byte[0..3]                |
-|--------|--------------|---------------------------|
-| 1.5    | `0x3FC00000` | `0x3F 0xC0 0x00 0x00`     |
-| -2.5   | `0xC0200000` | `0xC0 0x20 0x00 0x00`     |
-| +inf   | `0x7F800000` | `0x7F 0x80 0x00 0x00`     |
+| Value | Bit pattern  | Byte[0..3]            |
+|-------|--------------|-----------------------|
+| 1.5   | `0x3FC00000` | `0x3F 0xC0 0x00 0x00` |
+| -2.5  | `0xC0200000` | `0xC0 0x20 0x00 0x00` |
+| +inf  | `0x7F800000` | `0x7F 0x80 0x00 0x00` |
 
 ## 10. Enumeration Tables
 
