@@ -40,7 +40,7 @@ namespace services
         return false;
     }
 
-    void VirtualCanBus::Detach(VirtualCanParticipant& participant)
+    void VirtualCanBus::Detach(const VirtualCanParticipant& participant)
     {
         auto* member = Find(participant);
         if (member == nullptr)
@@ -52,13 +52,13 @@ namespace services
         if (bus == nullptr)
             return;
 
-        bus->queue.erase(std::remove_if(bus->queue.begin(), bus->queue.end(), [&participant](const Pending& pending)
-                             {
-                                 return pending.sender == &participant;
-                             }),
-            bus->queue.end());
+        const auto left = std::ranges::remove_if(bus->queue, [&participant](const Pending& pending)
+            {
+                return pending.sender == &participant;
+            });
+        bus->queue.erase(left.begin(), left.end());
 
-        const bool joined = std::any_of(members.begin(), members.end(), [bus](const Member& other)
+        const bool joined = std::ranges::any_of(members, [bus](const Member& other)
             {
                 return other.participant != nullptr && other.bus == bus->name;
             });
@@ -71,7 +71,7 @@ namespace services
         }
     }
 
-    void VirtualCanBus::Receive(VirtualCanParticipant& participant, infra::ConstByteRange bytes)
+    void VirtualCanBus::Receive(const VirtualCanParticipant& participant, infra::ConstByteRange bytes)
     {
         for (const auto byte : bytes)
         {
@@ -131,7 +131,7 @@ namespace services
         return true;
     }
 
-    bool VirtualCanBus::SelectBitrate(Member& member, uint32_t bitrate)
+    bool VirtualCanBus::SelectBitrate(Member& member, uint32_t bitrate) const
     {
         if (member.bus.empty() || ConflictsWithOpenMembers(member, bitrate))
             return false;
@@ -150,7 +150,7 @@ namespace services
         return true;
     }
 
-    bool VirtualCanBus::Queue(Member& member, const SlcanFrame& frame)
+    bool VirtualCanBus::Queue(const Member& member, const SlcanFrame& frame)
     {
         auto* bus = BusOf(member);
         if (!member.open || frame.remote || bus == nullptr || bus->queue.full())
@@ -164,7 +164,7 @@ namespace services
 
     bool VirtualCanBus::ConflictsWithOpenMembers(const Member& member, uint32_t bitrate) const
     {
-        return std::any_of(members.begin(), members.end(), [&member, bitrate](const Member& other)
+        return std::ranges::any_of(members, [&member, bitrate](const Member& other)
             {
                 return &other != &member && other.participant != nullptr && other.open && other.bus == member.bus && other.bitrate != bitrate;
             });
@@ -202,7 +202,7 @@ namespace services
         if (bus.queue.empty())
             return;
 
-        const auto next = std::min_element(bus.queue.begin(), bus.queue.end(), [](const Pending& left, const Pending& right)
+        const auto next = std::ranges::min_element(bus.queue, [](const Pending& left, const Pending& right)
             {
                 return left.frame.id < right.frame.id;
             });

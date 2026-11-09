@@ -20,28 +20,30 @@ namespace services
 
     VirtualBusPort::~VirtualBusPort()
     {
-        Close();
+        VirtualBusPort::Close();
     }
 
     SerialPortOpenResult VirtualBusPort::Open(infra::BoundedConstString bus)
     {
+        using enum SerialPortOpenResult;
+
         Close();
 
         const auto join = VirtualBusJoin(bus);
         if (join.empty())
-            return SerialPortOpenResult::notFound;
+            return notFound;
 
         socket = loopback::Connect(hubPort);
         if (socket == loopback::invalidSocket)
-            return SerialPortOpenResult::notFound;
+            return notFound;
 
         if (!Write(join))
         {
             Close();
-            return SerialPortOpenResult::failed;
+            return failed;
         }
 
-        return SerialPortOpenResult::opened;
+        return opened;
     }
 
     void VirtualBusPort::Close()

@@ -33,8 +33,8 @@ namespace services
         static constexpr std::size_t maxQueuedFrames{ 64 };
 
         bool Attach(VirtualCanParticipant& participant);
-        void Detach(VirtualCanParticipant& participant);
-        void Receive(VirtualCanParticipant& participant, infra::ConstByteRange bytes);
+        void Detach(const VirtualCanParticipant& participant);
+        void Receive(const VirtualCanParticipant& participant, infra::ConstByteRange bytes);
 
     private:
         struct Member
@@ -64,9 +64,9 @@ namespace services
         Member* Find(const VirtualCanParticipant& participant);
         void Handle(Member& member, const SlcanCommandDecoder::Item& item);
         bool Join(Member& member, infra::BoundedConstString name);
-        bool SelectBitrate(Member& member, uint32_t bitrate);
+        bool SelectBitrate(Member& member, uint32_t bitrate) const;
         bool OpenChannel(Member& member);
-        bool Queue(Member& member, const SlcanFrame& frame);
+        bool Queue(const Member& member, const SlcanFrame& frame);
         bool ConflictsWithOpenMembers(const Member& member, uint32_t bitrate) const;
         Bus* BusOf(const Member& member);
         Bus* AcquireBus(infra::BoundedConstString name);
