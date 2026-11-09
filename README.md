@@ -29,6 +29,7 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **Prioritised Send Queue**: Outbound frames leave in priority order, with capacity reserved for emergency frames
 - **Fixed-Point Codec**: Saturation-clamped encoding for float-to-integer conversion
 - **ISO-TP (ISO 15765-2)**: Optional multi-frame segmentation and reassembly for payloads > 8 bytes
+- **Firmware Upgrade Session**: Optional ready-made server application for the firmware upgrade category that stages an embedded-infra-lib upgrade pack for its bootloader
 - **Tracing Decorators**: Opt-in, per-layer observability — decoded bus frames, ISO-TP segmentation events, and protocol-layer timeouts, with no tracer dependency in the library itself
 
 ### Host Adapters
@@ -111,7 +112,7 @@ supplies both itself; FetchContent remains the simpler route.
 │   │   └── test/                       # Core unit tests and shared test doubles
 │   ├── categories/             # Built-in categories (server/client pairs)
 │   │   ├── system/             # System category 0x0 (heartbeat, ack, discovery)
-│   │   └── firmware_upgrade/   # Firmware Upgrade category 0x1
+│   │   └── firmware_upgrade/   # Firmware Upgrade category 0x1, and the optional upgrade session behind its server
 │   ├── server/                 # Server implementation
 │   │   ├── CanProtocolServer.hpp       # Server with dispatch & observer
 │   │   └── test/                       # Server unit tests

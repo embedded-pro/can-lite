@@ -466,6 +466,7 @@ Abort reasons are enumerated in `IsoTpTypes.hpp` and catalogued in the design bo
 - **CMake presets** are the primary interface (see `CMakePresets.json`).
 - Libraries follow the `can_lite.<component>` naming convention.
 - Category libraries link `can_lite.core`; protocol libraries link the relevant category libraries.
+- `can_lite.categories.firmware_upgrade.session` is the one library above a category: it links the firmware upgrade category and embedded-infra-lib's `upgrade.staging` and `bootloader`, and only a product that uses the upgrade session links it.
 - Unit tests use GoogleTest/GMock and run on the host.
 - Standalone builds fetch `embedded-infra-lib` via FetchContent.
 

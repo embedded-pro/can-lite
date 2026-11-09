@@ -21,6 +21,9 @@ components that own them — see
 | Client                | server liveness, one per slot | single-shot × 8 | every frame from that server                           | report that server offline                               |
 | Client                | acknowledgement, one per slot | single-shot × 8 | reserving a number for that server                     | report the command unanswered                            |
 | Firmware upgrade      | session                       | single-shot     | the commands that make progress                        | report the session expired                               |
+| Upgrade session       | inactivity                    | single-shot     | an accepted begin or block                             | end the download                                         |
+| Upgrade session       | restart                       | single-shot     | an accepted activation                                 | reset the node                                           |
+| Upgrade session       | discard retry                 | **repeating**   | itself, while the application is not stopped           | clear the journal once the application is stopped        |
 | Segmentation sender   | N_As                          | single-shot     | handing a single or consecutive frame to the transport | abort the transfer                                       |
 | Segmentation sender   | N_Bs                          | single-shot     | sending a frame that awaits flow control               | abort the transfer                                       |
 | Segmentation sender   | separation                    | single-shot     | each frame, when the peer asks for pacing              | send the next frame                                      |
@@ -31,8 +34,10 @@ holds **seventeen** live timers. A server holds three, plus one per firmware
 upgrade category and two per open segmentation channel. All of them are members;
 none is allocated.
 
-**Exactly one timer in the library is periodic.** An idle server has two timers
-armed, an idle client one; everything else is dormant until something happens.
+**Exactly one timer in the protocol layers is periodic.** The optional upgrade
+session's discard retry is the only other, and it runs only while a discarded
+pack waits for the application to stop. An idle server has two timers armed, an
+idle client one; everything else is dormant until something happens.
 
 ## 2. How the parameters constrain each other
 
