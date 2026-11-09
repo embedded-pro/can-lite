@@ -406,7 +406,9 @@ truncate.
 
 ## 9. Data Encoding
 
-All multi-byte integers are encoded **big-endian** (network byte order).
+All multi-byte values are encoded **big-endian** (network byte order). Each
+message's specification states, per floating-point field, which of the two
+encodings below it uses.
 
 ### 9.1 Encoding Algorithm
 
@@ -416,6 +418,21 @@ float_value = fixed_value / scale_factor
 ```
 
 Values are saturated (clamped) to the target integer range to prevent overflow.
+
+### 9.2 Single-Precision Floating Point
+
+A field carried without a scale factor occupies 4 bytes and holds the IEEE 754
+binary32 bit pattern of the value, encoded as a big-endian uint32. The bytes are
+identical to those of a uint32 field holding the same bit pattern. No rounding,
+clamping or substitution is applied: signed zero, subnormals, infinities and NaN
+payloads arrive bit for bit as they were sent, and a receiver that requires a
+finite value checks for it itself.
+
+| Value | Bit pattern  | Byte[0..3]            |
+|-------|--------------|-----------------------|
+| 1.5   | `0x3FC00000` | `0x3F 0xC0 0x00 0x00` |
+| -2.5  | `0xC0200000` | `0xC0 0x20 0x00 0x00` |
+| +inf  | `0x7F800000` | `0x7F 0x80 0x00 0x00` |
 
 ## 10. Enumeration Tables
 

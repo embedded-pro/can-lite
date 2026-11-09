@@ -149,13 +149,19 @@ will act on zeros. That is catalogued in Chapter 10, §9.
 
 ## 4. Numbers on the wire
 
-Multi-byte fields are big-endian, and floating-point values cross the bus as
-scaled integers, so that a target without a floating-point unit and a host with
-one produce byte-identical frames. The scale is chosen per message and is part
-of that message's specification.
+Multi-byte fields are big-endian, and floating-point values cross the bus in one
+of two forms, chosen per field and stated in the message's specification:
 
-Two properties of the conversion are worth carrying into a design review,
-because they decide what a peer sees when a value is out of range:
+- **Scaled integers**, so that a target without a floating-point unit and a
+  host with one produce byte-identical frames. The scale is part of the field's
+  specification.
+- **Single-precision bit patterns**, four bytes in the same order as a 32-bit
+  unsigned integer. The value travels unchanged — full range, signed zero,
+  infinities and NaN included — so a receiver that needs a finite value must
+  check for one; this layer passes the bits through without judging them.
+
+Two properties of the scaled-integer conversion are worth carrying into a design
+review, because they decide what a peer sees when a value is out of range:
 
 - **Out-of-range values saturate; they do not wrap.** A control loop that
   receives a saturated set-point is behaving as commanded-but-clipped, never as
