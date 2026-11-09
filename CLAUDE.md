@@ -54,7 +54,7 @@ HAL                (hal::Can)
 - **`can-lite/categories/`** — Server/client pairs shipped with the library: `system/` (heartbeat, ack, discovery), `firmware_upgrade/`. Each pair has its own `*Definitions.hpp` with category ID and message type IDs. **Application-specific categories belong in the consuming project, not here.**
 - **`can-lite/server/`** and **`can-lite/client/`** — `CanProtocolServer`/`CanProtocolClient` handle dispatch, sequence tracking, liveness detection, and optional ISO-TP attachment. `CanProtocolClient` implements `CanSequenceSource`.
 - **`can-lite/transport/`** — ISO-TP layer (`IsoTpTransportImpl`); all classes are non-template with `WithStorage` aliases. Attach via `server.AttachIsoTpTransport(isoTp)`.
-- **`examples/`** — Reference application categories (`foc_motor/`). Not built by default; enable with `-DCAN_LITE_BUILD_EXAMPLES=On` (forced On when tests are enabled).
+- **`examples/`** — Reference application categories (`setpoint/`). Not built by default; enable with `-DCAN_LITE_BUILD_EXAMPLES=On` (forced On when tests are enabled).
 - **`integration_tests/`** — BDD tests (cucumber-cpp-runner); `support/ApplicationFixture.hpp` composes `VirtualCan` pairs, server, client, and `StrictMock` observers. `support/TestCategories.hpp` holds the `DemoCategory` server/client pair (`0x3`) used as the minimal reference category.
 
 ### CAN ID Layout (29-bit extended)

@@ -7,7 +7,7 @@ Everything domain-specific belongs in the consuming project as an
 **application category** using identifiers `0x2`–`0xF`. This document is the
 reference for writing one.
 
-A complete worked example lives in [`examples/foc_motor/`](../../examples/foc_motor/);
+A complete worked example lives in [`examples/setpoint/`](../../examples/setpoint/);
 a minimal one used by the integration tests lives in
 [`integration_tests/support/TestCategories.hpp`](../../integration_tests/support/TestCategories.hpp).
 
@@ -32,7 +32,7 @@ Put every wire constant in one `*Definitions.hpp` so the wire format is
 reviewable in a single place: the category ID, the command message type IDs
 (`0x00`–`0x7F`), the response message type IDs (`0x80`–`0xFF`), and the
 category's own error codes as a `uint8_t` scoped enumeration.
-`FocMotorDefinitions.hpp` in the worked example shows the layout.
+`SetpointDefinitions.hpp` in the worked example shows the layout.
 
 `IsApplicationCategoryId()`, `IsCommandMessageType()` and
 `IsResponseMessageType()` from `CanProtocolDefinitions.hpp` are `constexpr`, so

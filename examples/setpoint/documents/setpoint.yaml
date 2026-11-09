@@ -1,0 +1,73 @@
+# Setpoint — Example Category Requirements
+#
+# Category ID: 0x2
+# Extends: can-protocol.yaml (base protocol requirements)
+
+- id: REQ-SETPOINT-001
+  title: Category identity
+  shall: >
+    The server and client shall both report category ID 0x2. The server
+    shall require sequence validation on every command; the client shall
+    not require it on responses.
+  tests:
+    - TestSetpointCategoryServer.Id
+    - TestSetpointCategoryServer.RequiresSequenceValidation
+    - TestSetpointCategoryClient.Id
+    - TestSetpointCategoryClient.RequiresSequenceValidation
+
+- id: REQ-SETPOINT-002
+  title: Set setpoint command
+  shall: >
+    The client shall send a Set Setpoint command (0x00) carrying the
+    sequence byte and the setpoint as a big-endian int16 with scale 100.
+    The server shall pass the decoded setpoint to its observer and
+    acknowledge the command with the status the observer reports.
+  tests:
+    - TestSetpointCategoryClient.SendSetSetpoint_SendsSequencedCommandWithFixedPointValue
+    - TestSetpointCategoryServerWithObserver.SetSetpoint_DecodesValueAndAcksSuccess
+    - TestSetpointCategoryServerWithObserver.SetSetpoint_AcksWithTheStatusTheObserverReports
+
+- id: REQ-SETPOINT-003
+  title: Set setpoint payload validation
+  shall: >
+    The server shall reject a Set Setpoint payload shorter than 3 bytes
+    without notifying its observer.
+  tests:
+    - TestSetpointCategoryServerWithObserver.SetSetpoint_TooShortRejected
+
+- id: REQ-SETPOINT-004
+  title: Status request
+  shall: >
+    The client shall send a Request Status command (0x01) carrying only
+    the sequence byte. The server shall obtain the status from its
+    observer, send it as a Status response (0x81) at response priority,
+    and then acknowledge the command with success.
+  tests:
+    - TestSetpointCategoryClient.SendRequestStatus_SendsSequencedCommandWithoutPayload
+    - TestSetpointCategoryServerWithObserver.RequestStatus_SendsStatusResponseAndAck
+
+- id: REQ-SETPOINT-005
+  title: Status telemetry
+  shall: >
+    The server shall let the application publish the Status frame (0x81)
+    at telemetry priority without a preceding request.
+  tests:
+    - TestSetpointCategoryServer.PublishStatus_SendsStatusAsTelemetry
+
+- id: REQ-SETPOINT-006
+  title: Status reception
+  shall: >
+    The client shall decode the setpoint and measurement of a Status
+    frame, each a big-endian int16 with scale 100, and notify its
+    observer. It shall reject a payload shorter than 4 bytes.
+  tests:
+    - TestSetpointCategoryClientWithObserver.Status_DecodesAndNotifiesObserver
+    - TestSetpointCategoryClientWithObserver.Status_TooShortRejected
+    - TestSetpointCategoryClient.Status_WithoutObserverIsHandled
+
+- id: REQ-SETPOINT-007
+  title: Unknown message types
+  shall: >
+    The server shall report a message type it does not define as unknown.
+  tests:
+    - TestSetpointCategoryServer.UnknownMessageType_ReturnsUnknownMessageType
