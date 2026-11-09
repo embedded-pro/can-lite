@@ -27,7 +27,7 @@ if (CAN_LITE_STANDALONE)
     FetchContent_Declare(
         emil
         GIT_REPOSITORY https://github.com/embedded-pro/embedded-infra-lib.git
-        GIT_TAG        2848dbf163a6ebf159e29f7f4f73b96f7773d20d # Unreleased
+        GIT_TAG        36021e732ce442679f38c97cea54a0ab7b239812 # Unreleased
     )
 
     set(EMIL_INCLUDE_ECHO Off CACHE BOOL "" FORCE)
