@@ -2,6 +2,7 @@
 
 #include "can-lite/drivers/implementation/MultiCanAdapter.hpp"
 #include "can-lite/drivers/implementation/SlcanAdapter.hpp"
+#include "can-lite/drivers/implementation/VirtualBusPort.hpp"
 
 #if defined(__linux__)
 #include "can-lite/drivers/implementation/PosixSerialPort.hpp"
@@ -29,14 +30,18 @@ namespace services
         SocketCanAdapter socketCan;
         PosixSerialPort serialPort;
         SlcanAdapter slcan{ serialPort };
-        MultiCanAdapter::WithMaxBackends<2> adapter;
+        VirtualBusPort virtualPort;
+        SlcanAdapter virtualBus{ virtualPort };
+        MultiCanAdapter::WithMaxBackends<3> adapter;
 #else
         PcanAdapter pcan;
         KvaserAdapter kvaser;
         WindowsSerialPort serialPort;
         SlcanAdapter slcan{ serialPort };
         GsUsbAdapter candleLight;
-        MultiCanAdapter::WithMaxBackends<4> adapter;
+        VirtualBusPort virtualPort;
+        SlcanAdapter virtualBus{ virtualPort };
+        MultiCanAdapter::WithMaxBackends<5> adapter;
 #endif
     };
 }

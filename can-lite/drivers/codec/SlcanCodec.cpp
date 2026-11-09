@@ -59,11 +59,6 @@ namespace services
                 out.push_back(hexDigits[(value >> (4 * (index - 1))) & 0xf]);
         }
 
-        bool IsFrameType(char type)
-        {
-            return type == 't' || type == 'T' || type == 'r' || type == 'R';
-        }
-
         bool ParsePayload(infra::BoundedConstString line, std::size_t offset, std::size_t length, CanFrame& data)
         {
             for (std::size_t index = 0; index < length; ++index)
@@ -75,25 +70,31 @@ namespace services
             }
             return true;
         }
+    }
 
-        std::optional<SlcanFrame> ParseFrame(infra::BoundedConstString line)
-        {
-            const auto type = line.front();
-            const bool extended{ type == 'T' || type == 'R' };
-            const bool remote{ type == 'r' || type == 'R' };
-            const auto idDigits = extended ? extendedIdDigits : standardIdDigits;
+    std::optional<SlcanFrame> DecodeSlcanFrame(infra::BoundedConstString line)
+    {
+        if (line.empty())
+            return std::nullopt;
 
-            const auto id = ParseHex(line, 1, idDigits);
-            const auto length = line.size() > 1 + idDigits ? HexDigit(line[1 + idDigits]) : std::nullopt;
-            if (!id || !length || *length > 8 || *id > (extended ? extendedIdMask : standardIdMask))
-                return std::nullopt;
+        const auto type = line.front();
+        if (type != 't' && type != 'T' && type != 'r' && type != 'R')
+            return std::nullopt;
 
-            SlcanFrame frame{ *id, extended, remote, {} };
-            if (!remote && !ParsePayload(line, 2 + idDigits, *length, frame.data))
-                return std::nullopt;
+        const bool extended{ type == 'T' || type == 'R' };
+        const bool remote{ type == 'r' || type == 'R' };
+        const auto idDigits = extended ? extendedIdDigits : standardIdDigits;
 
-            return frame;
-        }
+        const auto id = ParseHex(line, 1, idDigits);
+        const auto length = line.size() > 1 + idDigits ? HexDigit(line[1 + idDigits]) : std::nullopt;
+        if (!id || !length || *length > 8 || *id > (extended ? extendedIdMask : standardIdMask))
+            return std::nullopt;
+
+        SlcanFrame frame{ *id, extended, remote, {} };
+        if (!remote && !ParsePayload(line, 2 + idDigits, *length, frame.data))
+            return std::nullopt;
+
+        return frame;
     }
 
     std::optional<char> SlcanBitrateCode(uint32_t bitrate)
@@ -101,6 +102,14 @@ namespace services
         for (const auto& [rate, code] : bitrateCodes)
             if (rate == bitrate)
                 return code;
+        return std::nullopt;
+    }
+
+    std::optional<uint32_t> SlcanBitrate(char bitrateCode)
+    {
+        for (const auto& [rate, code] : bitrateCodes)
+            if (code == bitrateCode)
+                return rate;
         return std::nullopt;
     }
 
@@ -162,9 +171,8 @@ namespace services
         if (line.empty() || line == "z" || line == "Z")
             return Item{ Event::acknowledged, {} };
 
-        if (IsFrameType(line.front()))
-            if (const auto frame = ParseFrame(line))
-                return Item{ Event::frame, *frame };
+        if (const auto frame = DecodeSlcanFrame(line))
+            return Item{ Event::frame, *frame };
 
         return std::nullopt;
     }

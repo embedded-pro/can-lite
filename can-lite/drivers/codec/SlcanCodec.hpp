@@ -14,6 +14,7 @@ namespace services
     std::optional<char> SlcanBitrateCode(uint32_t bitrate);
     SlcanCommand SlcanOpenCommands(char bitrateCode);
     SlcanCommand SlcanCloseCommand();
+    std::optional<uint32_t> SlcanBitrate(char bitrateCode);
     SlcanCommand EncodeSlcanFrame(uint32_t id, bool extended, const CanFrame& data);
 
     struct SlcanFrame
@@ -23,6 +24,8 @@ namespace services
         bool remote{};
         CanFrame data;
     };
+
+    std::optional<SlcanFrame> DecodeSlcanFrame(infra::BoundedConstString line);
 
     class SlcanDecoder
     {

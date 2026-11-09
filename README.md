@@ -33,7 +33,7 @@ The protocol ships with a built-in **System** category (heartbeat, command ackno
 - **Tracing Decorators**: Opt-in, per-layer observability — decoded bus frames, ISO-TP segmentation events, and protocol-layer timeouts, with no tracer dependency in the library itself
 
 ### Host Adapters
-- **Bus Adapters for Tools**: SocketCAN (Linux), slcan/CANable over a serial port (Linux and Windows), candleLight via WinUSB, PCAN-Basic and Kvaser CANlib (Windows)
+- **Bus Adapters for Tools**: SocketCAN (Linux), slcan/CANable over a serial port (Linux and Windows), candleLight via WinUSB, PCAN-Basic and Kvaser CANlib (Windows), and `virtual:` buses on a local virtual CAN hub (Linux and Windows)
 - **No Vendor SDK to Build**: PCAN and Kvaser libraries are loaded at run time; a missing driver is explained, not fatal
 - **One Name Space for Many Adapters**: A router addresses each adapter as `prefix:channel` and composes the right set for the platform
 
@@ -131,10 +131,11 @@ supplies both itself; FetchContent remains the simpler route.
 │   │   ├── TracingCanProtocolServerObserver.hpp  # liveness events
 │   │   ├── TracingCanProtocolClientObserver.hpp  # liveness and ack timeouts
 │   │   └── test/                       # Tracing unit tests
-│   └── drivers/                # Host CAN adapters: SocketCAN, slcan, candleLight, PCAN, Kvaser
+│   └── drivers/                # Host CAN adapters: SocketCAN, slcan, candleLight, PCAN, Kvaser, virtual bus
 │       ├── interface/                  # CanBusAdapter, SerialPort
-│       ├── codec/                      # slcan lines, gs_usb frames and bit timing
-│       ├── implementation/             # The adapters, the router and the platform set
+│       ├── codec/                      # slcan lines (host and device side), gs_usb frames and bit timing
+│       ├── implementation/             # The adapters, the router, the platform set and the virtual bus port
+│       ├── hub/                        # The virtual CAN hub and its bus model
 │       └── test/                       # Driver unit tests
 ├── integration_tests/          # BDD features, step definitions and the shared fixture
 ├── examples/                   # Reference application categories, not built by default
