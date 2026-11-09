@@ -46,19 +46,21 @@ namespace services
 
     void FirmwareUpgradeSession::OnDataBlock(uint16_t blockIndex, infra::ConstByteRange data, const infra::Function<void(FwuError)>& onResult)
     {
+        using enum FwuError;
+
         if (state != State::receiving)
-            onResult(FwuError::invalidState);
+            onResult(invalidState);
         else if (FlashBusy())
-            onResult(FwuError::busy);
+            onResult(busy);
         else if (nextBlock != 0 && blockIndex == nextBlock - 1)
         {
             RestartDeadline();
-            onResult(FwuError::ok);
+            onResult(ok);
         }
         else if (blockIndex != nextBlock)
-            onResult(FwuError::sequenceError);
+            onResult(sequenceError);
         else if (data.size() > packSize - writer->Written())
-            onResult(FwuError::invalidSize);
+            onResult(invalidSize);
         else
         {
             RestartDeadline();
@@ -166,7 +168,9 @@ namespace services
 
     bool FirmwareUpgradeSession::Holds(State state)
     {
-        return state == State::erasing || state == State::receiving || state == State::verifying || state == State::restarting;
+        using enum State;
+
+        return state == erasing || state == receiving || state == verifying || state == restarting;
     }
 
     void FirmwareUpgradeSession::Enter(State next)
@@ -182,19 +186,23 @@ namespace services
 
     bool FirmwareUpgradeSession::Downloading() const
     {
-        return state == State::erasing || state == State::receiving || state == State::verifying;
+        using enum State;
+
+        return state == erasing || state == receiving || state == verifying;
     }
 
     std::optional<FwuError> FirmwareUpgradeSession::BeginRefusal(uint32_t firmwareSize) const
     {
+        using enum FwuError;
+
         if (!staging)
-            return FwuError::invalidSize;
+            return invalidSize;
 
         if (Downloading() || state == State::restarting || FlashBusy() || !hold.IsStoppedAndIdle())
-            return FwuError::busy;
+            return busy;
 
         if (firmwareSize < application::minimumUpgradePackSize || firmwareSize > staging->pack.TotalSize())
-            return FwuError::invalidSize;
+            return invalidSize;
 
         return std::nullopt;
     }
@@ -297,12 +305,14 @@ namespace services
 
     void FirmwareUpgradeSession::DoAbort()
     {
+        using enum State;
+
         if (Downloading())
             EndDownload();
-        else if (state == State::staged)
+        else if (state == staged)
             Discard();
-        else if (state == State::error)
-            Enter(State::idle);
+        else if (state == error)
+            Enter(idle);
     }
 
     void FirmwareUpgradeSession::Fail(FwuError result)
