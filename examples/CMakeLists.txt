@@ -1,1 +1,1 @@
-add_subdirectory(foc_motor)
+add_subdirectory(setpoint)

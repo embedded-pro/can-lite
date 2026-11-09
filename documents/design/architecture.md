@@ -154,7 +154,7 @@ An application category is the subject; its observer interface derives from
 `infra::SingleObserver` over that category, and the application attaches by
 constructing its implementation of the interface with the category as the
 argument. The authoring guide, §7, describes the interface's shape;
-`examples/foc_motor/` is a worked example.
+`examples/setpoint/` is a worked example.
 
 ## 6. System Category Design
 

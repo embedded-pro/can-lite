@@ -11,7 +11,7 @@ This file is a concise, task-oriented guide for AI coding agents to be immediate
   - `can-lite/client/` — Client implementation: sends commands/queries to servers, receives responses. Supports multiple servers via node addressing; implements `CanSequenceSource`.
   - `can-lite/drivers/` — Hardware driver adapters.
   - `can-lite/transport/` — ISO-TP (ISO 15765-2) segmentation layer. All classes (`IsoTpSender`, `IsoTpReceiver`, `IsoTpChannelImpl`, `IsoTpTransportImpl`) are non-template with `WithStorage` aliases for zero-heap PDU buffer ownership.
-  - `examples/` — Reference application categories (`foc_motor/`), not built by default (`CAN_LITE_BUILD_EXAMPLES`).
+  - `examples/` — Reference application categories (`setpoint/`), not built by default (`CAN_LITE_BUILD_EXAMPLES`).
   - `embedded-infra-lib/` — Infrastructure dependency: bounded containers, build helpers, `hal::Can`, `infra::Subject`/`infra::SingleObserver`.
 - Architecture: Client initiates all requests; Server listens and responds.
   Built-in System category (0x0) provides heartbeat, ack, status request, and

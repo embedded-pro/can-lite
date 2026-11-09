@@ -137,7 +137,7 @@ supplies both itself; FetchContent remains the simpler route.
 │       └── test/                       # Driver unit tests
 ├── integration_tests/          # BDD features, step definitions and the shared fixture
 ├── examples/                   # Reference application categories, not built by default
-│   └── foc_motor/              # FOC Motor Control category (copy into your project)
+│   └── setpoint/               # Minimal setpoint/status category (copy into your project)
 ├── documents/
 │   ├── booklet/                # Design booklet chapters
 │   ├── design/                 # Architecture & category authoring guide

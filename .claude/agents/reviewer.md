@@ -139,7 +139,7 @@ End with summary: total criticals, warnings, suggestions, and overall verdict (A
 - [ ] `documents/requirements/can-protocol.yaml` updated if requirements changed
 - [ ] `documents/design/architecture.md` reflects structural changes
 - [ ] `README.md` updated if features changed
-- [ ] Category-specific specs/requirements updated: `documents/spec/foc-motor-control.md`, `documents/spec/firmware-upgrade.md`, `documents/requirements/foc-motor-control.yaml`, `documents/requirements/firmware-upgrade.yaml`
+- [ ] Category-specific specs/requirements updated: `documents/spec/firmware-upgrade.md`, `documents/requirements/firmware-upgrade.yaml`, and an example category's own `examples/<name>/documents/`
 
 ## Project References
 
