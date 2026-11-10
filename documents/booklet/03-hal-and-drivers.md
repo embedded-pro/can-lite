@@ -100,6 +100,7 @@ classDiagram
     class SlcanAdapter["slcan — CANable and compatibles"]
     class PosixSerialPort["serial port — Linux"]
     class WindowsSerialPort["COM port — Windows"]
+    class VirtualBusPort["virtual bus port — loopback socket"]
     class MultiCanAdapter["multi-adapter router"]
     class PlatformCanAdapter["platform composition"]
 
@@ -113,6 +114,7 @@ classDiagram
     SlcanAdapter --> SerialPort : talks through
     SerialPort <|.. PosixSerialPort
     SerialPort <|.. WindowsSerialPort
+    SerialPort <|.. VirtualBusPort
     MultiCanAdapter o-- CanBusAdapter : routes to
     PlatformCanAdapter *-- MultiCanAdapter
     CanBusAdapterObserver --> CanBusAdapter : observes
@@ -125,6 +127,7 @@ classDiagram
 | candleLight   | Windows        | `1`, `2`, … in enumeration order          | WinUSB, which candleLight firmware binds automatically | any rate the controller's clock divides exactly |
 | PCAN-Basic    | Windows        | `1` to `16`, the USB channel              | the PEAK-System driver package (`PCANBasic.dll`)       | the same nine rates as slcan                    |
 | Kvaser CANlib | Windows        | `0`, `1`, …                               | the Kvaser CANlib driver (`canlib32.dll`)              | CANlib's predefined rates: no 20 or 800 kbit/s  |
+| virtual bus   | Linux, Windows | a bus name, `default` or any other        | a virtual CAN hub listening on the machine (§2.3)      | the same nine rates as slcan                    |
 
 Vendor libraries are loaded when an adapter connects or enumerates, never
 linked, and released through the vendor's own unload call where it has one. Every adapter therefore builds without a vendor SDK, and a machine
@@ -206,10 +209,10 @@ not worth mentioning.
 
 The platform composition registers the set for the build platform:
 
-| Platform | Registered adapters                                                             |
-|----------|---------------------------------------------------------------------------------|
-| Linux    | SocketCAN without a prefix, slcan as `slcan:` with the alias `CANable:`         |
-| Windows  | `PCAN:`, `Kvaser:`, slcan as `slcan:` with the alias `CANable:`, `candleLight:` |
+| Platform | Registered adapters                                                                         |
+|----------|---------------------------------------------------------------------------------------------|
+| Linux    | SocketCAN without a prefix, slcan as `slcan:` with the alias `CANable:`, `virtual:`         |
+| Windows  | `PCAN:`, `Kvaser:`, slcan as `slcan:` with the alias `CANable:`, `candleLight:`, `virtual:` |
 
 ### 2.2 SocketCAN, slcan and candleLight specifics
 
@@ -244,6 +247,65 @@ candleLight adapters describe their CAN controller's timing limits. The adapter
 searches those limits for timing that divides the controller clock exactly into
 the requested bitrate with the sample point closest to 87.5 %, and refuses a
 bitrate it cannot hit exactly.
+
+### 2.3 The virtual CAN hub
+
+Host tools sometimes need a bus with no hardware on it: a simulated node to
+talk to, or several programs on one machine that should see each other's
+frames. The virtual CAN hub is that bus. It runs inside a host program, listens
+on the loopback interface only (port 29536 unless the program chooses
+another), and carries any number of named buses at once; a frame never leaves
+the machine.
+
+A program reaches a bus as `virtual:<bus name>`. The virtual adapter is the slcan
+adapter over a port that is a loopback connection to the hub instead of a serial
+device, so the hub speaks slcan: it is the device. Opening the port connects to
+the hub and names the bus with one line of its own, an `@` followed by the name;
+then the adapter's usual close, bitrate and open commands follow, and the hub
+answers each as a device would. The join line is not answered when it succeeds,
+so the adapter's handshake counts the three replies it always counts. A hub that
+is not running makes the port fail to open, which the adapter reports as a port
+not found; enumeration lists `default` while a hub is listening, and any other
+name can be typed.
+
+```mermaid
+sequenceDiagram
+    participant Tool as Tool (slcan adapter)
+    participant Port as Virtual bus port
+    participant Hub as Virtual CAN hub
+    participant Peer as Other participant on the bus
+    Tool->>Port: open "bench"
+    Port->>Hub: connect over loopback, "@bench"
+    Tool->>Hub: close, bitrate, open
+    Hub-->>Tool: three acknowledgements, or a refusal
+    Tool->>Hub: extended frame
+    Note over Hub: queued, lowest identifier first, held for its time on the wire
+    Hub->>Peer: the frame
+```
+
+The hub keeps what a real bus imposes:
+
+- **One bitrate per bus.** The first participant to open a bus sets its
+  bitrate; a participant asking for another while the bus has open members is
+  refused at the bitrate command, as a controller at the wrong rate would never
+  join the bus. The adapter reports that refusal and closes.
+- **Arbitration.** Frames waiting for the bus go out lowest identifier first.
+- **Time on the wire.** Each frame holds the bus for its length at the bus's
+  bitrate, counting worst-case bit stuffing, so a bus loaded with streams runs
+  at the rate a real one would; a frame reaches the other open participants
+  when its transmission ends, never the sender itself.
+- **Only open channels listen.** A participant that has joined but not opened,
+  or has closed, receives nothing; a frame sent before opening is refused.
+
+What it does not model: error frames, bus-off, acknowledgement slots and
+retransmission. A participant whose queue overflows (64 frames waiting) has
+the frame refused rather than retried. The hub serves sixteen participants
+across four buses. Leaving the bus takes a participant's waiting frames with
+it; when the hub stops, every adapter on it reports its connection lost.
+
+The pure part — the bus model with its arbitration and timing — has no socket
+in it and is covered by the host test suite on every platform; the hub around it
+and the virtual bus port are the only code touching the loopback socket.
 
 ## 3. The virtual bus used by the integration tests
 

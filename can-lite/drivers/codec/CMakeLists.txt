@@ -14,6 +14,8 @@ target_sources(can_lite.drivers.codec PRIVATE
     GsUsbProtocol.hpp
     SlcanCodec.cpp
     SlcanCodec.hpp
+    SlcanCommandDecoder.cpp
+    SlcanCommandDecoder.hpp
 )
 
 emil_install(can_lite.drivers.codec

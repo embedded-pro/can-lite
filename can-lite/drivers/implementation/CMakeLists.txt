@@ -74,6 +74,22 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(can_lite_platform_drivers can_lite.drivers.pcan can_lite.drivers.kvaser can_lite.drivers.gsusb)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    can_lite_add_driver(can_lite.drivers.loopback
+        LoopbackSocket.cpp
+        LoopbackSocket.hpp
+    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        target_link_libraries(can_lite.drivers.loopback PRIVATE ws2_32)
+    endif()
+
+    can_lite_add_driver(can_lite.drivers.virtual
+        VirtualBusPort.cpp
+        VirtualBusPort.hpp
+    )
+    target_link_libraries(can_lite.drivers.virtual PUBLIC can_lite.drivers.codec can_lite.drivers.loopback)
+endif()
+
 if(DEFINED can_lite_platform_drivers)
     can_lite_add_driver(can_lite.drivers.platform
         PlatformCanAdapter.cpp
@@ -83,6 +99,7 @@ if(DEFINED can_lite_platform_drivers)
         can_lite.drivers.multi
         can_lite.drivers.serial
         can_lite.drivers.slcan
+        can_lite.drivers.virtual
         ${can_lite_platform_drivers}
     )
 endif()

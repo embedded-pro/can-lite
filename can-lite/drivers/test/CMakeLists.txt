@@ -4,6 +4,7 @@ emil_add_test(can_lite.drivers_test)
 
 target_link_libraries(can_lite.drivers_test PRIVATE
     can_lite.drivers.codec
+    can_lite.drivers.hub
     can_lite.drivers.multi
     can_lite.drivers.slcan
     infra.event_test_helper
@@ -18,6 +19,8 @@ target_sources(can_lite.drivers_test PRIVATE
     TestMultiCanAdapter.cpp
     TestSlcanAdapter.cpp
     TestSlcanCodec.cpp
+    TestSlcanCommandDecoder.cpp
+    TestVirtualCanBus.cpp
 )
 
 if(TARGET can_lite.drivers.platform)
@@ -27,5 +30,6 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(can_lite.drivers_test PRIVATE can_lite.drivers.serial can_lite.drivers.socketcan)
-    target_sources(can_lite.drivers_test PRIVATE TestPosixSerialPort.cpp TestSocketCanNetlink.cpp)
+    target_link_libraries(can_lite.drivers_test PRIVATE can_lite.drivers.virtual)
+    target_sources(can_lite.drivers_test PRIVATE TestPosixSerialPort.cpp TestSocketCanNetlink.cpp TestVirtualCanHub.cpp)
 endif()

@@ -1,4 +1,5 @@
 add_subdirectory(interface)
 add_subdirectory(codec)
 add_subdirectory(implementation)
+add_subdirectory(hub)
 add_subdirectory(test)
