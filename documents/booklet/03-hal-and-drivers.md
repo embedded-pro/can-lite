@@ -280,7 +280,7 @@ sequenceDiagram
     Tool->>Hub: close, bitrate, open
     Hub-->>Tool: three acknowledgements, or a refusal
     Tool->>Hub: extended frame
-    Note over Hub: queued, lowest identifier first, held for its time on the wire
+    Note over Hub: queued in order per sender, lowest identifier first between senders, held for its time on the wire
     Hub->>Peer: the frame
 ```
 
@@ -290,7 +290,9 @@ The hub keeps what a real bus imposes:
   bitrate; a participant asking for another while the bus has open members is
   refused at the bitrate command, as a controller at the wrong rate would never
   join the bus. The adapter reports that refusal and closes.
-- **Arbitration.** Frames waiting for the bus go out lowest identifier first.
+- **Arbitration.** Each participant's frames go out in the order it sent
+  them, as through a controller's single transmit buffer; between
+  participants, the lowest identifier at the head of a queue goes first.
 - **Time on the wire.** Each frame holds the bus for its length at the bus's
   bitrate, counting worst-case bit stuffing, so a bus loaded with streams runs
   at the rate a real one would; a frame reaches the other open participants

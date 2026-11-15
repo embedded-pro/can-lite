@@ -72,6 +72,7 @@ namespace services
         Bus* BusOf(const Member& member);
         Bus* AcquireBus(infra::BoundedConstString name);
         void StartNext(Bus& bus, infra::TimePoint start);
+        static Pending* NextToWin(Bus& bus);
         void Deliver(Bus& bus);
         void Transmit(const Bus& bus, const Pending& pending);
 

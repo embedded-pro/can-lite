@@ -201,10 +201,7 @@ namespace services
     {
         while (!bus.queue.empty())
         {
-            const auto next = std::ranges::min_element(bus.queue, [](const Pending& left, const Pending& right)
-                {
-                    return left.frame.id < right.frame.id;
-                });
+            const auto next = NextToWin(bus);
             const auto pending = *next;
             bus.queue.erase(next);
 
@@ -224,6 +221,21 @@ namespace services
             Transmit(bus, pending);
             start = end;
         }
+    }
+
+    VirtualCanBus::Pending* VirtualCanBus::NextToWin(Bus& bus)
+    {
+        Pending* winner{};
+        for (auto candidate = bus.queue.begin(); candidate != bus.queue.end(); ++candidate)
+        {
+            const bool headOfItsSender = std::none_of(bus.queue.begin(), candidate, [candidate](const Pending& earlier)
+                {
+                    return earlier.sender == candidate->sender;
+                });
+            if (headOfItsSender && (winner == nullptr || candidate->frame.id < winner->frame.id))
+                winner = &*candidate;
+        }
+        return winner;
     }
 
     void VirtualCanBus::Deliver(Bus& bus)

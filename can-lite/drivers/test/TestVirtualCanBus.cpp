@@ -135,6 +135,31 @@ TEST_F(TestVirtualCanBus, frames_waiting_for_the_bus_go_lowest_identifier_first)
     ForwardTime(std::chrono::milliseconds(1));
 }
 
+TEST_F(TestVirtualCanBus, a_participant_s_frames_go_out_in_the_order_it_sent_them)
+{
+    Open(a, "bench");
+    Open(b, "bench");
+    Open(c, "bench");
+
+    Send(a, EncodeSlcanFrame(0x300, true, Bytes({ 1 })));
+    Send(a, EncodeSlcanFrame(0x250, true, Bytes({ 2 })));
+    Send(a, EncodeSlcanFrame(0x100, true, Bytes({ 3 })));
+    Send(c, EncodeSlcanFrame(0x200, true, Bytes({ 4 })));
+
+    {
+        InSequence sequence;
+        EXPECT_CALL(b, Write(IsText("T00000300101\r")));
+        EXPECT_CALL(b, Write(IsText("T00000200104\r")));
+        EXPECT_CALL(b, Write(IsText("T00000250102\r")));
+        EXPECT_CALL(b, Write(IsText("T00000100103\r")));
+    }
+    EXPECT_CALL(c, Write(IsText("T00000300101\r")));
+    EXPECT_CALL(c, Write(IsText("T00000250102\r")));
+    EXPECT_CALL(c, Write(IsText("T00000100103\r")));
+    EXPECT_CALL(a, Write(IsText("T00000200104\r")));
+    ForwardTime(std::chrono::milliseconds(1));
+}
+
 TEST_F(TestVirtualCanBus, the_bus_paces_frames_at_its_bitrate)
 {
     Open(a, "slow", '0');
