@@ -58,6 +58,7 @@ namespace services
             uint32_t bitrate{};
             infra::BoundedVector<Pending>::WithMaxSize<maxQueuedFrames> queue;
             std::optional<Pending> onWire;
+            infra::TimePoint onWireEnd;
             infra::TimerSingleShot timer;
         };
 
@@ -70,8 +71,10 @@ namespace services
         bool ConflictsWithOpenMembers(const Member& member, uint32_t bitrate) const;
         Bus* BusOf(const Member& member);
         Bus* AcquireBus(infra::BoundedConstString name);
-        void StartNext(Bus& bus);
+        void StartNext(Bus& bus, infra::TimePoint start);
+        static Pending* NextToWin(Bus& bus);
         void Deliver(Bus& bus);
+        void Transmit(const Bus& bus, const Pending& pending);
 
         std::array<Member, maxParticipants> members;
         std::array<Bus, maxBuses> buses;

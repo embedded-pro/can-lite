@@ -26,6 +26,12 @@ namespace services::loopback
         {
             ::close(socket);
         }
+
+        void AllowListeningWhileClosedConnectionsLinger(Native socket)
+        {
+            int enabled{ 1 };
+            ::setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled));
+        }
 #else
         using Native = SOCKET;
         constexpr Native nativeInvalid{ INVALID_SOCKET };
@@ -34,6 +40,9 @@ namespace services::loopback
         {
             ::closesocket(socket);
         }
+
+        void AllowListeningWhileClosedConnectionsLinger(Native)
+        {}
 
         bool StartWinsock()
         {
@@ -113,6 +122,7 @@ namespace services::loopback
         if (socket == nativeInvalid)
             return invalidSocket;
 
+        AllowListeningWhileClosedConnectionsLinger(socket);
         auto address = LoopbackAddress(port);
         if (::bind(socket, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0 || ::listen(socket, SOMAXCONN) != 0)
         {
