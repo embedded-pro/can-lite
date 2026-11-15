@@ -255,7 +255,8 @@ talk to, or several programs on one machine that should see each other's
 frames. The virtual CAN hub is that bus. It runs inside a host program, listens
 on the loopback interface only (port 29536 unless the program chooses
 another), and carries any number of named buses at once; a frame never leaves
-the machine.
+the machine. On Linux a hub can listen again on its port as soon as the
+previous one has stopped, while that one's closed connections still linger.
 
 A program reaches a bus as `virtual:<bus name>`. The virtual adapter is the slcan
 adapter over a port that is a loopback connection to the hub instead of a serial
@@ -293,7 +294,11 @@ The hub keeps what a real bus imposes:
 - **Time on the wire.** Each frame holds the bus for its length at the bus's
   bitrate, counting worst-case bit stuffing, so a bus loaded with streams runs
   at the rate a real one would; a frame reaches the other open participants
-  when its transmission ends, never the sender itself.
+  when its transmission ends, never the sender itself. Frames follow each other
+  on the wire with no gap, timed from the end of the previous frame rather than
+  from when the hub's program got round to it: a program that runs late, or
+  whose event loop wakes coarsely, delivers every frame whose transmission has
+  ended by then at once, so it delays frames but never lowers the bus's rate.
 - **Only open channels listen.** A participant that has joined but not opened,
   or has closed, receives nothing; a frame sent before opening is refused.
 

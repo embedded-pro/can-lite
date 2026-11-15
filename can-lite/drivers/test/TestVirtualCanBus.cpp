@@ -52,6 +52,12 @@ namespace
             testing::Mock::VerifyAndClearExpectations(&participant);
         }
 
+        void RunLate(infra::Duration amount)
+        {
+            systemTimerService.TimeProgressed(amount);
+            ExecuteAllActions();
+        }
+
         VirtualCanBus bus;
         StrictMock<VirtualCanParticipantMock> a;
         StrictMock<VirtualCanParticipantMock> b;
@@ -144,6 +150,38 @@ TEST_F(TestVirtualCanBus, the_bus_paces_frames_at_its_bitrate)
     ForwardTime(std::chrono::microseconds(15800));
     EXPECT_CALL(b, Write(IsText("T0000012480102030405060708\r")));
     ForwardTime(std::chrono::microseconds(300));
+}
+
+TEST_F(TestVirtualCanBus, frames_whose_transmission_ended_while_the_host_was_late_are_delivered_at_once)
+{
+    Open(a, "bench");
+    Open(b, "bench");
+
+    Send(a, EncodeSlcanFrame(0x123, true, Bytes({ 1, 2, 3, 4, 5, 6, 7, 8 })));
+    Send(a, EncodeSlcanFrame(0x124, true, Bytes({ 1, 2, 3, 4, 5, 6, 7, 8 })));
+    Send(a, EncodeSlcanFrame(0x125, true, Bytes({ 1, 2, 3, 4, 5, 6, 7, 8 })));
+
+    InSequence sequence;
+    EXPECT_CALL(b, Write(IsText("T0000012380102030405060708\r")));
+    EXPECT_CALL(b, Write(IsText("T0000012480102030405060708\r")));
+    EXPECT_CALL(b, Write(IsText("T0000012580102030405060708\r")));
+    RunLate(std::chrono::milliseconds(1));
+}
+
+TEST_F(TestVirtualCanBus, a_late_host_does_not_deliver_a_frame_before_its_transmission_ends)
+{
+    Open(a, "bench");
+    Open(b, "bench");
+
+    Send(a, EncodeSlcanFrame(0x123, true, Bytes({ 1, 2, 3, 4, 5, 6, 7, 8 })));
+    Send(a, EncodeSlcanFrame(0x124, true, Bytes({ 1, 2, 3, 4, 5, 6, 7, 8 })));
+
+    EXPECT_CALL(b, Write(IsText("T0000012380102030405060708\r")));
+    RunLate(std::chrono::microseconds(200));
+    ForwardTime(std::chrono::microseconds(100));
+
+    EXPECT_CALL(b, Write(IsText("T0000012480102030405060708\r")));
+    ForwardTime(std::chrono::microseconds(50));
 }
 
 TEST_F(TestVirtualCanBus, a_frame_before_the_channel_is_open_is_refused)

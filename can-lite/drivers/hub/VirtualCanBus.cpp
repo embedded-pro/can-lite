@@ -158,7 +158,7 @@ namespace services
 
         bus->queue.push_back(Pending{ member.participant, frame });
         if (!bus->onWire.has_value())
-            StartNext(*bus);
+            StartNext(*bus, infra::Now());
         return true;
     }
 
@@ -197,33 +197,49 @@ namespace services
         return free;
     }
 
-    void VirtualCanBus::StartNext(Bus& bus)
+    void VirtualCanBus::StartNext(Bus& bus, infra::TimePoint start)
     {
-        if (bus.queue.empty())
-            return;
+        while (!bus.queue.empty())
+        {
+            const auto next = std::ranges::min_element(bus.queue, [](const Pending& left, const Pending& right)
+                {
+                    return left.frame.id < right.frame.id;
+                });
+            const auto pending = *next;
+            bus.queue.erase(next);
 
-        const auto next = std::ranges::min_element(bus.queue, [](const Pending& left, const Pending& right)
+            const auto end = start + TransmissionTime(pending.frame, bus.bitrate);
+            const auto now = infra::Now();
+            if (end > now)
             {
-                return left.frame.id < right.frame.id;
-            });
-        bus.onWire = *next;
-        bus.queue.erase(next);
-        bus.timer.Start(TransmissionTime(bus.onWire->frame, bus.bitrate), [this, &bus]()
-            {
-                Deliver(bus);
-            });
+                bus.onWire = pending;
+                bus.onWireEnd = end;
+                bus.timer.Start(end - now, [this, &bus]()
+                    {
+                        Deliver(bus);
+                    });
+                return;
+            }
+
+            Transmit(bus, pending);
+            start = end;
+        }
     }
 
     void VirtualCanBus::Deliver(Bus& bus)
     {
         const auto pending = *bus.onWire;
         bus.onWire.reset();
+        Transmit(bus, pending);
+        StartNext(bus, bus.onWireEnd);
+    }
+
+    void VirtualCanBus::Transmit(const Bus& bus, const Pending& pending)
+    {
         const auto encoded = EncodeSlcanFrame(pending.frame.id, pending.frame.extended, pending.frame.data);
 
         for (auto& member : members)
             if (member.participant != nullptr && member.participant != pending.sender && member.open && member.bus == bus.name)
                 member.participant->Write(encoded);
-
-        StartNext(bus);
     }
 }
