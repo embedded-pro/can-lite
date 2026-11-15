@@ -202,14 +202,12 @@ namespace services
         while (!bus.queue.empty())
         {
             const auto next = NextToWin(bus);
-            const auto pending = *next;
-            bus.queue.erase(next);
-
-            const auto end = start + TransmissionTime(pending.frame, bus.bitrate);
+            const auto end = start + TransmissionTime(next->frame, bus.bitrate);
             const auto now = infra::Now();
             if (end > now)
             {
-                bus.onWire = pending;
+                bus.onWire = *next;
+                bus.queue.erase(next);
                 bus.onWireEnd = end;
                 bus.timer.Start(end - now, [this, &bus]()
                     {
@@ -218,7 +216,8 @@ namespace services
                 return;
             }
 
-            Transmit(bus, pending);
+            Transmit(bus, *next);
+            bus.queue.erase(next);
             start = end;
         }
     }
@@ -233,7 +232,7 @@ namespace services
                     return earlier.sender == candidate->sender;
                 });
             if (headOfItsSender && (winner == nullptr || candidate->frame.id < winner->frame.id))
-                winner = &*candidate;
+                winner = candidate;
         }
         return winner;
     }
