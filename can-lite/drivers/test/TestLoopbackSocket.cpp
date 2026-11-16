@@ -1,5 +1,8 @@
 #include "can-lite/drivers/implementation/LoopbackSocket.hpp"
 #include "gtest/gtest.h"
+#include <array>
+#include <chrono>
+#include <thread>
 
 namespace
 {
@@ -54,4 +57,25 @@ TEST_F(TestLoopbackSocket, a_port_with_a_listener_cannot_be_listened_on_twice)
     const auto second = loopback::Listen(port);
     EXPECT_EQ(second, loopback::invalidSocket);
     loopback::Close(second);
+}
+
+TEST_F(TestLoopbackSocket, sending_to_a_peer_that_closed_fails_without_ending_the_process)
+{
+    const auto port = ListenOnFreePort();
+    const auto client = loopback::Connect(port);
+    ASSERT_NE(client, loopback::invalidSocket);
+    const auto accepted = loopback::Accept(listener);
+    ASSERT_NE(accepted, loopback::invalidSocket);
+    loopback::Close(accepted);
+
+    const std::array<uint8_t, 64> bytes{};
+    bool sent{ true };
+    for (int attempt = 0; attempt != 100 && sent; ++attempt)
+    {
+        sent = loopback::Send(client, infra::MakeRange(bytes));
+        std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+    }
+
+    EXPECT_FALSE(sent);
+    loopback::Close(client);
 }

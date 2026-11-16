@@ -21,6 +21,7 @@ namespace services::loopback
 #if defined(__linux__)
         using Native = int;
         constexpr Native nativeInvalid{ -1 };
+        constexpr int sendFlags{ MSG_NOSIGNAL };
 
         void CloseNative(Native socket)
         {
@@ -35,6 +36,7 @@ namespace services::loopback
 #else
         using Native = SOCKET;
         constexpr Native nativeInvalid{ INVALID_SOCKET };
+        constexpr int sendFlags{ 0 };
 
         void CloseNative(Native socket)
         {
@@ -160,7 +162,7 @@ namespace services::loopback
     {
         while (!bytes.empty())
         {
-            const auto sent = ::send(ToNative(socket), reinterpret_cast<const char*>(bytes.begin()), static_cast<int>(bytes.size()), 0);
+            const auto sent = ::send(ToNative(socket), reinterpret_cast<const char*>(bytes.begin()), static_cast<int>(bytes.size()), sendFlags);
             if (sent <= 0)
                 return false;
             bytes.shrink_from_front_to(bytes.size() - static_cast<std::size_t>(sent));

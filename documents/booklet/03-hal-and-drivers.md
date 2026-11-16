@@ -308,7 +308,10 @@ What it does not model: error frames, bus-off, acknowledgement slots and
 retransmission. A participant whose queue overflows (64 frames waiting) has
 the frame refused rather than retried. The hub serves sixteen participants
 across four buses. Leaving the bus takes a participant's waiting frames with
-it; when the hub stops, every adapter on it reports its connection lost.
+it; when the hub stops, every adapter on it reports its connection lost. A
+participant that ends abruptly, its process killed, is a failed send to the
+hub and is dropped: writing to a closed loopback connection never raises a
+signal, so a hub hosted inside a larger program cannot end that program.
 
 The pure part — the bus model with its arbitration and timing — has no socket
 in it and is covered by the host test suite on every platform; the hub around it
