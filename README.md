@@ -184,14 +184,14 @@ Application-specific categories belong in the consuming project, not in
 - [Protocol Specification](documents/spec/can-protocol.md) — Full wire-format specification
 - [Firmware Upgrade Specification](documents/spec/firmware-upgrade.md) — Firmware Upgrade category specification
 - [Protocol Requirements](documents/requirements/can-protocol.yaml) — Formal requirements
-- [Copilot Instructions](.github/copilot-instructions.md) — Development guidelines
+- [Agent Rules](AGENTS.md) — Development guidelines
 
 ## Contributing
 
 ### Development Workflow
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Follow the coding standards in [copilot-instructions.md](.github/copilot-instructions.md)
+3. Follow the coding standards in [AGENTS.md](AGENTS.md)
 4. Ensure all tests pass
 5. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
 6. Push to the branch (`git push origin feature/AmazingFeature`)
