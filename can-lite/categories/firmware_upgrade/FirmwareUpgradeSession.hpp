@@ -97,8 +97,7 @@ namespace services
 
         uint32_t packSize{ 0 };
         uint16_t nextBlock{ 0 };
-        FirmwareVersion stagedVersion{};
-        bool stagedHeaderOutstanding{ false };
+        std::optional<FirmwareVersion> stagedVersion{ FirmwareVersion{} };
         infra::AutoResetFunction<void(FirmwareVersion)> stagedVersionRead;
 
         infra::AutoResetFunction<void(FwuError, uint16_t)> beginDone;
