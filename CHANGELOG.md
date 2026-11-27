@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.0.0](https://github.com/embedded-pro/can-lite/compare/v1.0.0...v2.0.0) (2026-11-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* FirmwareUpgradeControl::StagedVersion() is replaced by ReadStagedVersion(onRead), which calls onRead with the version.
+
+### Features
+
+* **core:** Add float payload read and write ([#91](https://github.com/embedded-pro/can-lite/issues/91)) ([2c1624e](https://github.com/embedded-pro/can-lite/commit/2c1624efde86726c5e2ac1cf3c0a2ec2b709d054))
+* **core:** Node id from a base, frame origin tracker and tracing bypass ([#87](https://github.com/embedded-pro/can-lite/issues/87)) ([8d7ac38](https://github.com/embedded-pro/can-lite/commit/8d7ac3875ac0697d2bd84e39a8ae6e233dbfdab3))
+* **drivers:** Add a virtual CAN hub and the virtual: adapter ([#95](https://github.com/embedded-pro/can-lite/issues/95)) ([0405e17](https://github.com/embedded-pro/can-lite/commit/0405e172589f6171bcfa322bcead833fcc64a631))
+* **firmware_upgrade:** Add FirmwareUpgradeSession, the upgrade session behind the category server ([#93](https://github.com/embedded-pro/can-lite/issues/93)) ([4a2c411](https://github.com/embedded-pro/can-lite/commit/4a2c411fd95ca5f5599755ac2be9107892773522))
+* Read the staged version asynchronously ([#110](https://github.com/embedded-pro/can-lite/issues/110)) ([5cfa0c2](https://github.com/embedded-pro/can-lite/commit/5cfa0c25b30dd533aff273abad2c4d431715d671))
+
+
+### Bug Fixes
+
+* **drivers:** A send to a closed loopback connection fails instead of raising SIGPIPE ([#100](https://github.com/embedded-pro/can-lite/issues/100)) ([cd2072e](https://github.com/embedded-pro/can-lite/commit/cd2072e3bb27eb3a742f223536ac82a23e6a5f94))
+* **drivers:** Connect an slcan device that never acknowledges its commands ([#86](https://github.com/embedded-pro/can-lite/issues/86)) ([8ac7333](https://github.com/embedded-pro/can-lite/commit/8ac73333432e447e1c1e4189cb3aedbeb36b6b3c))
+* **drivers:** Virtual hub keeps its bus rate when its host runs late; rebind its port at once ([#98](https://github.com/embedded-pro/can-lite/issues/98)) ([d1edb52](https://github.com/embedded-pro/can-lite/commit/d1edb52793e75a1e93d7bca1382781184d1d994b))
+* **server,core:** One pending heartbeat, and a more urgent frame displaces a queued one ([#82](https://github.com/embedded-pro/can-lite/issues/82)) ([eb2fd9d](https://github.com/embedded-pro/can-lite/commit/eb2fd9d4f5e91552b6b3d605fbfbe228852e6322))
+
 ## [1.0.0](https://github.com/embedded-pro/can-lite/compare/v0.0.1...v1.0.0) (2026-10-27)
 
 
