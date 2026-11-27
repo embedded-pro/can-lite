@@ -28,7 +28,7 @@ namespace services
         if (journal->Status() == application::UpgradePackStatus::downloaded)
         {
             state = State::staged;
-            ReadStagedVersion();
+            ReadStagedHeader();
         }
     }
 
@@ -150,9 +150,12 @@ namespace services
         return Holds(state);
     }
 
-    FirmwareVersion FirmwareUpgradeSession::StagedVersion() const
+    void FirmwareUpgradeSession::ReadStagedVersion(const infra::Function<void(FirmwareVersion)>& onRead)
     {
-        return stagedVersion;
+        really_assert(stagedVersionRead == nullptr);
+        stagedVersionRead = onRead;
+        if (!stagedHeaderOutstanding)
+            AnswerStagedVersionRead();
     }
 
     void FirmwareUpgradeSession::CancelDownload()
@@ -274,14 +277,23 @@ namespace services
         verifyDone(FwuError::ok);
     }
 
-    void FirmwareUpgradeSession::ReadStagedVersion()
+    void FirmwareUpgradeSession::ReadStagedHeader()
     {
+        stagedHeaderOutstanding = true;
         reader->ReadHeader(staging->pack.TotalSize(), [this](const application::StagedPackHeader& header)
             {
                 stagedVersion = application::ParseUpgradePackVersion(header.epilogue.productVersion).value_or(FirmwareVersion{});
                 packSize = std::min<uint32_t>(header.epilogue.headerLength + header.image.lengthOfHeaderAndImage, staging->pack.TotalSize());
                 nextBlock = TotalBlocks();
+                stagedHeaderOutstanding = false;
+                AnswerStagedVersionRead();
             });
+    }
+
+    void FirmwareUpgradeSession::AnswerStagedVersionRead()
+    {
+        if (stagedVersionRead != nullptr)
+            stagedVersionRead(stagedVersion);
     }
 
     bool FirmwareUpgradeSession::FlashBusy() const
@@ -343,6 +355,8 @@ namespace services
     {
         Enter(State::idle);
         stagedVersion = {};
+        stagedHeaderOutstanding = false;
+        AnswerStagedVersionRead();
         TryDiscard();
     }
 

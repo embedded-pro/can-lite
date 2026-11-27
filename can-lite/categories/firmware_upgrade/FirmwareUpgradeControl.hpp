@@ -1,6 +1,7 @@
 #pragma once
 
 #include "can-lite/categories/firmware_upgrade/FirmwareVersion.hpp"
+#include "infra/util/Function.hpp"
 
 namespace services
 {
@@ -14,7 +15,7 @@ namespace services
 
     public:
         virtual bool IsRunning() const = 0;
-        virtual FirmwareVersion StagedVersion() const = 0;
+        virtual void ReadStagedVersion(const infra::Function<void(FirmwareVersion)>& onRead) = 0;
         virtual void CancelDownload() = 0;
     };
 }

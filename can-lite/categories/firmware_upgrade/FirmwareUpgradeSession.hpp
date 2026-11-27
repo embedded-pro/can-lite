@@ -43,7 +43,7 @@ namespace services
         void OnSessionTimeout() override;
 
         bool IsRunning() const override;
-        FirmwareVersion StagedVersion() const override;
+        void ReadStagedVersion(const infra::Function<void(FirmwareVersion)>& onRead) override;
         void CancelDownload() override;
 
     private:
@@ -67,7 +67,8 @@ namespace services
         void OnBlockStored(bool stored);
         void CheckCrc(uint32_t expectedCrc);
         void OnVerifiedHeader(const application::StagedPackHeader& header);
-        void ReadStagedVersion();
+        void ReadStagedHeader();
+        void AnswerStagedVersionRead();
 
         bool FlashBusy() const;
         bool TakeAbort();
@@ -97,6 +98,8 @@ namespace services
         uint32_t packSize{ 0 };
         uint16_t nextBlock{ 0 };
         FirmwareVersion stagedVersion{};
+        bool stagedHeaderOutstanding{ false };
+        infra::AutoResetFunction<void(FirmwareVersion)> stagedVersionRead;
 
         infra::AutoResetFunction<void(FwuError, uint16_t)> beginDone;
         infra::AutoResetFunction<void(FwuError)> blockDone;

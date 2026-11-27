@@ -242,6 +242,16 @@ namespace
             return abortDone;
         }
 
+        std::optional<services::FirmwareVersion> StagedVersion()
+        {
+            stagedVersionRead.reset();
+            session->ReadStagedVersion([this](services::FirmwareVersion version)
+                {
+                    stagedVersionRead = version;
+                });
+            return stagedVersionRead;
+        }
+
         std::tuple<FwuState, uint16_t, uint16_t> Progress()
         {
             std::tuple<FwuState, uint16_t, uint16_t> result{};
@@ -266,6 +276,7 @@ namespace
         std::optional<FwuError> blockResult;
         std::optional<FwuError> verifyResult;
         bool abortDone{ false };
+        std::optional<services::FirmwareVersion> stagedVersionRead;
     };
 }
 
@@ -338,7 +349,7 @@ TEST_F(FirmwareUpgradeSessionTest, a_node_without_staging_answers_begin_invalid_
     EXPECT_EQ(FwuError::invalidSize, Begin(400)->first);
     EXPECT_EQ(FwuError::invalidState, Verify(0));
     EXPECT_EQ(FwuError::notReady, Activate());
-    EXPECT_EQ(services::FirmwareVersion{}, session->StagedVersion());
+    EXPECT_EQ(services::FirmwareVersion{}, StagedVersion());
     EXPECT_EQ(0, hold.held);
 }
 
@@ -480,7 +491,7 @@ TEST_F(FirmwareUpgradeSessionTest, verify_stages_a_checked_pack_records_download
     EXPECT_EQ(FwuError::ok, Download(infra::MakeRange(pack)));
     EXPECT_TRUE(PackFlashHolds(infra::MakeRange(pack)));
     EXPECT_EQ(UpgradePackStatus::downloaded, JournalStatus());
-    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), session->StagedVersion());
+    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), StagedVersion());
     EXPECT_FALSE(session->IsRunning());
     EXPECT_EQ(0, hold.held);
     EXPECT_EQ(FwuState::complete, std::get<0>(Progress()));
@@ -495,7 +506,7 @@ TEST_F(FirmwareUpgradeSessionTest, verify_with_another_crc_answers_crc_mismatch_
 
     EXPECT_EQ(FwuError::crcMismatch, Verify(CrcOf(infra::MakeRange(pack)) ^ 1));
     EXPECT_EQ(UpgradePackStatus::empty, JournalStatus());
-    EXPECT_EQ(services::FirmwareVersion{}, session->StagedVersion());
+    EXPECT_EQ(services::FirmwareVersion{}, StagedVersion());
     EXPECT_EQ(0, hold.held);
     EXPECT_EQ(FwuState::error, std::get<0>(Progress()));
     EXPECT_EQ(FwuError::notReady, Activate());
@@ -528,7 +539,7 @@ TEST_F(FirmwareUpgradeSessionTest, a_pack_whose_header_fails_the_check_answers_v
 
     EXPECT_EQ(FwuError::notReady, Download(infra::MakeRange(MakeTestPack(description))));
     EXPECT_EQ(UpgradePackStatus::empty, JournalStatus());
-    EXPECT_EQ(services::FirmwareVersion{}, session->StagedVersion());
+    EXPECT_EQ(services::FirmwareVersion{}, StagedVersion());
     EXPECT_EQ(0, hold.held);
 }
 
@@ -540,7 +551,7 @@ TEST_F(FirmwareUpgradeSessionTest, a_staged_pack_stays_staged_across_a_restart)
     session.reset();
     Construct();
 
-    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), session->StagedVersion());
+    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), StagedVersion());
     EXPECT_EQ(FwuState::complete, std::get<0>(Progress()));
     EXPECT_EQ(UpgradePackStatus::downloaded, JournalStatus());
 }
@@ -561,8 +572,37 @@ TEST_F(FirmwareUpgradeSessionTest, begin_while_the_staged_header_is_still_read_a
     EXPECT_EQ(UpgradePackStatus::downloaded, JournalStatus());
 
     ExecuteAllActions();
-    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), session->StagedVersion());
+    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), StagedVersion());
     EXPECT_EQ(FwuError::ok, Begin(400)->first);
+}
+
+TEST_F(FirmwareUpgradeSessionTest, the_staged_version_is_answered_once_the_staged_header_is_read_at_start_up)
+{
+    Construct();
+    EXPECT_EQ(FwuError::ok, Download(infra::MakeRange(MakeTestPack())));
+    session.reset();
+    Emplace();
+
+    EXPECT_EQ(std::nullopt, StagedVersion());
+
+    ExecuteAllActions();
+    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), stagedVersionRead);
+}
+
+TEST_F(FirmwareUpgradeSessionTest, an_abort_while_the_staged_header_is_read_at_start_up_answers_the_staged_version_zero)
+{
+    Construct();
+    EXPECT_EQ(FwuError::ok, Download(infra::MakeRange(MakeTestPack())));
+    session.reset();
+    Emplace();
+
+    SendAbort();
+    EXPECT_EQ(std::nullopt, StagedVersion());
+
+    ExecuteAllActions();
+    EXPECT_TRUE(abortDone);
+    EXPECT_EQ(services::FirmwareVersion{}, stagedVersionRead);
+    EXPECT_EQ(FwuError::notReady, Activate());
 }
 
 TEST_F(FirmwareUpgradeSessionTest, query_progress_after_a_restart_reports_the_staged_pack_complete)
@@ -582,7 +622,7 @@ TEST_F(FirmwareUpgradeSessionTest, a_journal_that_reads_anything_but_downloaded_
     RecordJournal(UpgradePackStatus::readyToDeploy);
     Construct();
 
-    EXPECT_EQ(services::FirmwareVersion{}, session->StagedVersion());
+    EXPECT_EQ(services::FirmwareVersion{}, StagedVersion());
     EXPECT_EQ(FwuError::notReady, Activate());
 }
 
@@ -730,7 +770,7 @@ TEST_F(FirmwareUpgradeSessionTest, abort_of_a_staged_pack_discards_it_at_once_an
     hold.stoppedAndIdle = false;
 
     EXPECT_TRUE(Abort());
-    EXPECT_EQ(services::FirmwareVersion{}, session->StagedVersion());
+    EXPECT_EQ(services::FirmwareVersion{}, StagedVersion());
     EXPECT_EQ(FwuError::notReady, Activate());
     EXPECT_EQ(UpgradePackStatus::downloaded, JournalStatus());
 
@@ -787,7 +827,7 @@ TEST_F(FirmwareUpgradeSessionTest, no_deadline_runs_for_a_staged_pack)
     EXPECT_EQ(FwuError::ok, Download(infra::MakeRange(MakeTestPack())));
 
     ForwardTime(std::chrono::minutes(5));
-    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), session->StagedVersion());
+    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), StagedVersion());
 }
 
 TEST_F(FirmwareUpgradeSessionTest, the_session_timeout_of_the_category_ends_a_download)
@@ -837,7 +877,7 @@ TEST_F(FirmwareUpgradeSessionTest, cancel_download_keeps_a_staged_pack_and_an_ac
     EXPECT_EQ(FwuError::ok, Download(infra::MakeRange(MakeTestPack())));
 
     session->CancelDownload();
-    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), session->StagedVersion());
+    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), StagedVersion());
 
     EXPECT_EQ(FwuError::ok, Activate());
     session->CancelDownload();
@@ -865,5 +905,5 @@ TEST_F(FirmwareUpgradeSessionTest, a_new_begin_discards_a_staged_pack)
 
     EXPECT_EQ(FwuError::ok, Begin(400)->first);
     EXPECT_EQ(UpgradePackStatus::empty, JournalStatus());
-    EXPECT_EQ(services::FirmwareVersion{}, session->StagedVersion());
+    EXPECT_EQ(services::FirmwareVersion{}, StagedVersion());
 }
