@@ -28,7 +28,7 @@ namespace services
         if (journal->Status() == application::UpgradePackStatus::downloaded)
         {
             state = State::staged;
-            ReadStagedVersion();
+            ReadStagedHeader();
         }
     }
 
@@ -150,9 +150,12 @@ namespace services
         return Holds(state);
     }
 
-    FirmwareVersion FirmwareUpgradeSession::StagedVersion() const
+    void FirmwareUpgradeSession::ReadStagedVersion(const infra::Function<void(FirmwareVersion)>& onRead)
     {
-        return stagedVersion;
+        really_assert(stagedVersionRead == nullptr);
+        stagedVersionRead = onRead;
+        if (stagedVersion.has_value())
+            AnswerStagedVersionRead();
     }
 
     void FirmwareUpgradeSession::CancelDownload()
@@ -212,7 +215,7 @@ namespace services
         discardTimer.Cancel();
         packSize = firmwareSize;
         nextBlock = 0;
-        stagedVersion = {};
+        stagedVersion = FirmwareVersion{};
         Enter(State::erasing);
 
         if (journal->Status() != application::UpgradePackStatus::empty)
@@ -274,14 +277,22 @@ namespace services
         verifyDone(FwuError::ok);
     }
 
-    void FirmwareUpgradeSession::ReadStagedVersion()
+    void FirmwareUpgradeSession::ReadStagedHeader()
     {
+        stagedVersion.reset();
         reader->ReadHeader(staging->pack.TotalSize(), [this](const application::StagedPackHeader& header)
             {
                 stagedVersion = application::ParseUpgradePackVersion(header.epilogue.productVersion).value_or(FirmwareVersion{});
                 packSize = std::min<uint32_t>(header.epilogue.headerLength + header.image.lengthOfHeaderAndImage, staging->pack.TotalSize());
                 nextBlock = TotalBlocks();
+                AnswerStagedVersionRead();
             });
+    }
+
+    void FirmwareUpgradeSession::AnswerStagedVersionRead()
+    {
+        if (stagedVersionRead != nullptr)
+            stagedVersionRead(*stagedVersion);
     }
 
     bool FirmwareUpgradeSession::FlashBusy() const
@@ -342,7 +353,8 @@ namespace services
     void FirmwareUpgradeSession::Discard()
     {
         Enter(State::idle);
-        stagedVersion = {};
+        stagedVersion = FirmwareVersion{};
+        AnswerStagedVersionRead();
         TryDiscard();
     }
 

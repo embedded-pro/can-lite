@@ -310,9 +310,12 @@ stateDiagram-v2
   application stays held. Activation keeps it held until the reset.
 - **The journal is the only memory.** A staged pack is recorded as downloaded in
   the bootloader's status journal, so it survives a restart: the session reads
-  the staged header back at start-up and reports the pack complete. Activation
-  records it ready to deploy, answers, and resets after a short delay so the
-  answer leaves the node first.
+  the staged header back at start-up and reports the pack complete. The read
+  takes a few flash steps, so a request for the staged version made before it
+  ends is answered when it ends, never with an empty version. One read waits
+  at a time: a second read while one waits is a precondition violation, and an
+  abort during the wait answers 0.0.0. Activation records it ready to deploy,
+  answers, and resets after a short delay so the answer leaves the node first.
 - **A flash step is never cut short.** An abort, a cancel or an expiry that
   arrives while a sector is erased or a page programmed waits for that step to
   finish. The command it interrupted is answered invalid state first, the abort
