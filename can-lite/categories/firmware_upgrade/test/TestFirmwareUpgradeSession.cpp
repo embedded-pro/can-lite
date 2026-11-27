@@ -589,6 +589,38 @@ TEST_F(FirmwareUpgradeSessionTest, the_staged_version_is_answered_once_the_stage
     EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), stagedVersionRead);
 }
 
+TEST_F(FirmwareUpgradeSessionTest, a_second_staged_version_read_while_one_waits_asserts)
+{
+    Construct();
+    EXPECT_EQ(FwuError::ok, Download(infra::MakeRange(MakeTestPack())));
+    session.reset();
+    Emplace();
+
+    EXPECT_EQ(std::nullopt, StagedVersion());
+    EXPECT_DEATH(session->ReadStagedVersion([](services::FirmwareVersion) {}), "");
+}
+
+TEST_F(FirmwareUpgradeSessionTest, a_staged_version_read_may_start_the_next_read_from_its_answer)
+{
+    Construct();
+    EXPECT_EQ(FwuError::ok, Download(infra::MakeRange(MakeTestPack())));
+    session.reset();
+    Emplace();
+
+    std::optional<services::FirmwareVersion> secondRead;
+    session->ReadStagedVersion([this, &secondRead](services::FirmwareVersion)
+        {
+            session->ReadStagedVersion([&secondRead](services::FirmwareVersion version)
+                {
+                    secondRead = version;
+                });
+        });
+
+    ExecuteAllActions();
+    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), secondRead);
+    EXPECT_EQ((services::FirmwareVersion{ 2, 3, 4 }), StagedVersion());
+}
+
 TEST_F(FirmwareUpgradeSessionTest, an_abort_while_the_staged_header_is_read_at_start_up_answers_the_staged_version_zero)
 {
     Construct();
