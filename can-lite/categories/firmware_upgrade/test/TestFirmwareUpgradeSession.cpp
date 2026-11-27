@@ -256,7 +256,7 @@ namespace
         services::CanFrameTransport transport{ can, 1 };
         services::FirmwareUpgradeCategoryServer server{ transport };
         FailingEraseFlash packFlash{ numberOfSectors, sectorSize };
-        hal::SynchronousFlashStub journalFlash{ 1, 512 };
+        hal::SynchronousFlashStub journalFlash{ 2, 512 };
         HoldFake hold;
         testing::StrictMock<testing::MockFunction<void()>> reset;
         std::optional<services::FirmwareUpgradeSession> session;
